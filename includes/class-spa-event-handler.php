@@ -1,0 +1,89 @@
+<?php
+/**
+ * Listens for SportsPress event saves and triggers announcements.
+ *
+ * @package SportsPress_Announcer
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+class SPA_Event_Handler {
+
+	public function __construct() {
+		add_action( 'save_post_sp_event', [ $this, 'on_event_save' ], 20, 2 );
+	}
+
+	public function on_event_save( int $post_id, \WP_Post $post ): void {
+		// Skip autosaves, revisions, and trashed posts.
+		if ( wp_is_post_autosave( $post_id ) || wp_is_post_revision( $post_id ) ) {
+			return;
+		}
+		if ( 'publish' !== $post->post_status ) {
+			return;
+		}
+
+		$webhook_url = get_option( 'spa_discord_webhook_url', '' );
+		if ( empty( $webhook_url ) ) {
+			return;
+		}
+
+		$event = $this->extract_event_data( $post_id );
+		if ( ! $event ) {
+			return;
+		}
+
+		$formatter = new SPA_Message_Formatter();
+		$message   = $formatter->format_result( $event );
+
+		$discord = new SPA_Webhook_Discord( $webhook_url );
+		$result  = $discord->send( $message );
+
+		if ( is_wp_error( $result ) ) {
+			error_log( '[SportsPress Announcer] ' . $result->get_error_message() );
+		}
+	}
+
+	/**
+	 * Pull teams, scores, and competition from SportsPress post meta.
+	 *
+	 * @return array{home: string, away: string, home_score: int|string, away_score: int|string, competition: string}|false
+	 */
+	private function extract_event_data( int $post_id ) {
+		// SportsPress stores teams as a post meta array keyed by team post IDs.
+		$team_ids = get_post_meta( $post_id, 'sp_team', false );
+		if ( empty( $team_ids ) || count( $team_ids ) < 2 ) {
+			return false;
+		}
+
+		$home_id = (int) $team_ids[0];
+		$away_id = (int) $team_ids[1];
+
+		$home = get_the_title( $home_id );
+		$away = get_the_title( $away_id );
+
+		// Scores are stored as serialised results keyed by team ID then column key.
+		$results = get_post_meta( $post_id, 'sp_results', true );
+
+		$home_score = '';
+		$away_score = '';
+
+		if ( is_array( $results ) ) {
+			$home_score = $results[ $home_id ]['goals'] ?? ( $results[ $home_id ]['outcome'] ?? '' );
+			$away_score = $results[ $away_id ]['goals'] ?? ( $results[ $away_id ]['outcome'] ?? '' );
+		}
+
+		// Competition (league/cup) linked via taxonomy.
+		$leagues     = wp_get_post_terms( $post_id, 'sp_league', [ 'fields' => 'names' ] );
+		$competition = ( ! is_wp_error( $leagues ) && ! empty( $leagues ) ) ? $leagues[0] : '';
+
+		return [
+			'home'        => $home ?: __( 'Home', 'sportspress-announcer' ),
+			'away'        => $away ?: __( 'Away', 'sportspress-announcer' ),
+			'home_score'  => $home_score,
+			'away_score'  => $away_score,
+			'competition' => $competition,
+		];
+	}
+}
