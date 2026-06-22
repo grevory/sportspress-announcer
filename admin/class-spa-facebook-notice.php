@@ -163,24 +163,25 @@ class SPA_Facebook_Notice {
 		$events = [];
 
 		foreach ( $query->posts as $post ) {
-			$post_id  = (int) $post->ID;
+			$post_id = (int) $post->ID;
+			$date    = date_i18n( 'l, F j Y', strtotime( $post->post_date ) );
+			$time    = $this->get_event_time( $post_id );
+			$venue   = $this->get_event_venue( $post_id );
 			$events[] = [
 				'id'    => $post_id,
-				'date'  => date_i18n( 'l, F j Y', strtotime( $post->post_date ) ),
-				'time'  => $this->get_event_time( $post_id ),
-				'venue' => $this->get_event_venue( $post_id ),
-				'label' => $this->build_label( $post_id, $post->post_title ),
+				'date'  => $date,
+				'time'  => $time,
+				'venue' => $venue,
+				'label' => $this->format_label( $post_id, $post->post_title, $date, $time, $venue ),
 			];
 		}
 
 		return $events;
 	}
 
-	/**
-	 * Builds a human-readable result label (e.g. "Home 2 – 1 Away").
-	 * Falls back to the post title if score data is unavailable.
-	 */
-	private function build_label( int $post_id, string $fallback ): string {
+	private function format_label( int $post_id, string $fallback, string $date, string $time, string $venue ): string {
+		$template = get_option( SPA_Settings::OPTION_FACEBOOK_TEMPLATE, SPA_Settings::DEFAULT_FACEBOOK_TEMPLATE );
+
 		$team_ids = get_post_meta( $post_id, 'sp_team', false );
 		if ( empty( $team_ids ) || count( $team_ids ) < 2 ) {
 			return $fallback;
@@ -188,29 +189,33 @@ class SPA_Facebook_Notice {
 
 		$home_id = (int) $team_ids[0];
 		$away_id = (int) $team_ids[1];
-		$home    = get_the_title( $home_id ) ?: __( 'Home', 'sportspress-announcer' );
-		$away    = get_the_title( $away_id ) ?: __( 'Away', 'sportspress-announcer' );
+		$home    = wp_specialchars_decode( get_the_title( $home_id ) ?: __( 'Home', 'sportspress-announcer' ), ENT_QUOTES );
+		$away    = wp_specialchars_decode( get_the_title( $away_id ) ?: __( 'Away', 'sportspress-announcer' ), ENT_QUOTES );
 
 		$results    = get_post_meta( $post_id, 'sp_results', true );
 		$home_score = '';
 		$away_score = '';
 
 		if ( is_array( $results ) ) {
-			$home_score = $results[ $home_id ]['goals'] ?? ( $results[ $home_id ]['outcome'] ?? '' );
-			$away_score = $results[ $away_id ]['goals'] ?? ( $results[ $away_id ]['outcome'] ?? '' );
+			$home_score = (string) ( $results[ $home_id ]['goals'] ?? ( $results[ $home_id ]['outcome'] ?? '' ) );
+			$away_score = (string) ( $results[ $away_id ]['goals'] ?? ( $results[ $away_id ]['outcome'] ?? '' ) );
 		}
 
-		if ( '' !== $home_score && '' !== $away_score ) {
-			return sprintf(
-				'%s %s – %s %s',
-				wp_specialchars_decode( $home, ENT_QUOTES ),
-				$home_score,
-				$away_score,
-				wp_specialchars_decode( $away, ENT_QUOTES )
-			);
-		}
+		$leagues     = wp_get_post_terms( $post_id, 'sp_league', [ 'fields' => 'names' ] );
+		$competition = ( ! is_wp_error( $leagues ) && ! empty( $leagues ) ) ? $leagues[0] : '';
 
-		return $fallback;
+		$placeholders = [
+			'{home}'       => $home,
+			'{away}'       => $away,
+			'{home_score}' => $home_score,
+			'{away_score}' => $away_score,
+			'{competition}' => $competition,
+			'{venue}'      => $venue,
+			'{time}'       => $time,
+			'{date}'       => $date,
+		];
+
+		return str_replace( array_keys( $placeholders ), array_values( $placeholders ), $template );
 	}
 
 	private function get_event_time( int $post_id ): string {

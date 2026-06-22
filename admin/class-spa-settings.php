@@ -12,7 +12,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 class SPA_Settings {
 
 	private const OPTION_WEBHOOK          = 'spa_discord_webhook_url';
-	public const  OPTION_FACEBOOK_ENABLED = 'spa_facebook_enabled';
+	public const  OPTION_FACEBOOK_ENABLED  = 'spa_facebook_enabled';
+	public const  OPTION_FACEBOOK_TEMPLATE = 'spa_facebook_template';
+
+	public const DEFAULT_FACEBOOK_TEMPLATE = '{home} {home_score} – {away_score} {away} ({time}) @ {venue} | {competition}';
 	private const MENU_SLUG               = 'sportspress-announcer';
 
 	public function __construct() {
@@ -80,6 +83,24 @@ class SPA_Settings {
 			self::MENU_SLUG,
 			'spa_section_facebook'
 		);
+
+		register_setting(
+			'spa_settings_group',
+			self::OPTION_FACEBOOK_TEMPLATE,
+			[
+				'type'              => 'string',
+				'sanitize_callback' => 'sanitize_textarea_field',
+				'default'           => self::DEFAULT_FACEBOOK_TEMPLATE,
+			]
+		);
+
+		add_settings_field(
+			self::OPTION_FACEBOOK_TEMPLATE,
+			__( 'Result Template', 'sportspress-announcer' ),
+			[ $this, 'render_facebook_template_field' ],
+			self::MENU_SLUG,
+			'spa_section_facebook'
+		);
 	}
 
 	public function sanitize_webhook_url( string $value ): string {
@@ -138,6 +159,42 @@ class SPA_Settings {
 			/>
 			<?php esc_html_e( 'Show a "Share to Facebook" button in the admin results digest', 'sportspress-announcer' ); ?>
 		</label>
+		<div style="margin-top:6px;">
+			<a href="#" id="spa-template-toggle" style="text-decoration:none;"><?php esc_html_e( 'Customize template ▸', 'sportspress-announcer' ); ?></a>
+		</div>
+		<script>
+		document.addEventListener( 'DOMContentLoaded', function () {
+			var toggle   = document.getElementById( 'spa-template-toggle' );
+			var textarea = document.getElementById( '<?php echo esc_js( self::OPTION_FACEBOOK_TEMPLATE ); ?>' );
+			if ( ! toggle || ! textarea ) return;
+			var row = textarea.closest( 'tr' );
+			if ( ! row ) return;
+			row.style.display = 'none';
+			toggle.addEventListener( 'click', function ( e ) {
+				e.preventDefault();
+				var open = row.style.display !== 'none';
+				row.style.display = open ? 'none' : '';
+				toggle.textContent = open
+					? '<?php echo esc_js( __( 'Customize template ▸', 'sportspress-announcer' ) ); ?>'
+					: '<?php echo esc_js( __( 'Customize template ▾', 'sportspress-announcer' ) ); ?>';
+			} );
+		} );
+		</script>
+		<?php
+	}
+
+	public function render_facebook_template_field(): void {
+		$value = get_option( self::OPTION_FACEBOOK_TEMPLATE, self::DEFAULT_FACEBOOK_TEMPLATE );
+		?>
+		<textarea
+			id="<?php echo esc_attr( self::OPTION_FACEBOOK_TEMPLATE ); ?>"
+			name="<?php echo esc_attr( self::OPTION_FACEBOOK_TEMPLATE ); ?>"
+			rows="3"
+			class="large-text"
+		><?php echo esc_textarea( $value ); ?></textarea>
+		<p class="description">
+			<?php esc_html_e( 'Available placeholders: {home} {away} {home_score} {away_score} {competition} {venue} {time} {date}', 'sportspress-announcer' ); ?>
+		</p>
 		<?php
 	}
 
