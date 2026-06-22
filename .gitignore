@@ -1,0 +1,20 @@
+# wp-now local environment
+.wp-now/
+
+# macOS
+.DS_Store
+
+# Node
+node_modules/
+npm-debug.log*
+
+# PHP / Composer
+vendor/
+composer.lock
+
+# IDE
+.vscode/
+.idea/
+
+# Build artifacts
+*.zip

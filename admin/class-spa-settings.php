@@ -11,8 +11,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class SPA_Settings {
 
-	private const OPTION_WEBHOOK = 'spa_discord_webhook_url';
-	private const MENU_SLUG      = 'sportspress-announcer';
+	private const OPTION_WEBHOOK          = 'spa_discord_webhook_url';
+	public const  OPTION_FACEBOOK_ENABLED = 'spa_facebook_enabled';
+	private const MENU_SLUG               = 'sportspress-announcer';
 
 	public function __construct() {
 		add_action( 'admin_menu', [ $this, 'add_menu' ] );
@@ -53,6 +54,31 @@ class SPA_Settings {
 			[ $this, 'render_webhook_field' ],
 			self::MENU_SLUG,
 			'spa_section_discord'
+		);
+
+		register_setting(
+			'spa_settings_group',
+			self::OPTION_FACEBOOK_ENABLED,
+			[
+				'type'              => 'boolean',
+				'sanitize_callback' => 'rest_sanitize_boolean',
+				'default'           => false,
+			]
+		);
+
+		add_settings_section(
+			'spa_section_facebook',
+			__( 'Facebook', 'sportspress-announcer' ),
+			'__return_false',
+			self::MENU_SLUG
+		);
+
+		add_settings_field(
+			self::OPTION_FACEBOOK_ENABLED,
+			__( 'Share Button', 'sportspress-announcer' ),
+			[ $this, 'render_facebook_enabled_field' ],
+			self::MENU_SLUG,
+			'spa_section_facebook'
 		);
 	}
 
@@ -96,6 +122,22 @@ class SPA_Settings {
 			);
 			?>
 		</p>
+		<?php
+	}
+
+	public function render_facebook_enabled_field(): void {
+		$enabled = (bool) get_option( self::OPTION_FACEBOOK_ENABLED, false );
+		?>
+		<label>
+			<input
+				type="checkbox"
+				id="<?php echo esc_attr( self::OPTION_FACEBOOK_ENABLED ); ?>"
+				name="<?php echo esc_attr( self::OPTION_FACEBOOK_ENABLED ); ?>"
+				value="1"
+				<?php checked( $enabled ); ?>
+			/>
+			<?php esc_html_e( 'Show a "Share to Facebook" button in the admin results digest', 'sportspress-announcer' ); ?>
+		</label>
 		<?php
 	}
 
