@@ -12,6 +12,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 class SPA_Settings {
 
 	private const OPTION_WEBHOOK          = 'spa_discord_webhook_url';
+	public const  OPTION_DISCORD_ENABLED  = 'spa_discord_enabled';
 	public const  OPTION_FACEBOOK_ENABLED  = 'spa_facebook_enabled';
 	public const  OPTION_FACEBOOK_TEMPLATE = 'spa_facebook_template';
 
@@ -44,11 +45,29 @@ class SPA_Settings {
 			]
 		);
 
+		register_setting(
+			'spa_settings_group',
+			self::OPTION_DISCORD_ENABLED,
+			[
+				'type'              => 'boolean',
+				'sanitize_callback' => 'rest_sanitize_boolean',
+				'default'           => true,
+			]
+		);
+
 		add_settings_section(
 			'spa_section_discord',
 			__( 'Discord', 'sportspress-announcer' ),
 			'__return_false',
 			self::MENU_SLUG
+		);
+
+		add_settings_field(
+			self::OPTION_DISCORD_ENABLED,
+			__( 'Announcements', 'sportspress-announcer' ),
+			[ $this, 'render_discord_enabled_field' ],
+			self::MENU_SLUG,
+			'spa_section_discord'
 		);
 
 		add_settings_field(
@@ -118,6 +137,22 @@ class SPA_Settings {
 			return get_option( self::OPTION_WEBHOOK, '' );
 		}
 		return esc_url_raw( $value );
+	}
+
+	public function render_discord_enabled_field(): void {
+		$enabled = (bool) get_option( self::OPTION_DISCORD_ENABLED, true );
+		?>
+		<label>
+			<input
+				type="checkbox"
+				id="<?php echo esc_attr( self::OPTION_DISCORD_ENABLED ); ?>"
+				name="<?php echo esc_attr( self::OPTION_DISCORD_ENABLED ); ?>"
+				value="1"
+				<?php checked( $enabled ); ?>
+			/>
+			<?php esc_html_e( 'Send automatic Discord announcements when event results are published', 'sportspress-announcer' ); ?>
+		</label>
+		<?php
 	}
 
 	public function render_webhook_field(): void {

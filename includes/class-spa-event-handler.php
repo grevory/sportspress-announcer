@@ -12,15 +12,25 @@ if ( ! defined( 'ABSPATH' ) ) {
 class SPA_Event_Handler {
 
 	public function __construct() {
-		add_action( 'save_post_sp_event', [ $this, 'on_event_save' ], 20, 2 );
+		// Must hook save_post (not save_post_sp_event) at priority > 1 so SportsPress
+		// has already written sp_results meta before we read it.
+		// save_post_sp_event fires before save_post entirely, so scores would be stale.
+		add_action( 'save_post', [ $this, 'on_event_save' ], 20, 2 );
 	}
 
 	public function on_event_save( int $post_id, \WP_Post $post ): void {
+		if ( 'sp_event' !== $post->post_type ) {
+			return;
+		}
 		// Skip autosaves, revisions, and trashed posts.
 		if ( wp_is_post_autosave( $post_id ) || wp_is_post_revision( $post_id ) ) {
 			return;
 		}
 		if ( 'publish' !== $post->post_status ) {
+			return;
+		}
+
+		if ( ! get_option( SPA_Settings::OPTION_DISCORD_ENABLED, true ) ) {
 			return;
 		}
 
