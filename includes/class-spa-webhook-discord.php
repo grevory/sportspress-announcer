@@ -18,11 +18,11 @@ class SPA_Webhook_Discord {
 	}
 
 	/**
-	 * POST a plain-text message to the configured webhook.
+	 * POST a payload array to the configured webhook.
 	 *
 	 * @return true|\WP_Error
 	 */
-	public function send( string $message ) {
+	public function send( array $payload ) {
 		if ( empty( $this->webhook_url ) ) {
 			return new \WP_Error( 'spa_no_webhook', __( 'No Discord webhook URL configured.', 'sportspress-announcer' ) );
 		}
@@ -31,7 +31,7 @@ class SPA_Webhook_Discord {
 			$this->webhook_url,
 			[
 				'headers'     => [ 'Content-Type' => 'application/json' ],
-				'body'        => wp_json_encode( [ 'content' => $message ] ),
+				'body'        => wp_json_encode( $payload ),
 				'timeout'     => 10,
 				'data_format' => 'body',
 			]

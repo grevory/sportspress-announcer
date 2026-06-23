@@ -45,10 +45,10 @@ class SPA_Event_Handler {
 		}
 
 		$formatter = new SPA_Message_Formatter();
-		$message   = $formatter->format_result( $event );
+		$payload   = $formatter->format_embed( $event );
 
 		$discord = new SPA_Webhook_Discord( $webhook_url );
-		$result  = $discord->send( $message );
+		$result  = $discord->send( $payload );
 
 		if ( is_wp_error( $result ) ) {
 			error_log( '[SportsPress Announcer] ' . $result->get_error_message() );
@@ -94,6 +94,7 @@ class SPA_Event_Handler {
 			'home_score'  => $home_score,
 			'away_score'  => $away_score,
 			'competition' => $competition,
+			'home_color'  => (string) get_post_meta( $home_id, 'spa_brand_color', true ),
 		];
 	}
 }
