@@ -44,6 +44,22 @@ class SPA_Event_Handler {
 			return;
 		}
 
+		// Deduplicate within the same request (save_post can fire multiple times per click).
+		static $posted_this_request = [];
+		$score_hash = md5( $event['home_score'] . ':' . $event['away_score'] );
+		if ( isset( $posted_this_request[ $post_id ] ) ) {
+			return;
+		}
+
+		// Skip if the score hasn't changed since the last announcement.
+		$last_hash = get_post_meta( $post_id, '_spa_last_score_hash', true );
+		if ( $score_hash === $last_hash ) {
+			return;
+		}
+
+		$posted_this_request[ $post_id ] = true;
+		update_post_meta( $post_id, '_spa_last_score_hash', $score_hash );
+
 		$formatter = new SPA_Message_Formatter();
 		$payload   = $formatter->format_embed( $event );
 
