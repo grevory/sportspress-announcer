@@ -149,7 +149,7 @@ class SPA_Settings {
 			wp_send_json_error( __( 'No webhook URL entered.', 'sportspress-announcer' ) );
 		}
 
-		if ( ! str_starts_with( $url, 'https://discord.com/api/webhooks/' ) ) {
+		if ( 0 !== strpos( $url, 'https://discord.com/api/webhooks/' ) ) {
 			wp_send_json_error( __( 'That doesn\'t look like a Discord webhook URL.', 'sportspress-announcer' ) );
 		}
 
@@ -180,7 +180,7 @@ class SPA_Settings {
 		if ( empty( $value ) ) {
 			return '';
 		}
-		if ( ! str_starts_with( $value, 'https://discord.com/api/webhooks/' ) ) {
+		if ( 0 !== strpos( $value, 'https://discord.com/api/webhooks/' ) ) {
 			add_settings_error(
 				self::OPTION_WEBHOOK,
 				'spa_invalid_webhook',

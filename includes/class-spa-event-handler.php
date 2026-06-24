@@ -44,6 +44,11 @@ class SPA_Event_Handler {
 			return;
 		}
 
+		// Don't announce fixtures where scores haven't been entered yet.
+		if ( '' === $event['home_score'] || '' === $event['away_score'] ) {
+			return;
+		}
+
 		// Deduplicate within the same request (save_post can fire multiple times per click).
 		static $posted_this_request = [];
 		$score_hash = md5( $event['home_score'] . ':' . $event['away_score'] );
@@ -58,7 +63,6 @@ class SPA_Event_Handler {
 		}
 
 		$posted_this_request[ $post_id ] = true;
-		update_post_meta( $post_id, '_spa_last_score_hash', $score_hash );
 
 		$formatter = new SPA_Message_Formatter();
 		$payload   = $formatter->format_embed( $event );
@@ -68,7 +72,10 @@ class SPA_Event_Handler {
 
 		if ( is_wp_error( $result ) ) {
 			error_log( '[SportsPress Announcer] ' . $result->get_error_message() );
+			return;
 		}
+
+		update_post_meta( $post_id, '_spa_last_score_hash', $score_hash );
 	}
 
 	/**

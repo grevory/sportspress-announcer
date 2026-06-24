@@ -106,12 +106,24 @@ class SPA_Facebook_Notice {
 				btn.addEventListener( 'click', function () {
 					var text     = btn.getAttribute( 'data-spa-copy' );
 					var feedback = btn.parentElement.querySelector( '.spa-copy-feedback' );
+					var notice   = btn.closest( '.notice' );
 					navigator.clipboard.writeText( text ).then( function () {
 						if ( feedback ) {
 							feedback.style.display = 'inline';
-							setTimeout( function () { feedback.style.display = 'none'; }, 2500 );
 						}
+						setTimeout( function () {
+							if ( notice ) { notice.style.display = 'none'; }
+						}, 1500 );
 					} );
+				} );
+			} );
+
+			document.querySelectorAll( '.spa-facebook-notice .button-primary' ).forEach( function ( link ) {
+				link.addEventListener( 'click', function () {
+					var notice = link.closest( '.notice' );
+					setTimeout( function () {
+						if ( notice ) { notice.style.display = 'none'; }
+					}, 300 );
 				} );
 			} );
 		} )();
