@@ -380,7 +380,7 @@ class SPA_Settings {
 			<button type="button" id="spa-test-webhook" class="button">
 				<?php esc_html_e( 'Send Test Message', 'sportspress-announcer' ); ?>
 			</button>
-			<span id="spa-test-result" style="margin-left:8px;"></span>
+			<span id="spa-test-result" style="display:inline-flex; align-items:center; min-height:30px; margin-left:8px; vertical-align:middle;"></span>
 		</p>
 		<script>
 		document.addEventListener( 'DOMContentLoaded', function () {
@@ -553,7 +553,7 @@ class SPA_Settings {
 		<button type="button" id="spa-send-upcoming" class="button">
 			<?php esc_html_e( 'Send upcoming games to Discord', 'sportspress-announcer' ); ?>
 		</button>
-		<span id="spa-upcoming-result" style="margin-left:8px;"></span>
+		<span id="spa-upcoming-result" style="display:inline-flex; align-items:center; min-height:30px; margin-left:8px; vertical-align:middle;"></span>
 		<script>
 		document.addEventListener( 'DOMContentLoaded', function () {
 			var btn    = document.getElementById( 'spa-send-upcoming' );
