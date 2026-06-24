@@ -9,15 +9,29 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+/**
+ * Handles SportsPress event saves and sends result announcements.
+ */
 class SPA_Event_Handler {
 
+	/**
+	 * Register the event-save callback.
+	 */
 	public function __construct() {
 		// Must hook save_post (not save_post_sp_event) at priority > 1 so SportsPress
 		// has already written sp_results meta before we read it.
 		// save_post_sp_event fires before save_post entirely, so scores would be stale.
-		add_action( 'save_post', [ $this, 'on_event_save' ], 20, 2 );
+		add_action( 'save_post', array( $this, 'on_event_save' ), 20, 2 );
 	}
 
+	/**
+	 * Send an announcement after a published SportsPress event is saved.
+	 *
+	 * @param int      $post_id Event post ID.
+	 * @param \WP_Post $post    Event post object.
+	 *
+	 * @return void
+	 */
 	public function on_event_save( int $post_id, \WP_Post $post ): void {
 		if ( 'sp_event' !== $post->post_type ) {
 			return;
@@ -50,7 +64,8 @@ class SPA_Event_Handler {
 		}
 
 		// Deduplicate within the same request (save_post can fire multiple times per click).
-		static $posted_this_request = [];
+		static $posted_this_request = array();
+
 		$score_hash = md5( $event['home_score'] . ':' . $event['away_score'] );
 		if ( isset( $posted_this_request[ $post_id ] ) ) {
 			return;
@@ -71,7 +86,13 @@ class SPA_Event_Handler {
 		$result  = $discord->send( $payload );
 
 		if ( is_wp_error( $result ) ) {
-			error_log( '[SportsPress Announcer] ' . $result->get_error_message() );
+			/**
+			 * Fires when a Discord result announcement fails.
+			 *
+			 * @param \WP_Error $result  Webhook error.
+			 * @param int       $post_id Event post ID.
+			 */
+			do_action( 'spa_discord_webhook_error', $result, $post_id );
 			return;
 		}
 
@@ -81,7 +102,9 @@ class SPA_Event_Handler {
 	/**
 	 * Pull teams, scores, and competition from SportsPress post meta.
 	 *
-	 * @return array{home: string, away: string, home_score: int|string, away_score: int|string, competition: string}|false
+	 * @param int $post_id Event post ID.
+	 *
+	 * @return array{home: string, away: string, home_score: int|string, away_score: int|string, competition: string, home_color: string}|false
 	 */
 	protected function extract_event_data( int $post_id ) {
 		// SportsPress stores teams as a post meta array keyed by team post IDs.
@@ -109,16 +132,16 @@ class SPA_Event_Handler {
 		}
 
 		// Competition (league/cup) linked via taxonomy.
-		$leagues     = wp_get_post_terms( $post_id, 'sp_league', [ 'fields' => 'names' ] );
+		$leagues     = wp_get_post_terms( $post_id, 'sp_league', array( 'fields' => 'names' ) );
 		$competition = ( ! is_wp_error( $leagues ) && ! empty( $leagues ) ) ? $leagues[0] : '';
 
-		return [
-			'home'        => $home ?: __( 'Home', 'sportspress-announcer' ),
-			'away'        => $away ?: __( 'Away', 'sportspress-announcer' ),
+		return array(
+			'home'        => $home ? $home : __( 'Home', 'sportspress-announcer' ),
+			'away'        => $away ? $away : __( 'Away', 'sportspress-announcer' ),
 			'home_score'  => $home_score,
 			'away_score'  => $away_score,
 			'competition' => $competition,
 			'home_color'  => (string) get_post_meta( $home_id, 'spa_brand_color', true ),
-		];
+		);
 	}
 }
