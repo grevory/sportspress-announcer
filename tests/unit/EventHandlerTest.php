@@ -75,7 +75,7 @@ class EventHandlerTest extends TestCase {
 	// ── score reading ─────────────────────────────────────────────────────────
 
 	public function test_reads_configured_score_column(): void {
-		$this->stub( home_score: 4, away_score: 2, column: 'goals' );
+		$this->stub( 4, 2, 'goals' );
 
 		$data = $this->handler()->extract( 42 );
 
@@ -110,7 +110,7 @@ class EventHandlerTest extends TestCase {
 	// ── team / competition ────────────────────────────────────────────────────
 
 	public function test_returns_competition_from_league_taxonomy(): void {
-		$this->stub( competition: 'Premier League' );
+		$this->stub( 2, 1, 'goals', 'Premier League' );
 
 		$data = $this->handler()->extract( 42 );
 
@@ -118,7 +118,7 @@ class EventHandlerTest extends TestCase {
 	}
 
 	public function test_competition_empty_when_no_league_terms(): void {
-		$this->stub( competition: '' );
+		$this->stub( 2, 1, 'goals', '' );
 
 		$data = $this->handler()->extract( 42 );
 
