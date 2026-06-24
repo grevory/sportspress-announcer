@@ -1,5 +1,7 @@
 # SportsPress Announcer
 
+[![CI](https://github.com/grevory/sportspress-announcer/actions/workflows/ci.yml/badge.svg)](https://github.com/grevory/sportspress-announcer/actions/workflows/ci.yml)
+
 Automatically posts game results and standings from your SportsPress site to your league's Discord (and more).
 
 ## The problem
