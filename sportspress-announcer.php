@@ -28,12 +28,16 @@ require_once SPA_PLUGIN_DIR . 'includes/class-spa-webhook-discord.php';
 require_once SPA_PLUGIN_DIR . 'includes/class-spa-event-handler.php';
 require_once SPA_PLUGIN_DIR . 'admin/class-spa-settings.php';
 require_once SPA_PLUGIN_DIR . 'admin/class-spa-facebook-notice.php';
+require_once SPA_PLUGIN_DIR . 'admin/class-spa-upcoming-notice.php';
+require_once SPA_PLUGIN_DIR . 'admin/class-spa-upcoming-discord.php';
 require_once SPA_PLUGIN_DIR . 'admin/class-spa-team-color.php';
 
 function spa_init(): void {
 	if ( is_admin() ) {
 		new SPA_Settings();
 		new SPA_Facebook_Notice();
+		new SPA_Upcoming_Notice();
+		new SPA_Upcoming_Discord();
 		new SPA_Team_Color();
 	}
 	new SPA_Event_Handler();
