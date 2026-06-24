@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<ruleset name="SportsPress Announcer">
+	<description>WordPress Coding Standards + PHP compatibility checks.</description>
+
+	<file>.</file>
+	<exclude-pattern>vendor/</exclude-pattern>
+	<exclude-pattern>tests/</exclude-pattern>
+	<exclude-pattern>node_modules/</exclude-pattern>
+
+	<arg name="basepath" value="."/>
+	<arg name="extensions" value="php"/>
+	<arg name="colors"/>
+	<arg value="sp"/>
+
+	<!-- WordPress Coding Standards -->
+	<rule ref="WordPress">
+		<!-- Plugin doesn't use a DB prefix pattern for options — using spa_ consistently -->
+		<exclude name="WordPress.DB.SlowDBQuery"/>
+	</rule>
+
+	<rule ref="WordPress.WP.I18n">
+		<properties>
+			<property name="text_domain" type="array" value="sportspress-announcer"/>
+		</properties>
+	</rule>
+
+	<!-- PHP compatibility: target 7.4 and 8.x -->
+	<rule ref="PHPCompatibilityWP"/>
+	<config name="testVersion" value="7.4-"/>
+</ruleset>

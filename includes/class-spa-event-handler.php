@@ -83,7 +83,7 @@ class SPA_Event_Handler {
 	 *
 	 * @return array{home: string, away: string, home_score: int|string, away_score: int|string, competition: string}|false
 	 */
-	private function extract_event_data( int $post_id ) {
+	protected function extract_event_data( int $post_id ) {
 		// SportsPress stores teams as a post meta array keyed by team post IDs.
 		$team_ids = get_post_meta( $post_id, 'sp_team', false );
 		if ( empty( $team_ids ) || count( $team_ids ) < 2 ) {
@@ -103,8 +103,9 @@ class SPA_Event_Handler {
 		$away_score = '';
 
 		if ( is_array( $results ) ) {
-			$home_score = $results[ $home_id ]['goals'] ?? ( $results[ $home_id ]['outcome'] ?? '' );
-			$away_score = $results[ $away_id ]['goals'] ?? ( $results[ $away_id ]['outcome'] ?? '' );
+			$col        = (string) get_option( SPA_Settings::OPTION_SCORE_COLUMN, SPA_Settings::DEFAULT_SCORE_COLUMN );
+			$home_score = $results[ $home_id ][ $col ] ?? ( $results[ $home_id ]['outcome'] ?? '' );
+			$away_score = $results[ $away_id ][ $col ] ?? ( $results[ $away_id ]['outcome'] ?? '' );
 		}
 
 		// Competition (league/cup) linked via taxonomy.

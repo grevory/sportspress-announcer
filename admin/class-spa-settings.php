@@ -15,6 +15,10 @@ class SPA_Settings {
 	private const OPTION_WEBHOOK         = 'spa_discord_webhook_url';
 	public const  OPTION_DISCORD_ENABLED = 'spa_discord_enabled';
 
+	// ── Score column ─────────────────────────────────────────────────────────
+	public const OPTION_SCORE_COLUMN = 'spa_score_column';
+	public const DEFAULT_SCORE_COLUMN = 'goals';
+
 	// ── Facebook ──────────────────────────────────────────────────────────────
 	public const OPTION_FACEBOOK_ENABLED  = 'spa_facebook_enabled';
 	public const OPTION_FACEBOOK_TEMPLATE = 'spa_facebook_template';
@@ -48,6 +52,18 @@ class SPA_Settings {
 	}
 
 	public function register_settings(): void {
+
+		// ── SportsPress section ───────────────────────────────────────────────
+		register_setting( 'spa_settings_group', self::OPTION_SCORE_COLUMN, [
+			'type'              => 'string',
+			'sanitize_callback' => 'sanitize_key',
+			'default'           => self::DEFAULT_SCORE_COLUMN,
+		] );
+
+		add_settings_section( 'spa_section_sportspress', __( 'SportsPress', 'sportspress-announcer' ), '__return_false', self::MENU_SLUG );
+
+		add_settings_field( self::OPTION_SCORE_COLUMN, __( 'Score Column', 'sportspress-announcer' ),
+			[ $this, 'render_score_column_field' ], self::MENU_SLUG, 'spa_section_sportspress' );
 
 		// ── Digest section ────────────────────────────────────────────────────
 		register_setting( 'spa_settings_group', self::OPTION_UPCOMING_TEMPLATE, [
@@ -324,6 +340,23 @@ class SPA_Settings {
 		><?php echo esc_textarea( $value ); ?></textarea>
 		<p class="description">
 			<?php esc_html_e( 'Available placeholders: {home} {away} {home_score} {away_score} {competition} {venue} {time} {date}', 'sportspress-announcer' ); ?>
+		</p>
+		<?php
+	}
+
+	public function render_score_column_field(): void {
+		$value = get_option( self::OPTION_SCORE_COLUMN, self::DEFAULT_SCORE_COLUMN );
+		?>
+		<input
+			type="text"
+			id="<?php echo esc_attr( self::OPTION_SCORE_COLUMN ); ?>"
+			name="<?php echo esc_attr( self::OPTION_SCORE_COLUMN ); ?>"
+			value="<?php echo esc_attr( $value ); ?>"
+			class="regular-text"
+			placeholder="goals"
+		/>
+		<p class="description">
+			<?php esc_html_e( 'The result column key used to read scores from SportsPress (e.g. "goals"). Must match the column slug in SportsPress → Result Columns.', 'sportspress-announcer' ); ?>
 		</p>
 		<?php
 	}

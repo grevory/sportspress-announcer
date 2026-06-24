@@ -1,11 +1,11 @@
 <?php
 /**
  * Plugin Name: SportsPress Announcer
- * Plugin URI:  https://example.com/sportspress-announcer
+ * Plugin URI:  https://github.com/grevory/sportspress-announcer
  * Description: Automatically posts game results from SportsPress to Discord and other chat platforms.
  * Version:     0.1.0
  * Author:      Greg Pike
- * Author URI:  https://example.com
+ * Author URI:  https://github.com/grevory
  * License:     GPL-2.0-or-later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: sportspress-announcer

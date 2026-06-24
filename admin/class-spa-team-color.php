@@ -56,14 +56,14 @@ class SPA_Team_Color {
 	}
 
 	public function save( int $post_id ): void {
-		if ( ! isset( $_POST[ self::NONCE ] ) || ! wp_verify_nonce( $_POST[ self::NONCE ], self::NONCE ) ) {
+		if ( ! isset( $_POST[ self::NONCE ] ) || ! wp_verify_nonce( wp_unslash( $_POST[ self::NONCE ] ), self::NONCE ) ) {
 			return;
 		}
 		if ( ! current_user_can( 'edit_post', $post_id ) ) {
 			return;
 		}
 		if ( isset( $_POST[ self::META_KEY ] ) ) {
-			$color = sanitize_hex_color( $_POST[ self::META_KEY ] );
+			$color = sanitize_hex_color( wp_unslash( $_POST[ self::META_KEY ] ) );
 			if ( $color ) {
 				update_post_meta( $post_id, self::META_KEY, $color );
 			} else {
