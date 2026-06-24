@@ -9,6 +9,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+/**
+ * Registers and renders the SportsPress Announcer settings page.
+ */
 class SPA_Settings {
 
 	// ── Discord ───────────────────────────────────────────────────────────────
@@ -16,7 +19,7 @@ class SPA_Settings {
 	public const  OPTION_DISCORD_ENABLED = 'spa_discord_enabled';
 
 	// ── Score column ─────────────────────────────────────────────────────────
-	public const OPTION_SCORE_COLUMN = 'spa_score_column';
+	public const OPTION_SCORE_COLUMN  = 'spa_score_column';
 	public const DEFAULT_SCORE_COLUMN = 'goals';
 
 	// ── Facebook ──────────────────────────────────────────────────────────────
@@ -35,124 +38,226 @@ class SPA_Settings {
 
 	private const MENU_SLUG = 'sportspress-announcer';
 
+	/**
+	 * Register settings-page callbacks.
+	 */
 	public function __construct() {
-		add_action( 'admin_menu', [ $this, 'add_menu' ] );
-		add_action( 'admin_init', [ $this, 'register_settings' ] );
-		add_action( 'wp_ajax_spa_test_webhook', [ $this, 'ajax_test_webhook' ] );
+		add_action( 'admin_menu', array( $this, 'add_menu' ) );
+		add_action( 'admin_init', array( $this, 'register_settings' ) );
+		add_action( 'wp_ajax_spa_test_webhook', array( $this, 'ajax_test_webhook' ) );
 	}
 
+	/**
+	 * Add the plugin page to the WordPress Settings menu.
+	 *
+	 * @return void
+	 */
 	public function add_menu(): void {
 		add_options_page(
 			__( 'SportsPress Announcer', 'sportspress-announcer' ),
 			__( 'SportsPress Announcer', 'sportspress-announcer' ),
 			'manage_options',
 			self::MENU_SLUG,
-			[ $this, 'render_page' ]
+			array( $this, 'render_page' )
 		);
 	}
 
+	/**
+	 * Register plugin settings, sections, and fields.
+	 *
+	 * @return void
+	 */
 	public function register_settings(): void {
 
 		// ── SportsPress section ───────────────────────────────────────────────
-		register_setting( 'spa_settings_group', self::OPTION_SCORE_COLUMN, [
-			'type'              => 'string',
-			'sanitize_callback' => 'sanitize_key',
-			'default'           => self::DEFAULT_SCORE_COLUMN,
-		] );
+		register_setting(
+			'spa_settings_group',
+			self::OPTION_SCORE_COLUMN,
+			array(
+				'type'              => 'string',
+				'sanitize_callback' => 'sanitize_key',
+				'default'           => self::DEFAULT_SCORE_COLUMN,
+			)
+		);
 
 		add_settings_section( 'spa_section_sportspress', __( 'SportsPress', 'sportspress-announcer' ), '__return_false', self::MENU_SLUG );
 
-		add_settings_field( self::OPTION_SCORE_COLUMN, __( 'Score Column', 'sportspress-announcer' ),
-			[ $this, 'render_score_column_field' ], self::MENU_SLUG, 'spa_section_sportspress' );
+		add_settings_field(
+			self::OPTION_SCORE_COLUMN,
+			__( 'Score Column', 'sportspress-announcer' ),
+			array( $this, 'render_score_column_field' ),
+			self::MENU_SLUG,
+			'spa_section_sportspress'
+		);
 
 		// ── Digest section ────────────────────────────────────────────────────
-		register_setting( 'spa_settings_group', self::OPTION_UPCOMING_TEMPLATE, [
-			'type'              => 'string',
-			'sanitize_callback' => 'sanitize_textarea_field',
-			'default'           => self::DEFAULT_UPCOMING_TEMPLATE,
-		] );
+		register_setting(
+			'spa_settings_group',
+			self::OPTION_UPCOMING_TEMPLATE,
+			array(
+				'type'              => 'string',
+				'sanitize_callback' => 'sanitize_textarea_field',
+				'default'           => self::DEFAULT_UPCOMING_TEMPLATE,
+			)
+		);
 
-		add_settings_section( 'spa_section_digest', __( 'Digest', 'sportspress-announcer' ),
-			[ $this, 'render_digest_section_intro' ], self::MENU_SLUG );
+		add_settings_section(
+			'spa_section_digest',
+			__( 'Digest', 'sportspress-announcer' ),
+			array( $this, 'render_digest_section_intro' ),
+			self::MENU_SLUG
+		);
 
-		add_settings_field( self::OPTION_UPCOMING_TEMPLATE, __( 'Game Template', 'sportspress-announcer' ),
-			[ $this, 'render_upcoming_template_field' ], self::MENU_SLUG, 'spa_section_digest' );
+		add_settings_field(
+			self::OPTION_UPCOMING_TEMPLATE,
+			__( 'Game Template', 'sportspress-announcer' ),
+			array( $this, 'render_upcoming_template_field' ),
+			self::MENU_SLUG,
+			'spa_section_digest'
+		);
 
-		add_settings_field( 'spa_upcoming_discord_send', __( 'Send to Discord', 'sportspress-announcer' ),
-			[ $this, 'render_upcoming_discord_field' ], self::MENU_SLUG, 'spa_section_digest' );
+		add_settings_field(
+			'spa_upcoming_discord_send',
+			__( 'Send to Discord', 'sportspress-announcer' ),
+			array( $this, 'render_upcoming_discord_field' ),
+			self::MENU_SLUG,
+			'spa_section_digest'
+		);
 
-		register_setting( 'spa_settings_group', SPA_Digest_Scheduler::OPTION_ENABLED, [
-			'type'              => 'boolean',
-			'sanitize_callback' => 'rest_sanitize_boolean',
-			'default'           => false,
-		] );
+		register_setting(
+			'spa_settings_group',
+			SPA_Digest_Scheduler::OPTION_ENABLED,
+			array(
+				'type'              => 'boolean',
+				'sanitize_callback' => 'rest_sanitize_boolean',
+				'default'           => false,
+			)
+		);
 
-		register_setting( 'spa_settings_group', SPA_Digest_Scheduler::OPTION_FREQUENCY, [
-			'type'              => 'string',
-			'sanitize_callback' => [ $this, 'sanitize_digest_frequency' ],
-			'default'           => 'weekly',
-		] );
+		register_setting(
+			'spa_settings_group',
+			SPA_Digest_Scheduler::OPTION_FREQUENCY,
+			array(
+				'type'              => 'string',
+				'sanitize_callback' => array( $this, 'sanitize_digest_frequency' ),
+				'default'           => 'weekly',
+			)
+		);
 
-		register_setting( 'spa_settings_group', SPA_Digest_Scheduler::OPTION_DAY, [
-			'type'              => 'string',
-			'sanitize_callback' => [ $this, 'sanitize_digest_day' ],
-			'default'           => 'monday',
-		] );
+		register_setting(
+			'spa_settings_group',
+			SPA_Digest_Scheduler::OPTION_DAY,
+			array(
+				'type'              => 'string',
+				'sanitize_callback' => array( $this, 'sanitize_digest_day' ),
+				'default'           => 'monday',
+			)
+		);
 
-		register_setting( 'spa_settings_group', SPA_Digest_Scheduler::OPTION_TIME, [
-			'type'              => 'string',
-			'sanitize_callback' => [ $this, 'sanitize_digest_time' ],
-			'default'           => '08:00',
-		] );
+		register_setting(
+			'spa_settings_group',
+			SPA_Digest_Scheduler::OPTION_TIME,
+			array(
+				'type'              => 'string',
+				'sanitize_callback' => array( $this, 'sanitize_digest_time' ),
+				'default'           => '08:00',
+			)
+		);
 
-		add_settings_field( 'spa_digest_schedule', __( 'Auto-send', 'sportspress-announcer' ),
-			[ $this, 'render_digest_schedule_field' ], self::MENU_SLUG, 'spa_section_digest' );
+		add_settings_field(
+			'spa_digest_schedule',
+			__( 'Auto-send', 'sportspress-announcer' ),
+			array( $this, 'render_digest_schedule_field' ),
+			self::MENU_SLUG,
+			'spa_section_digest'
+		);
 
 		// ── Discord section ───────────────────────────────────────────────────
-		register_setting( 'spa_settings_group', self::OPTION_WEBHOOK, [
-			'type'              => 'string',
-			'sanitize_callback' => [ $this, 'sanitize_webhook_url' ],
-			'default'           => '',
-		] );
+		register_setting(
+			'spa_settings_group',
+			self::OPTION_WEBHOOK,
+			array(
+				'type'              => 'string',
+				'sanitize_callback' => array( $this, 'sanitize_webhook_url' ),
+				'default'           => '',
+			)
+		);
 
-		register_setting( 'spa_settings_group', self::OPTION_DISCORD_ENABLED, [
-			'type'              => 'boolean',
-			'sanitize_callback' => 'rest_sanitize_boolean',
-			'default'           => true,
-		] );
+		register_setting(
+			'spa_settings_group',
+			self::OPTION_DISCORD_ENABLED,
+			array(
+				'type'              => 'boolean',
+				'sanitize_callback' => 'rest_sanitize_boolean',
+				'default'           => true,
+			)
+		);
 
 		add_settings_section( 'spa_section_discord', __( 'Discord', 'sportspress-announcer' ), '__return_false', self::MENU_SLUG );
 
-		add_settings_field( self::OPTION_DISCORD_ENABLED, __( 'Announcements', 'sportspress-announcer' ),
-			[ $this, 'render_discord_enabled_field' ], self::MENU_SLUG, 'spa_section_discord' );
+		add_settings_field(
+			self::OPTION_DISCORD_ENABLED,
+			__( 'Announcements', 'sportspress-announcer' ),
+			array( $this, 'render_discord_enabled_field' ),
+			self::MENU_SLUG,
+			'spa_section_discord'
+		);
 
-		add_settings_field( self::OPTION_WEBHOOK, __( 'Webhook URL', 'sportspress-announcer' ),
-			[ $this, 'render_webhook_field' ], self::MENU_SLUG, 'spa_section_discord' );
+		add_settings_field(
+			self::OPTION_WEBHOOK,
+			__( 'Webhook URL', 'sportspress-announcer' ),
+			array( $this, 'render_webhook_field' ),
+			self::MENU_SLUG,
+			'spa_section_discord'
+		);
 
 		// ── Facebook section ──────────────────────────────────────────────────
-		register_setting( 'spa_settings_group', self::OPTION_FACEBOOK_ENABLED, [
-			'type'              => 'boolean',
-			'sanitize_callback' => 'rest_sanitize_boolean',
-			'default'           => false,
-		] );
+		register_setting(
+			'spa_settings_group',
+			self::OPTION_FACEBOOK_ENABLED,
+			array(
+				'type'              => 'boolean',
+				'sanitize_callback' => 'rest_sanitize_boolean',
+				'default'           => false,
+			)
+		);
 
-		register_setting( 'spa_settings_group', self::OPTION_FACEBOOK_TEMPLATE, [
-			'type'              => 'string',
-			'sanitize_callback' => 'sanitize_textarea_field',
-			'default'           => self::DEFAULT_FACEBOOK_TEMPLATE,
-		] );
+		register_setting(
+			'spa_settings_group',
+			self::OPTION_FACEBOOK_TEMPLATE,
+			array(
+				'type'              => 'string',
+				'sanitize_callback' => 'sanitize_textarea_field',
+				'default'           => self::DEFAULT_FACEBOOK_TEMPLATE,
+			)
+		);
 
 		add_settings_section( 'spa_section_facebook', __( 'Facebook', 'sportspress-announcer' ), '__return_false', self::MENU_SLUG );
 
-		add_settings_field( self::OPTION_FACEBOOK_ENABLED, __( 'Share Button', 'sportspress-announcer' ),
-			[ $this, 'render_facebook_enabled_field' ], self::MENU_SLUG, 'spa_section_facebook' );
+		add_settings_field(
+			self::OPTION_FACEBOOK_ENABLED,
+			__( 'Share Button', 'sportspress-announcer' ),
+			array( $this, 'render_facebook_enabled_field' ),
+			self::MENU_SLUG,
+			'spa_section_facebook'
+		);
 
-		add_settings_field( self::OPTION_FACEBOOK_TEMPLATE, __( 'Result Template', 'sportspress-announcer' ),
-			[ $this, 'render_facebook_template_field' ], self::MENU_SLUG, 'spa_section_facebook' );
+		add_settings_field(
+			self::OPTION_FACEBOOK_TEMPLATE,
+			__( 'Result Template', 'sportspress-announcer' ),
+			array( $this, 'render_facebook_template_field' ),
+			self::MENU_SLUG,
+			'spa_section_facebook'
+		);
 	}
 
 	// ── AJAX ──────────────────────────────────────────────────────────────────
 
+	/**
+	 * Test a submitted Discord webhook URL.
+	 *
+	 * @return void
+	 */
 	public function ajax_test_webhook(): void {
 		check_ajax_referer( 'spa_test_webhook_nonce', 'nonce' );
 
@@ -169,15 +274,15 @@ class SPA_Settings {
 			wp_send_json_error( __( 'That doesn\'t look like a Discord webhook URL.', 'sportspress-announcer' ) );
 		}
 
-		$payload = [
-			'embeds' => [
-				[
+		$payload = array(
+			'embeds' => array(
+				array(
 					'title'       => __( 'SportsPress Announcer', 'sportspress-announcer' ),
 					'description' => __( 'Webhook connection successful.', 'sportspress-announcer' ),
 					'color'       => 0x57F287,
-				],
-			],
-		];
+				),
+			),
+		);
 
 		$discord = new SPA_Webhook_Discord( $url );
 		$result  = $discord->send( $payload );
@@ -191,6 +296,13 @@ class SPA_Settings {
 
 	// ── Sanitize ──────────────────────────────────────────────────────────────
 
+	/**
+	 * Validate and sanitize a Discord webhook URL.
+	 *
+	 * @param string $value Submitted webhook URL.
+	 *
+	 * @return string
+	 */
 	public function sanitize_webhook_url( string $value ): string {
 		$value = trim( $value );
 		if ( empty( $value ) ) {
@@ -209,6 +321,11 @@ class SPA_Settings {
 
 	// ── Field renderers ───────────────────────────────────────────────────────
 
+	/**
+	 * Render the Discord announcements toggle.
+	 *
+	 * @return void
+	 */
 	public function render_discord_enabled_field(): void {
 		$enabled = (bool) get_option( self::OPTION_DISCORD_ENABLED, true );
 		?>
@@ -225,6 +342,11 @@ class SPA_Settings {
 		<?php
 	}
 
+	/**
+	 * Render the Discord webhook URL field.
+	 *
+	 * @return void
+	 */
 	public function render_webhook_field(): void {
 		$value = get_option( self::OPTION_WEBHOOK, '' );
 		?>
@@ -242,7 +364,13 @@ class SPA_Settings {
 				wp_kses(
 					/* translators: %s: URL to Discord docs */
 					__( 'Paste your Discord channel\'s incoming webhook URL. <a href="%s" target="_blank" rel="noopener">How to create a webhook →</a>', 'sportspress-announcer' ),
-					[ 'a' => [ 'href' => [], 'target' => [], 'rel' => [] ] ]
+					array(
+						'a' => array(
+							'href'   => array(),
+							'target' => array(),
+							'rel'    => array(),
+						),
+					)
 				),
 				'https://support.discord.com/hc/en-us/articles/228383668'
 			);
@@ -292,6 +420,11 @@ class SPA_Settings {
 		<?php
 	}
 
+	/**
+	 * Render the Facebook sharing toggle.
+	 *
+	 * @return void
+	 */
 	public function render_facebook_enabled_field(): void {
 		$enabled = (bool) get_option( self::OPTION_FACEBOOK_ENABLED, false );
 		?>
@@ -329,6 +462,11 @@ class SPA_Settings {
 		<?php
 	}
 
+	/**
+	 * Render the Facebook result template field.
+	 *
+	 * @return void
+	 */
 	public function render_facebook_template_field(): void {
 		$value = get_option( self::OPTION_FACEBOOK_TEMPLATE, self::DEFAULT_FACEBOOK_TEMPLATE );
 		?>
@@ -344,6 +482,11 @@ class SPA_Settings {
 		<?php
 	}
 
+	/**
+	 * Render the SportsPress score-column field.
+	 *
+	 * @return void
+	 */
 	public function render_score_column_field(): void {
 		$value = get_option( self::OPTION_SCORE_COLUMN, self::DEFAULT_SCORE_COLUMN );
 		?>
@@ -361,12 +504,22 @@ class SPA_Settings {
 		<?php
 	}
 
+	/**
+	 * Render the digest settings introduction.
+	 *
+	 * @return void
+	 */
 	public function render_digest_section_intro(): void {
 		?>
 		<p class="description"><?php esc_html_e( 'Upcoming games for the next 7 days appear as an admin notice with a copy button. Use the button below to push the schedule to Discord on demand.', 'sportspress-announcer' ); ?></p>
 		<?php
 	}
 
+	/**
+	 * Render the upcoming-game template field.
+	 *
+	 * @return void
+	 */
 	public function render_upcoming_template_field(): void {
 		$value = get_option( self::OPTION_UPCOMING_TEMPLATE, self::DEFAULT_UPCOMING_TEMPLATE );
 		?>
@@ -383,6 +536,11 @@ class SPA_Settings {
 		<?php
 	}
 
+	/**
+	 * Render the manual Discord digest control.
+	 *
+	 * @return void
+	 */
 	public function render_upcoming_discord_field(): void {
 		$webhook_url = get_option( self::OPTION_WEBHOOK, '' );
 		if ( empty( $webhook_url ) ) {
@@ -432,15 +590,36 @@ class SPA_Settings {
 		<?php
 	}
 
+	/**
+	 * Sanitize the digest frequency.
+	 *
+	 * @param string $value Submitted frequency.
+	 *
+	 * @return string
+	 */
 	public function sanitize_digest_frequency( string $value ): string {
-		return in_array( $value, [ 'daily', 'weekly' ], true ) ? $value : 'weekly';
+		return in_array( $value, array( 'daily', 'weekly' ), true ) ? $value : 'weekly';
 	}
 
+	/**
+	 * Sanitize the weekly digest day.
+	 *
+	 * @param string $value Submitted weekday.
+	 *
+	 * @return string
+	 */
 	public function sanitize_digest_day( string $value ): string {
-		$days = [ 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday' ];
+		$days = array( 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday' );
 		return in_array( $value, $days, true ) ? $value : 'monday';
 	}
 
+	/**
+	 * Sanitize the digest send time.
+	 *
+	 * @param string $value Submitted 24-hour time.
+	 *
+	 * @return string
+	 */
 	public function sanitize_digest_time( string $value ): string {
 		if ( preg_match( '/^\d{2}:\d{2}$/', $value ) ) {
 			return $value;
@@ -448,13 +627,18 @@ class SPA_Settings {
 		return '08:00';
 	}
 
+	/**
+	 * Render the automatic digest schedule fields.
+	 *
+	 * @return void
+	 */
 	public function render_digest_schedule_field(): void {
 		$enabled   = (bool) get_option( SPA_Digest_Scheduler::OPTION_ENABLED, false );
 		$frequency = get_option( SPA_Digest_Scheduler::OPTION_FREQUENCY, 'weekly' );
 		$day       = get_option( SPA_Digest_Scheduler::OPTION_DAY, 'monday' );
 		$time      = get_option( SPA_Digest_Scheduler::OPTION_TIME, '08:00' );
 
-		$days = [
+		$days = array(
 			'monday'    => __( 'Monday', 'sportspress-announcer' ),
 			'tuesday'   => __( 'Tuesday', 'sportspress-announcer' ),
 			'wednesday' => __( 'Wednesday', 'sportspress-announcer' ),
@@ -462,7 +646,7 @@ class SPA_Settings {
 			'friday'    => __( 'Friday', 'sportspress-announcer' ),
 			'saturday'  => __( 'Saturday', 'sportspress-announcer' ),
 			'sunday'    => __( 'Sunday', 'sportspress-announcer' ),
-		];
+		);
 
 		$next = wp_next_scheduled( 'spa_digest_send' );
 		?>
@@ -530,6 +714,11 @@ class SPA_Settings {
 
 	// ── Page ──────────────────────────────────────────────────────────────────
 
+	/**
+	 * Render the plugin settings page.
+	 *
+	 * @return void
+	 */
 	public function render_page(): void {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			return;

@@ -9,12 +9,23 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+/**
+ * Sends upcoming SportsPress games to Discord.
+ */
 class SPA_Upcoming_Discord {
 
+	/**
+	 * Register the AJAX callback.
+	 */
 	public function __construct() {
-		add_action( 'wp_ajax_spa_send_upcoming', [ $this, 'ajax_send_upcoming' ] );
+		add_action( 'wp_ajax_spa_send_upcoming', array( $this, 'ajax_send_upcoming' ) );
 	}
 
+	/**
+	 * Handle a request to send the upcoming-games digest.
+	 *
+	 * @return void
+	 */
 	public function ajax_send_upcoming(): void {
 		check_ajax_referer( 'spa_send_upcoming_nonce', 'nonce' );
 
@@ -24,7 +35,7 @@ class SPA_Upcoming_Discord {
 
 		$result = $this->send_digest();
 
-		if ( $result === false ) {
+		if ( false === $result ) {
 			wp_send_json_error( __( 'No upcoming games found in the next 7 days.', 'sportspress-announcer' ) );
 		}
 
@@ -54,15 +65,15 @@ class SPA_Upcoming_Discord {
 			return false;
 		}
 
-		$payload = [
-			'embeds' => [
-				[
+		$payload = array(
+			'embeds' => array(
+				array(
 					'title'       => __( 'Upcoming Games', 'sportspress-announcer' ),
 					'description' => $this->build_description( $games ),
 					'color'       => 0x5865F2,
-				],
-			],
-		];
+				),
+			),
+		);
 
 		$discord = new SPA_Webhook_Discord( $webhook_url );
 		$result  = $discord->send( $payload );
@@ -75,16 +86,20 @@ class SPA_Upcoming_Discord {
 	}
 
 	/**
-	 * @param array<int, array{date: string, time: string, venue: string, label: string}> $games
+	 * Build the Discord message body grouped by event date.
+	 *
+	 * @param array<int, array{date: string, time: string, venue: string, label: string}> $games Upcoming games.
+	 *
+	 * @return string
 	 */
 	private function build_description( array $games ): string {
-		$by_date = [];
+		$by_date = array();
 		foreach ( $games as $g ) {
 			$by_date[ $g['date'] ][] = $g;
 		}
 		ksort( $by_date );
 
-		$lines = [];
+		$lines = array();
 		foreach ( $by_date as $date => $group ) {
 			$lines[] = '**' . $date . '**';
 			foreach ( $group as $g ) {

@@ -9,16 +9,27 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+/**
+ * Displays recent SportsPress results with Facebook sharing controls.
+ */
 class SPA_Facebook_Notice {
 
 	private const USER_META_DISMISSED = 'spa_facebook_notice_dismissed_at';
 	private const ACTION_DISMISS      = 'spa_dismiss_facebook_notice';
 
+	/**
+	 * Register notice and dismissal callbacks.
+	 */
 	public function __construct() {
-		add_action( 'admin_notices', [ $this, 'render_notice' ] );
-		add_action( 'admin_post_' . self::ACTION_DISMISS, [ $this, 'handle_dismiss' ] );
+		add_action( 'admin_notices', array( $this, 'render_notice' ) );
+		add_action( 'admin_post_' . self::ACTION_DISMISS, array( $this, 'handle_dismiss' ) );
 	}
 
+	/**
+	 * Render the recent-results notice for authorized users.
+	 *
+	 * @return void
+	 */
 	public function render_notice(): void {
 		if ( ! (bool) get_option( SPA_Settings::OPTION_FACEBOOK_ENABLED, false ) ) {
 			return;
@@ -33,18 +44,18 @@ class SPA_Facebook_Notice {
 			return;
 		}
 
-		$dismiss_url  = wp_nonce_url(
+		$dismiss_url = wp_nonce_url(
 			admin_url( 'admin-post.php?action=' . self::ACTION_DISMISS ),
 			self::ACTION_DISMISS
 		);
 
-		$by_date = [];
+		$by_date = array();
 		foreach ( $events as $e ) {
 			$by_date[ $e['date'] ][] = $e;
 		}
 		ksort( $by_date );
 
-		$digest_parts = [];
+		$digest_parts = array();
 		foreach ( $by_date as $date => $group ) {
 			$digest_parts[] = $date;
 			foreach ( $group as $e ) {
@@ -63,12 +74,13 @@ class SPA_Facebook_Notice {
 		<div class="notice notice-info is-dismissible spa-facebook-notice">
 			<p><strong><?php esc_html_e( 'SportsPress Announcer — Recent Results', 'sportspress-announcer' ); ?></strong></p>
 			<?php
-			$by_date_display = [];
+			$by_date_display = array();
 			foreach ( $events as $e ) {
 				$by_date_display[ $e['date'] ][] = $e;
 			}
 			ksort( $by_date_display );
-			foreach ( $by_date_display as $date => $group ) : ?>
+			foreach ( $by_date_display as $date => $group ) :
+				?>
 				<p style="margin: 4px 0 2px; font-weight:600;"><?php echo esc_html( $date ); ?></p>
 				<ul style="margin: 0 0 8px 0; padding-left: 1.5em; list-style: disc;">
 					<?php foreach ( $group as $event ) : ?>
@@ -131,6 +143,11 @@ class SPA_Facebook_Notice {
 		<?php
 	}
 
+	/**
+	 * Dismiss the recent-results notice for the current user.
+	 *
+	 * @return void
+	 */
 	public function handle_dismiss(): void {
 		check_admin_referer( self::ACTION_DISMISS );
 
@@ -140,7 +157,8 @@ class SPA_Facebook_Notice {
 
 		update_user_meta( get_current_user_id(), self::USER_META_DISMISSED, time() );
 
-		$redirect = wp_get_referer() ?: admin_url();
+		$referer  = wp_get_referer();
+		$redirect = $referer ? $referer : admin_url();
 		wp_safe_redirect( $redirect );
 		exit;
 	}
@@ -153,44 +171,55 @@ class SPA_Facebook_Notice {
 	private function get_events_since_last_dismiss(): array {
 		$dismissed_at = (int) get_user_meta( get_current_user_id(), self::USER_META_DISMISSED, true );
 
-		$args = [
+		$args = array(
 			'post_type'      => 'sp_event',
 			'post_status'    => 'publish',
 			'posts_per_page' => 10,
 			'orderby'        => 'date',
 			'order'          => 'DESC',
 			'no_found_rows'  => true,
-		];
+		);
 
 		if ( $dismissed_at > 0 ) {
-			$args['date_query'] = [
-				[
+			$args['date_query'] = array(
+				array(
 					'after'     => gmdate( 'Y-m-d H:i:s', $dismissed_at ),
 					'inclusive' => false,
-				],
-			];
+				),
+			);
 		}
 
 		$query  = new WP_Query( $args );
-		$events = [];
+		$events = array();
 
 		foreach ( $query->posts as $post ) {
-			$post_id = (int) $post->ID;
-			$date    = date_i18n( 'l, F j Y', strtotime( $post->post_date ) );
-			$time    = $this->get_event_time( $post_id );
-			$venue   = $this->get_event_venue( $post_id );
-			$events[] = [
+			$post_id  = (int) $post->ID;
+			$date     = date_i18n( 'l, F j Y', strtotime( $post->post_date ) );
+			$time     = $this->get_event_time( $post_id );
+			$venue    = $this->get_event_venue( $post_id );
+			$events[] = array(
 				'id'    => $post_id,
 				'date'  => $date,
 				'time'  => $time,
 				'venue' => $venue,
 				'label' => $this->format_label( $post_id, $post->post_title, $date, $time, $venue ),
-			];
+			);
 		}
 
 		return $events;
 	}
 
+	/**
+	 * Format a result label using the configured Facebook template.
+	 *
+	 * @param int    $post_id  Event post ID.
+	 * @param string $fallback Fallback event title.
+	 * @param string $date     Event date.
+	 * @param string $time     Event time.
+	 * @param string $venue    Event venue.
+	 *
+	 * @return string
+	 */
 	private function format_label( int $post_id, string $fallback, string $date, string $time, string $venue ): string {
 		$template = get_option( SPA_Settings::OPTION_FACEBOOK_TEMPLATE, SPA_Settings::DEFAULT_FACEBOOK_TEMPLATE );
 
@@ -199,10 +228,12 @@ class SPA_Facebook_Notice {
 			return $fallback;
 		}
 
-		$home_id = (int) $team_ids[0];
-		$away_id = (int) $team_ids[1];
-		$home    = wp_specialchars_decode( get_the_title( $home_id ) ?: __( 'Home', 'sportspress-announcer' ), ENT_QUOTES );
-		$away    = wp_specialchars_decode( get_the_title( $away_id ) ?: __( 'Away', 'sportspress-announcer' ), ENT_QUOTES );
+		$home_id    = (int) $team_ids[0];
+		$away_id    = (int) $team_ids[1];
+		$home_title = get_the_title( $home_id );
+		$away_title = get_the_title( $away_id );
+		$home       = wp_specialchars_decode( $home_title ? $home_title : __( 'Home', 'sportspress-announcer' ), ENT_QUOTES );
+		$away       = wp_specialchars_decode( $away_title ? $away_title : __( 'Away', 'sportspress-announcer' ), ENT_QUOTES );
 
 		$results    = get_post_meta( $post_id, 'sp_results', true );
 		$home_score = '';
@@ -213,33 +244,52 @@ class SPA_Facebook_Notice {
 			$away_score = (string) ( $results[ $away_id ]['goals'] ?? ( $results[ $away_id ]['outcome'] ?? '' ) );
 		}
 
-		$leagues     = wp_get_post_terms( $post_id, 'sp_league', [ 'fields' => 'names' ] );
+		$leagues     = wp_get_post_terms( $post_id, 'sp_league', array( 'fields' => 'names' ) );
 		$competition = ( ! is_wp_error( $leagues ) && ! empty( $leagues ) ) ? $leagues[0] : '';
 
-		$placeholders = [
-			'{home}'       => $home,
-			'{away}'       => $away,
-			'{home_score}' => $home_score,
-			'{away_score}' => $away_score,
+		$placeholders = array(
+			'{home}'        => $home,
+			'{away}'        => $away,
+			'{home_score}'  => $home_score,
+			'{away_score}'  => $away_score,
 			'{competition}' => $competition,
-			'{venue}'      => $venue,
-			'{time}'       => $time,
-			'{date}'       => $date,
-		];
+			'{venue}'       => $venue,
+			'{time}'        => $time,
+			'{date}'        => $date,
+		);
 
 		return str_replace( array_keys( $placeholders ), array_values( $placeholders ), $template );
 	}
 
+	/**
+	 * Get the SportsPress event time.
+	 *
+	 * @param int $post_id Event post ID.
+	 *
+	 * @return string
+	 */
 	private function get_event_time( int $post_id ): string {
 		$time = get_post_meta( $post_id, 'sp_time', true );
 		return is_string( $time ) ? trim( $time ) : '';
 	}
 
+	/**
+	 * Get the first venue assigned to an event.
+	 *
+	 * @param int $post_id Event post ID.
+	 *
+	 * @return string
+	 */
 	private function get_event_venue( int $post_id ): string {
-		$venues = wp_get_post_terms( $post_id, 'sp_venue', [ 'fields' => 'names' ] );
+		$venues = wp_get_post_terms( $post_id, 'sp_venue', array( 'fields' => 'names' ) );
 		return ( ! is_wp_error( $venues ) && ! empty( $venues ) ) ? $venues[0] : '';
 	}
 
+	/**
+	 * Build the Facebook share-dialog URL for the site.
+	 *
+	 * @return string
+	 */
 	private function facebook_share_url(): string {
 		return 'https://www.facebook.com/sharer/sharer.php?u=' . rawurlencode( home_url() );
 	}
