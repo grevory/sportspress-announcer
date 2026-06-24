@@ -26,6 +26,9 @@ class SPA_Settings {
 
 	public const DEFAULT_UPCOMING_TEMPLATE = '{home} vs {away}';
 
+	// ── Digest schedule ───────────────────────────────────────────────────────
+	// (option keys delegated to SPA_Digest_Scheduler)
+
 	private const MENU_SLUG = 'sportspress-announcer';
 
 	public function __construct() {
@@ -45,6 +48,49 @@ class SPA_Settings {
 	}
 
 	public function register_settings(): void {
+
+		// ── Digest section ────────────────────────────────────────────────────
+		register_setting( 'spa_settings_group', self::OPTION_UPCOMING_TEMPLATE, [
+			'type'              => 'string',
+			'sanitize_callback' => 'sanitize_textarea_field',
+			'default'           => self::DEFAULT_UPCOMING_TEMPLATE,
+		] );
+
+		add_settings_section( 'spa_section_digest', __( 'Digest', 'sportspress-announcer' ),
+			[ $this, 'render_digest_section_intro' ], self::MENU_SLUG );
+
+		add_settings_field( self::OPTION_UPCOMING_TEMPLATE, __( 'Game Template', 'sportspress-announcer' ),
+			[ $this, 'render_upcoming_template_field' ], self::MENU_SLUG, 'spa_section_digest' );
+
+		add_settings_field( 'spa_upcoming_discord_send', __( 'Send to Discord', 'sportspress-announcer' ),
+			[ $this, 'render_upcoming_discord_field' ], self::MENU_SLUG, 'spa_section_digest' );
+
+		register_setting( 'spa_settings_group', SPA_Digest_Scheduler::OPTION_ENABLED, [
+			'type'              => 'boolean',
+			'sanitize_callback' => 'rest_sanitize_boolean',
+			'default'           => false,
+		] );
+
+		register_setting( 'spa_settings_group', SPA_Digest_Scheduler::OPTION_FREQUENCY, [
+			'type'              => 'string',
+			'sanitize_callback' => [ $this, 'sanitize_digest_frequency' ],
+			'default'           => 'weekly',
+		] );
+
+		register_setting( 'spa_settings_group', SPA_Digest_Scheduler::OPTION_DAY, [
+			'type'              => 'string',
+			'sanitize_callback' => [ $this, 'sanitize_digest_day' ],
+			'default'           => 'monday',
+		] );
+
+		register_setting( 'spa_settings_group', SPA_Digest_Scheduler::OPTION_TIME, [
+			'type'              => 'string',
+			'sanitize_callback' => [ $this, 'sanitize_digest_time' ],
+			'default'           => '08:00',
+		] );
+
+		add_settings_field( 'spa_digest_schedule', __( 'Auto-send', 'sportspress-announcer' ),
+			[ $this, 'render_digest_schedule_field' ], self::MENU_SLUG, 'spa_section_digest' );
 
 		// ── Discord section ───────────────────────────────────────────────────
 		register_setting( 'spa_settings_group', self::OPTION_WEBHOOK, [
@@ -87,22 +133,6 @@ class SPA_Settings {
 
 		add_settings_field( self::OPTION_FACEBOOK_TEMPLATE, __( 'Result Template', 'sportspress-announcer' ),
 			[ $this, 'render_facebook_template_field' ], self::MENU_SLUG, 'spa_section_facebook' );
-
-		// ── Digest section ────────────────────────────────────────────────────
-		register_setting( 'spa_settings_group', self::OPTION_UPCOMING_TEMPLATE, [
-			'type'              => 'string',
-			'sanitize_callback' => 'sanitize_textarea_field',
-			'default'           => self::DEFAULT_UPCOMING_TEMPLATE,
-		] );
-
-		add_settings_section( 'spa_section_digest', __( 'Digest', 'sportspress-announcer' ),
-			[ $this, 'render_digest_section_intro' ], self::MENU_SLUG );
-
-		add_settings_field( self::OPTION_UPCOMING_TEMPLATE, __( 'Game Template', 'sportspress-announcer' ),
-			[ $this, 'render_upcoming_template_field' ], self::MENU_SLUG, 'spa_section_digest' );
-
-		add_settings_field( 'spa_upcoming_discord_send', __( 'Send to Discord', 'sportspress-announcer' ),
-			[ $this, 'render_upcoming_discord_field' ], self::MENU_SLUG, 'spa_section_digest' );
 	}
 
 	// ── AJAX ──────────────────────────────────────────────────────────────────
@@ -369,6 +399,102 @@ class SPA_Settings {
 		<?php
 	}
 
+	public function sanitize_digest_frequency( string $value ): string {
+		return in_array( $value, [ 'daily', 'weekly' ], true ) ? $value : 'weekly';
+	}
+
+	public function sanitize_digest_day( string $value ): string {
+		$days = [ 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday' ];
+		return in_array( $value, $days, true ) ? $value : 'monday';
+	}
+
+	public function sanitize_digest_time( string $value ): string {
+		if ( preg_match( '/^\d{2}:\d{2}$/', $value ) ) {
+			return $value;
+		}
+		return '08:00';
+	}
+
+	public function render_digest_schedule_field(): void {
+		$enabled   = (bool) get_option( SPA_Digest_Scheduler::OPTION_ENABLED, false );
+		$frequency = get_option( SPA_Digest_Scheduler::OPTION_FREQUENCY, 'weekly' );
+		$day       = get_option( SPA_Digest_Scheduler::OPTION_DAY, 'monday' );
+		$time      = get_option( SPA_Digest_Scheduler::OPTION_TIME, '08:00' );
+
+		$days = [
+			'monday'    => __( 'Monday', 'sportspress-announcer' ),
+			'tuesday'   => __( 'Tuesday', 'sportspress-announcer' ),
+			'wednesday' => __( 'Wednesday', 'sportspress-announcer' ),
+			'thursday'  => __( 'Thursday', 'sportspress-announcer' ),
+			'friday'    => __( 'Friday', 'sportspress-announcer' ),
+			'saturday'  => __( 'Saturday', 'sportspress-announcer' ),
+			'sunday'    => __( 'Sunday', 'sportspress-announcer' ),
+		];
+
+		$next = wp_next_scheduled( 'spa_digest_send' );
+		?>
+		<label>
+			<input
+				type="checkbox"
+				id="<?php echo esc_attr( SPA_Digest_Scheduler::OPTION_ENABLED ); ?>"
+				name="<?php echo esc_attr( SPA_Digest_Scheduler::OPTION_ENABLED ); ?>"
+				value="1"
+				<?php checked( $enabled ); ?>
+			/>
+			<?php esc_html_e( 'Automatically send upcoming games digest to Discord', 'sportspress-announcer' ); ?>
+		</label>
+
+		<div style="margin-top:10px; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+			<select
+				id="<?php echo esc_attr( SPA_Digest_Scheduler::OPTION_FREQUENCY ); ?>"
+				name="<?php echo esc_attr( SPA_Digest_Scheduler::OPTION_FREQUENCY ); ?>"
+			>
+				<option value="daily" <?php selected( $frequency, 'daily' ); ?>><?php esc_html_e( 'Daily', 'sportspress-announcer' ); ?></option>
+				<option value="weekly" <?php selected( $frequency, 'weekly' ); ?>><?php esc_html_e( 'Weekly', 'sportspress-announcer' ); ?></option>
+			</select>
+
+			<span id="spa-digest-day-wrap" <?php echo 'daily' === $frequency ? 'style="display:none;"' : ''; ?>>
+				<select
+					name="<?php echo esc_attr( SPA_Digest_Scheduler::OPTION_DAY ); ?>"
+				>
+					<?php foreach ( $days as $val => $label ) : ?>
+						<option value="<?php echo esc_attr( $val ); ?>" <?php selected( $day, $val ); ?>><?php echo esc_html( $label ); ?></option>
+					<?php endforeach; ?>
+				</select>
+			</span>
+
+			<input
+				type="time"
+				name="<?php echo esc_attr( SPA_Digest_Scheduler::OPTION_TIME ); ?>"
+				value="<?php echo esc_attr( $time ); ?>"
+			/>
+		</div>
+
+		<?php if ( $next ) : ?>
+			<p class="description">
+				<?php
+				printf(
+					/* translators: %s: formatted date/time */
+					esc_html__( 'Next send: %s', 'sportspress-announcer' ),
+					esc_html( date_i18n( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $next ) )
+				);
+				?>
+			</p>
+		<?php endif; ?>
+
+		<script>
+		document.addEventListener( 'DOMContentLoaded', function () {
+			var freq = document.getElementById( '<?php echo esc_js( SPA_Digest_Scheduler::OPTION_FREQUENCY ); ?>' );
+			var wrap = document.getElementById( 'spa-digest-day-wrap' );
+			if ( ! freq || ! wrap ) return;
+			freq.addEventListener( 'change', function () {
+				wrap.style.display = freq.value === 'weekly' ? '' : 'none';
+			} );
+		} );
+		</script>
+		<?php
+	}
+
 	// ── Page ──────────────────────────────────────────────────────────────────
 
 	public function render_page(): void {
@@ -378,7 +504,7 @@ class SPA_Settings {
 		?>
 		<div class="wrap">
 			<h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
-			<?php settings_errors(); ?>
+
 			<form method="post" action="options.php">
 				<?php
 				settings_fields( 'spa_settings_group' );

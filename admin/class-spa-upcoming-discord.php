@@ -1,6 +1,6 @@
 <?php
 /**
- * Handles the AJAX action to push an upcoming games digest to Discord.
+ * Handles sending an upcoming games digest to Discord, via AJAX or cron.
  *
  * @package SportsPress_Announcer
  */
@@ -22,25 +22,43 @@ class SPA_Upcoming_Discord {
 			wp_send_json_error( __( 'Permission denied.', 'sportspress-announcer' ) );
 		}
 
+		$result = $this->send_digest();
+
+		if ( $result === false ) {
+			wp_send_json_error( __( 'No upcoming games found in the next 7 days.', 'sportspress-announcer' ) );
+		}
+
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( $result->get_error_message() );
+		}
+
+		wp_send_json_success();
+	}
+
+	/**
+	 * Sends the upcoming games digest to Discord.
+	 * Returns false if there are no games, WP_Error on failure, true on success.
+	 *
+	 * @return bool|WP_Error
+	 */
+	public function send_digest() {
 		$webhook_url = get_option( 'spa_discord_webhook_url', '' );
 		if ( empty( $webhook_url ) ) {
-			wp_send_json_error( __( 'No Discord webhook URL configured.', 'sportspress-announcer' ) );
+			return new WP_Error( 'no_webhook', __( 'No Discord webhook URL configured.', 'sportspress-announcer' ) );
 		}
 
 		$notice = new SPA_Upcoming_Notice();
 		$games  = $notice->get_upcoming_games();
 
 		if ( empty( $games ) ) {
-			wp_send_json_error( __( 'No upcoming games found in the next 7 days.', 'sportspress-announcer' ) );
+			return false;
 		}
-
-		$description = $this->build_description( $games );
 
 		$payload = [
 			'embeds' => [
 				[
 					'title'       => __( 'Upcoming Games', 'sportspress-announcer' ),
-					'description' => $description,
+					'description' => $this->build_description( $games ),
 					'color'       => 0x5865F2,
 				],
 			],
@@ -50,10 +68,10 @@ class SPA_Upcoming_Discord {
 		$result  = $discord->send( $payload );
 
 		if ( is_wp_error( $result ) ) {
-			wp_send_json_error( $result->get_error_message() );
+			return $result;
 		}
 
-		wp_send_json_success();
+		return true;
 	}
 
 	/**

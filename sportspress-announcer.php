@@ -26,6 +26,7 @@ define( 'SPA_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 require_once SPA_PLUGIN_DIR . 'includes/class-spa-message-formatter.php';
 require_once SPA_PLUGIN_DIR . 'includes/class-spa-webhook-discord.php';
 require_once SPA_PLUGIN_DIR . 'includes/class-spa-event-handler.php';
+require_once SPA_PLUGIN_DIR . 'includes/class-spa-digest-scheduler.php';
 require_once SPA_PLUGIN_DIR . 'admin/class-spa-settings.php';
 require_once SPA_PLUGIN_DIR . 'admin/class-spa-facebook-notice.php';
 require_once SPA_PLUGIN_DIR . 'admin/class-spa-upcoming-notice.php';
@@ -41,5 +42,8 @@ function spa_init(): void {
 		new SPA_Team_Color();
 	}
 	new SPA_Event_Handler();
+	new SPA_Digest_Scheduler();
 }
 add_action( 'plugins_loaded', 'spa_init' );
+
+register_deactivation_hook( __FILE__, [ 'SPA_Digest_Scheduler', 'deactivate' ] );
