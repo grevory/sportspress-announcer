@@ -9,6 +9,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+/**
+ * Formats SportsPress event data for announcement channels.
+ */
 class SPA_Message_Formatter {
 
 	private const COLOR_WIN  = 0x57F287;
@@ -17,7 +20,11 @@ class SPA_Message_Formatter {
 	private const COLOR_NONE = 0x99AAB5;
 
 	/**
-	 * @param array{home: string, away: string, home_score: int|string, away_score: int|string, competition: string, home_color: string} $event
+	 * Build a Discord embed payload for a match result.
+	 *
+	 * @param array{home: string, away: string, home_score: int|string, away_score: int|string, competition: string, home_color: string} $event Event data.
+	 *
+	 * @return array<string, mixed>
 	 */
 	public function format_embed( array $event ): array {
 		$home        = wp_specialchars_decode( (string) $event['home'], ENT_QUOTES );
@@ -35,18 +42,27 @@ class SPA_Message_Formatter {
 			$footer_text = $competition . ' · ' . $footer_text;
 		}
 
-		return [
-			'embeds' => [
-				[
+		return array(
+			'embeds' => array(
+				array(
 					'title'       => __( 'Match Result', 'sportspress-announcer' ),
 					'description' => $description,
 					'color'       => $color,
-					'footer'      => [ 'text' => $footer_text ],
-				],
-			],
-		];
+					'footer'      => array( 'text' => $footer_text ),
+				),
+			),
+		);
 	}
 
+	/**
+	 * Resolve the embed color from the team brand or match outcome.
+	 *
+	 * @param string     $brand_hex  Home team brand color.
+	 * @param int|string $home_score Home team score.
+	 * @param int|string $away_score Away team score.
+	 *
+	 * @return int
+	 */
 	private function resolve_color( string $brand_hex, $home_score, $away_score ): int {
 		if ( $brand_hex && preg_match( '/^#[0-9a-fA-F]{6}$/', $brand_hex ) ) {
 			return hexdec( ltrim( $brand_hex, '#' ) );
@@ -64,7 +80,11 @@ class SPA_Message_Formatter {
 	}
 
 	/**
-	 * @param array{home: string, away: string, home_score: int|string, away_score: int|string, competition: string} $event
+	 * Build a plain-text match result.
+	 *
+	 * @param array{home: string, away: string, home_score: int|string, away_score: int|string, competition: string} $event Event data.
+	 *
+	 * @return string
 	 */
 	public function format_result( array $event ): string {
 		$home        = wp_specialchars_decode( (string) $event['home'], ENT_QUOTES );

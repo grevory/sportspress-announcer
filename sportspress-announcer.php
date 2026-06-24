@@ -33,6 +33,11 @@ require_once SPA_PLUGIN_DIR . 'admin/class-spa-upcoming-notice.php';
 require_once SPA_PLUGIN_DIR . 'admin/class-spa-upcoming-discord.php';
 require_once SPA_PLUGIN_DIR . 'admin/class-spa-team-color.php';
 
+/**
+ * Initialize the plugin services.
+ *
+ * @return void
+ */
 function spa_init(): void {
 	if ( is_admin() ) {
 		new SPA_Settings();
@@ -46,4 +51,4 @@ function spa_init(): void {
 }
 add_action( 'plugins_loaded', 'spa_init' );
 
-register_deactivation_hook( __FILE__, [ 'SPA_Digest_Scheduler', 'deactivate' ] );
+register_deactivation_hook( __FILE__, array( 'SPA_Digest_Scheduler', 'deactivate' ) );
