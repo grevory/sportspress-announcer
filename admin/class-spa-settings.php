@@ -127,9 +127,9 @@ class SPA_Settings {
 		);
 
 		add_settings_field(
-			'spa_upcoming_discord_send',
-			__( 'Send to Discord', 'sportspress-announcer' ),
-			array( $this, 'render_upcoming_discord_field' ),
+			'spa_upcoming_publish',
+			__( 'Send digest', 'sportspress-announcer' ),
+			array( $this, 'render_upcoming_publish_field' ),
 			self::MENU_SLUG,
 			'spa_section_digest'
 		);
@@ -636,13 +636,12 @@ class SPA_Settings {
 	public function render_upcoming_template_field(): void {
 		$value = get_option( self::OPTION_UPCOMING_TEMPLATE, self::DEFAULT_UPCOMING_TEMPLATE );
 		?>
-		<input
-			type="text"
+		<textarea
 			id="<?php echo esc_attr( self::OPTION_UPCOMING_TEMPLATE ); ?>"
 			name="<?php echo esc_attr( self::OPTION_UPCOMING_TEMPLATE ); ?>"
-			value="<?php echo esc_attr( $value ); ?>"
-			class="regular-text"
-		/>
+			rows="3"
+			class="large-text"
+		><?php echo esc_textarea( $value ); ?></textarea>
 		<p class="description">
 			<?php esc_html_e( 'Available placeholders: {home} {away} {competition} {venue} {time} {date}', 'sportspress-announcer' ); ?>
 		</p>
@@ -650,53 +649,127 @@ class SPA_Settings {
 	}
 
 	/**
-	 * Render the manual Discord digest control.
+	 * Render the unified publish button that sends the digest to all enabled services.
 	 *
 	 * @return void
 	 */
-	public function render_upcoming_discord_field(): void {
-		$webhook_url = get_option( self::OPTION_WEBHOOK, '' );
-		if ( empty( $webhook_url ) ) {
+	public function render_upcoming_publish_field(): void {
+		$discord_url  = get_option( self::OPTION_WEBHOOK, '' );
+		$slack_url    = get_option( self::OPTION_SLACK_WEBHOOK, '' );
+		$send_discord = ! empty( $discord_url );
+		$send_slack   = ! empty( $slack_url );
+
+		if ( ! $send_discord && ! $send_slack ) {
 			?>
-			<p class="description"><?php esc_html_e( 'Configure a Discord webhook URL above to enable this.', 'sportspress-announcer' ); ?></p>
+			<p class="description"><?php esc_html_e( 'Configure a Discord or Slack webhook URL above to enable this.', 'sportspress-announcer' ); ?></p>
 			<?php
 			return;
 		}
+
+		// Build preview text (same grouping logic as the digest senders).
+		$notice  = new SPA_Upcoming_Notice();
+		$games   = $notice->get_upcoming_games();
+		$by_date = array();
+		foreach ( $games as $g ) {
+			$by_date[ $g['date'] ][] = $g;
+		}
+		ksort( $by_date );
+		$preview_lines = array();
+		$first         = true;
+		foreach ( $by_date as $date => $group ) {
+			if ( ! $first ) {
+				$preview_lines[] = '';
+			}
+			$first           = false;
+			$preview_lines[] = $date;
+			foreach ( $group as $g ) {
+				$line = '• ' . $g['label'];
+				if ( $g['time'] ) {
+					$line .= ' - ' . $g['time'];
+				}
+				if ( $g['venue'] ) {
+					$line .= ' @ ' . $g['venue'];
+				}
+				$preview_lines[] = $line;
+			}
+		}
+		$preview_text = implode( "\n", $preview_lines );
 		?>
-		<button type="button" id="spa-send-upcoming" class="button">
-			<?php esc_html_e( 'Send upcoming games to Discord', 'sportspress-announcer' ); ?>
-		</button>
-		<span id="spa-upcoming-result" style="display:inline-flex; align-items:center; min-height:30px; margin-left:8px; vertical-align:middle;"></span>
+		<?php if ( ! empty( $games ) ) : ?>
+		<p style="margin-bottom:6px;">
+			<a href="#" id="spa-preview-toggle" aria-expanded="false">
+				<?php esc_html_e( 'Preview digest ▸', 'sportspress-announcer' ); ?>
+			</a>
+		</p>
+		<pre id="spa-preview-box" style="display:none; white-space:pre-wrap; background:#f6f7f7; border:1px solid #dcdcde; padding:10px 12px; margin:0 0 12px; font-size:12px; line-height:1.6; max-width:600px;"><?php echo esc_html( $preview_text ); ?></pre>
+		<?php else : ?>
+		<p class="description" style="margin-bottom:8px;"><?php esc_html_e( 'No upcoming games in the next 7 days.', 'sportspress-announcer' ); ?></p>
+		<?php endif; ?>
+		<p>
+			<button type="button" id="spa-publish-upcoming" class="button button-primary"<?php echo empty( $games ) ? ' disabled' : ''; ?>>
+				<?php esc_html_e( 'Publish', 'sportspress-announcer' ); ?>
+			</button>
+			<span id="spa-publish-result" style="display:inline-flex; align-items:center; min-height:30px; margin-left:8px; vertical-align:middle;"></span>
+		</p>
 		<script>
 		document.addEventListener( 'DOMContentLoaded', function () {
-			var btn    = document.getElementById( 'spa-send-upcoming' );
-			var result = document.getElementById( 'spa-upcoming-result' );
+			var toggle  = document.getElementById( 'spa-preview-toggle' );
+			var preview = document.getElementById( 'spa-preview-box' );
+			if ( toggle && preview ) {
+				toggle.addEventListener( 'click', function ( e ) {
+					e.preventDefault();
+					var open = preview.style.display !== 'none';
+					preview.style.display = open ? 'none' : 'block';
+					toggle.textContent    = open
+						? '<?php echo esc_js( __( 'Preview digest ▸', 'sportspress-announcer' ) ); ?>'
+						: '<?php echo esc_js( __( 'Preview digest ▾', 'sportspress-announcer' ) ); ?>';
+					toggle.setAttribute( 'aria-expanded', open ? 'false' : 'true' );
+				} );
+			}
+
+			var btn    = document.getElementById( 'spa-publish-upcoming' );
+			var result = document.getElementById( 'spa-publish-result' );
 			if ( ! btn || ! result ) return;
 			btn.addEventListener( 'click', function () {
 				result.textContent = '<?php echo esc_js( __( 'Sending…', 'sportspress-announcer' ) ); ?>';
 				result.style.color = '';
 				btn.disabled = true;
-				var data = new FormData();
-				data.append( 'action', 'spa_send_upcoming' );
-				data.append( 'nonce', '<?php echo esc_js( wp_create_nonce( 'spa_send_upcoming_nonce' ) ); ?>' );
-				fetch( ajaxurl, { method: 'POST', body: data } )
-					.then( function ( r ) { return r.json(); } )
-					.then( function ( json ) {
-						if ( json.success ) {
-							result.textContent = '<?php echo esc_js( __( '✓ Schedule sent!', 'sportspress-announcer' ) ); ?>';
-							result.style.color = '#46b450';
-						} else {
-							result.textContent = '<?php echo esc_js( __( '✗ Error: ', 'sportspress-announcer' ) ); ?>' + ( json.data || '' );
-							result.style.color = '#dc3232';
+
+				var requests = [];
+
+				<?php if ( $send_discord ) : ?>
+				var discordData = new FormData();
+				discordData.append( 'action', 'spa_send_upcoming' );
+				discordData.append( 'nonce', '<?php echo esc_js( wp_create_nonce( 'spa_send_upcoming_nonce' ) ); ?>' );
+				requests.push( fetch( ajaxurl, { method: 'POST', body: discordData } ).then( function ( r ) { return r.json(); } ) );
+				<?php endif; ?>
+
+				<?php if ( $send_slack ) : ?>
+				var slackData = new FormData();
+				slackData.append( 'action', 'spa_send_upcoming_slack' );
+				slackData.append( 'nonce', '<?php echo esc_js( wp_create_nonce( 'spa_send_upcoming_slack_nonce' ) ); ?>' );
+				requests.push( fetch( ajaxurl, { method: 'POST', body: slackData } ).then( function ( r ) { return r.json(); } ) );
+				<?php endif; ?>
+
+				Promise.allSettled( requests ).then( function ( results ) {
+					var errors = [];
+					results.forEach( function ( r ) {
+						if ( r.status === 'rejected' || ( r.value && ! r.value.success ) ) {
+							errors.push( r.value ? ( r.value.data || '<?php echo esc_js( __( 'Unknown error', 'sportspress-announcer' ) ); ?>' ) : '<?php echo esc_js( __( 'Request failed', 'sportspress-announcer' ) ); ?>' );
 						}
-					} )
-					.catch( function () {
-						result.textContent = '<?php echo esc_js( __( '✗ Request failed.', 'sportspress-announcer' ) ); ?>';
-						result.style.color = '#dc3232';
-					} )
-					.finally( function () {
-						btn.disabled = false;
 					} );
+					if ( errors.length === 0 ) {
+						result.textContent = '<?php echo esc_js( __( '✓ Published!', 'sportspress-announcer' ) ); ?>';
+						result.style.color = '#46b450';
+					} else if ( errors.length === results.length ) {
+						result.textContent = '<?php echo esc_js( __( '✗ Error: ', 'sportspress-announcer' ) ); ?>' + errors.join( '; ' );
+						result.style.color = '#dc3232';
+					} else {
+						result.textContent = '<?php echo esc_js( __( '⚠ Partial: ', 'sportspress-announcer' ) ); ?>' + errors.join( '; ' );
+						result.style.color = '#ffb900';
+					}
+					btn.disabled = false;
+				} );
 			} );
 		} );
 		</script>

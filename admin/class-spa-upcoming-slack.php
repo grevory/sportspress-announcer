@@ -113,7 +113,12 @@ class SPA_Upcoming_Slack {
 		ksort( $by_date );
 
 		$lines = array();
+		$first = true;
 		foreach ( $by_date as $date => $group ) {
+			if ( ! $first ) {
+				$lines[] = '';
+			}
+			$first   = false;
 			$lines[] = '*' . $date . '*';
 			foreach ( $group as $g ) {
 				$line = '• ' . $g['label'];
