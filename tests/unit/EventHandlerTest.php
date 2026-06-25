@@ -43,6 +43,9 @@ class EventHandlerTest extends TestCase {
 			}
 		);
 		Functions\when( 'get_the_title' )->returnArg();
+		Functions\when( 'get_permalink' )->alias(
+			fn( $post_id ) => "https://example.com/?p={$post_id}"
+		);
 		Functions\when( 'wp_get_post_terms' )->alias(
 			fn() => $this->post_meta['_league_terms'] ?? []
 		);
