@@ -917,7 +917,7 @@ class SPA_Settings {
 			wp_send_json_error( __( 'No webhook URL entered.', 'sportspress-announcer' ) );
 		}
 
-		if ( 0 !== strpos( $url, 'https://hooks.slack.com/services/' ) ) {
+		if ( 0 !== strpos( $url, 'https://hooks.slack.com/services/' ) && 0 !== strpos( $url, 'https://hooks.slack.com/workflows/' ) ) {
 			wp_send_json_error( __( 'That doesn\'t look like a Slack Incoming Webhook URL.', 'sportspress-announcer' ) );
 		}
 
@@ -947,11 +947,11 @@ class SPA_Settings {
 		if ( empty( $value ) ) {
 			return '';
 		}
-		if ( 0 !== strpos( $value, 'https://hooks.slack.com/services/' ) ) {
+		if ( 0 !== strpos( $value, 'https://hooks.slack.com/services/' ) && 0 !== strpos( $value, 'https://hooks.slack.com/workflows/' ) ) {
 			add_settings_error(
 				self::OPTION_SLACK_WEBHOOK,
 				'spa_invalid_slack_webhook',
-				__( 'That doesn\'t look like a Slack Incoming Webhook URL. It should start with https://hooks.slack.com/services/', 'sportspress-announcer' )
+				__( 'That doesn\'t look like a Slack Incoming Webhook URL. It should start with https://hooks.slack.com/services/ or https://hooks.slack.com/workflows/', 'sportspress-announcer' )
 			);
 			return get_option( self::OPTION_SLACK_WEBHOOK, '' );
 		}
@@ -1004,7 +1004,7 @@ class SPA_Settings {
 			name="<?php echo esc_attr( self::OPTION_SLACK_WEBHOOK ); ?>"
 			value="<?php echo esc_attr( $value ); ?>"
 			class="regular-text"
-			placeholder="https://hooks.slack.com/services/…"
+			placeholder="https://hooks.slack.com/services/… or /workflows/…"
 		/>
 		<p class="description">
 			<?php
