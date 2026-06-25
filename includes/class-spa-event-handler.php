@@ -127,7 +127,7 @@ class SPA_Event_Handler {
 	 *
 	 * @param int $post_id Event post ID.
 	 *
-	 * @return array{home: string, away: string, home_score: int|string, away_score: int|string, competition: string, home_color: string}|false
+	 * @return array{home: string, away: string, home_score: int|string, away_score: int|string, competition: string, home_color: string, event_url: string}|false
 	 */
 	protected function extract_event_data( int $post_id ) {
 		// SportsPress stores teams as a post meta array keyed by team post IDs.
@@ -165,6 +165,7 @@ class SPA_Event_Handler {
 			'away_score'  => $away_score,
 			'competition' => $competition,
 			'home_color'  => (string) get_post_meta( $home_id, 'spa_brand_color', true ),
+			'event_url'   => (string) get_permalink( $post_id ),
 		);
 	}
 }

@@ -256,6 +256,7 @@ class SPA_Facebook_Notice {
 			'{venue}'       => $venue,
 			'{time}'        => $time,
 			'{date}'        => $date,
+			'{event_url}'   => (string) get_permalink( $post_id ),
 		);
 
 		return str_replace( array_keys( $placeholders ), array_values( $placeholders ), $template );

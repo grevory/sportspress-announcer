@@ -46,7 +46,7 @@ class SPA_Webhook_Slack {
 			$this->webhook_url,
 			array(
 				'headers'     => array( 'Content-Type' => 'application/json' ),
-				'body'        => wp_json_encode( $payload ),
+				'body'        => wp_json_encode( $payload, JSON_UNESCAPED_UNICODE ),
 				'timeout'     => 10,
 				'data_format' => 'body',
 			)

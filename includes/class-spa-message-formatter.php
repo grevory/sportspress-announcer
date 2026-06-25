@@ -35,8 +35,8 @@ class SPA_Message_Formatter {
 		$template = get_option( SPA_Settings::OPTION_RESULT_TEMPLATE, SPA_Settings::DEFAULT_RESULT_TEMPLATE );
 
 		return str_replace(
-			array( '{home}', '{away}', '{home_score}', '{away_score}', '{competition}' ),
-			array( $home, $away, (string) $event['home_score'], (string) $event['away_score'], (string) $event['competition'] ),
+			array( '{home}', '{away}', '{home_score}', '{away_score}', '{competition}', '{event_url}' ),
+			array( $home, $away, (string) $event['home_score'], (string) $event['away_score'], (string) $event['competition'], (string) ( $event['event_url'] ?? '' ) ),
 			$template
 		);
 	}

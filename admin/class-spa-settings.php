@@ -53,6 +53,7 @@ class SPA_Settings {
 	public function __construct() {
 		add_action( 'admin_menu', array( $this, 'add_menu' ) );
 		add_action( 'admin_init', array( $this, 'register_settings' ) );
+		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
 		add_action( 'wp_ajax_spa_test_webhook', array( $this, 'ajax_test_webhook' ) );
 		add_action( 'wp_ajax_spa_test_slack_webhook', array( $this, 'ajax_test_slack_webhook' ) );
 	}
@@ -69,6 +70,26 @@ class SPA_Settings {
 			'manage_options',
 			self::MENU_SLUG,
 			array( $this, 'render_page' )
+		);
+	}
+
+	/**
+	 * Enqueue admin assets on the plugin settings page.
+	 *
+	 * @param string $hook Current admin page hook.
+	 *
+	 * @return void
+	 */
+	public function enqueue_assets( string $hook ): void {
+		if ( 'settings_page_' . self::MENU_SLUG !== $hook ) {
+			return;
+		}
+		wp_enqueue_script(
+			'spa-emoji-picker',
+			SPA_PLUGIN_URL . 'assets/js/spa-emoji-picker.js',
+			array(),
+			SPA_VERSION,
+			true
 		);
 	}
 
@@ -188,7 +209,7 @@ class SPA_Settings {
 			self::OPTION_RESULT_TEMPLATE,
 			array(
 				'type'              => 'string',
-				'sanitize_callback' => 'sanitize_text_field',
+				'sanitize_callback' => 'sanitize_textarea_field',
 				'default'           => self::DEFAULT_RESULT_TEMPLATE,
 			)
 		);
@@ -420,17 +441,30 @@ class SPA_Settings {
 	public function render_result_template_field(): void {
 		$value = get_option( self::OPTION_RESULT_TEMPLATE, self::DEFAULT_RESULT_TEMPLATE );
 		?>
-		<input
-			type="text"
+		<textarea
 			id="<?php echo esc_attr( self::OPTION_RESULT_TEMPLATE ); ?>"
 			name="<?php echo esc_attr( self::OPTION_RESULT_TEMPLATE ); ?>"
-			value="<?php echo esc_attr( $value ); ?>"
+			rows="2"
 			class="large-text"
-		/>
-		<p class="description">
-			<?php esc_html_e( 'Available placeholders: {home} {away} {home_score} {away_score} {competition}', 'sportspress-announcer' ); ?>
-			<?php esc_html_e( 'Team names are automatically bolded by each platform.', 'sportspress-announcer' ); ?>
-		</p>
+			style="resize:vertical;"
+		><?php echo esc_textarea( $value ); ?></textarea>
+		<div style="display:flex; align-items:flex-start; gap:8px; margin-top:6px;">
+			<button type="button" class="button spa-emoji-trigger" data-target="<?php echo esc_attr( self::OPTION_RESULT_TEMPLATE ); ?>" style="flex-shrink:0;">😀 <?php esc_html_e( 'Emoji', 'sportspress-announcer' ); ?></button>
+			<p class="description" style="margin:0;">
+				<?php
+				$chips = array( '{home}', '{away}', '{home_score}', '{away_score}', '{competition}', '{event_url}' );
+				foreach ( $chips as $chip ) {
+					printf(
+						'<code class="spa-placeholder" data-target="%s" style="cursor:pointer;" title="%s">%s</code> ',
+						esc_attr( self::OPTION_RESULT_TEMPLATE ),
+						esc_attr( __( 'Click to insert', 'sportspress-announcer' ) ),
+						esc_html( $chip )
+					);
+				}
+				?>
+				<br><?php esc_html_e( 'Team names are auto-bolded per platform. Slack mentions (<!channel>, <!here>) and emoji work too.', 'sportspress-announcer' ); ?>
+			</p>
+		</div>
 		<?php
 	}
 
@@ -589,9 +623,22 @@ class SPA_Settings {
 			rows="3"
 			class="large-text"
 		><?php echo esc_textarea( $value ); ?></textarea>
-		<p class="description">
-			<?php esc_html_e( 'Available placeholders: {home} {away} {home_score} {away_score} {competition} {venue} {time} {date}', 'sportspress-announcer' ); ?>
-		</p>
+		<div style="display:flex; align-items:flex-start; gap:8px; margin-top:6px;">
+			<button type="button" class="button spa-emoji-trigger" data-target="<?php echo esc_attr( self::OPTION_FACEBOOK_TEMPLATE ); ?>" style="flex-shrink:0;">😀 <?php esc_html_e( 'Emoji', 'sportspress-announcer' ); ?></button>
+			<p class="description" style="margin:0;">
+				<?php
+				$chips = array( '{home}', '{away}', '{home_score}', '{away_score}', '{competition}', '{venue}', '{time}', '{date}', '{event_url}' );
+				foreach ( $chips as $chip ) {
+					printf(
+						'<code class="spa-placeholder" data-target="%s" style="cursor:pointer;" title="%s">%s</code> ',
+						esc_attr( self::OPTION_FACEBOOK_TEMPLATE ),
+						esc_attr( __( 'Click to insert', 'sportspress-announcer' ) ),
+						esc_html( $chip )
+					);
+				}
+				?>
+			</p>
+		</div>
 		<?php
 	}
 
@@ -642,9 +689,23 @@ class SPA_Settings {
 			rows="3"
 			class="large-text"
 		><?php echo esc_textarea( $value ); ?></textarea>
-		<p class="description">
-			<?php esc_html_e( 'Available placeholders: {home} {away} {competition} {venue} {time} {date}', 'sportspress-announcer' ); ?>
-		</p>
+		<div style="display:flex; align-items:flex-start; gap:8px; margin-top:6px;">
+			<button type="button" class="button spa-emoji-trigger" data-target="<?php echo esc_attr( self::OPTION_UPCOMING_TEMPLATE ); ?>" style="flex-shrink:0;">😀 <?php esc_html_e( 'Emoji', 'sportspress-announcer' ); ?></button>
+			<p class="description" style="margin:0;">
+				<?php
+				$chips = array( '{home}', '{away}', '{competition}', '{venue}', '{time}', '{date}', '{event_url}' );
+				foreach ( $chips as $chip ) {
+					printf(
+						'<code class="spa-placeholder" data-target="%s" style="cursor:pointer;" title="%s">%s</code> ',
+						esc_attr( self::OPTION_UPCOMING_TEMPLATE ),
+						esc_attr( __( 'Click to insert', 'sportspress-announcer' ) ),
+						esc_html( $chip )
+					);
+				}
+				?>
+				<br><?php esc_html_e( 'Slack mentions (<!channel>, <!here>) and emoji work too.', 'sportspress-announcer' ); ?>
+			</p>
+		</div>
 		<?php
 	}
 
