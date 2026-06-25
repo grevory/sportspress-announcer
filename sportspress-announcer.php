@@ -25,12 +25,14 @@ define( 'SPA_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
 require_once SPA_PLUGIN_DIR . 'includes/class-spa-message-formatter.php';
 require_once SPA_PLUGIN_DIR . 'includes/class-spa-webhook-discord.php';
+require_once SPA_PLUGIN_DIR . 'includes/class-spa-webhook-slack.php';
 require_once SPA_PLUGIN_DIR . 'includes/class-spa-event-handler.php';
 require_once SPA_PLUGIN_DIR . 'includes/class-spa-digest-scheduler.php';
 require_once SPA_PLUGIN_DIR . 'admin/class-spa-settings.php';
 require_once SPA_PLUGIN_DIR . 'admin/class-spa-facebook-notice.php';
 require_once SPA_PLUGIN_DIR . 'admin/class-spa-upcoming-notice.php';
 require_once SPA_PLUGIN_DIR . 'admin/class-spa-upcoming-discord.php';
+require_once SPA_PLUGIN_DIR . 'admin/class-spa-upcoming-slack.php';
 require_once SPA_PLUGIN_DIR . 'admin/class-spa-team-color.php';
 
 /**
@@ -44,6 +46,7 @@ function spa_init(): void {
 		new SPA_Facebook_Notice();
 		new SPA_Upcoming_Notice();
 		new SPA_Upcoming_Discord();
+		new SPA_Upcoming_Slack();
 		new SPA_Team_Color();
 	}
 	new SPA_Event_Handler();

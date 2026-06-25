@@ -44,15 +44,6 @@ class SPA_Event_Handler {
 			return;
 		}
 
-		if ( ! get_option( SPA_Settings::OPTION_DISCORD_ENABLED, true ) ) {
-			return;
-		}
-
-		$webhook_url = get_option( 'spa_discord_webhook_url', '' );
-		if ( empty( $webhook_url ) ) {
-			return;
-		}
-
 		$event = $this->extract_event_data( $post_id );
 		if ( ! $event ) {
 			return;
@@ -80,23 +71,55 @@ class SPA_Event_Handler {
 		$posted_this_request[ $post_id ] = true;
 
 		$formatter = new SPA_Message_Formatter();
-		$payload   = $formatter->format_embed( $event );
+		$announced = false;
 
-		$discord = new SPA_Webhook_Discord( $webhook_url );
-		$result  = $discord->send( $payload );
+		// -- Discord
+		$discord_enabled = get_option( SPA_Settings::OPTION_DISCORD_ENABLED, true );
+		$discord_url     = get_option( 'spa_discord_webhook_url', '' );
 
-		if ( is_wp_error( $result ) ) {
-			/**
-			 * Fires when a Discord result announcement fails.
-			 *
-			 * @param \WP_Error $result  Webhook error.
-			 * @param int       $post_id Event post ID.
-			 */
-			do_action( 'spa_discord_webhook_error', $result, $post_id );
-			return;
+		if ( $discord_enabled && ! empty( $discord_url ) ) {
+			$payload = $formatter->format_embed( $event );
+			$discord = new SPA_Webhook_Discord( $discord_url );
+			$result  = $discord->send( $payload );
+
+			if ( is_wp_error( $result ) ) {
+				/**
+				 * Fires when a Discord result announcement fails.
+				 *
+				 * @param \WP_Error $result  Webhook error.
+				 * @param int       $post_id Event post ID.
+				 */
+				do_action( 'spa_discord_webhook_error', $result, $post_id );
+			} else {
+				$announced = true;
+			}
 		}
 
-		update_post_meta( $post_id, '_spa_last_score_hash', $score_hash );
+		// -- Slack (Pro)
+		$slack_enabled = get_option( SPA_Settings::OPTION_SLACK_ENABLED, false );
+		$slack_url     = get_option( SPA_Settings::OPTION_SLACK_WEBHOOK, '' );
+
+		if ( $slack_enabled && ! empty( $slack_url ) ) {
+			$payload = $formatter->format_slack( $event );
+			$slack   = new SPA_Webhook_Slack( $slack_url );
+			$result  = $slack->send( $payload );
+
+			if ( is_wp_error( $result ) ) {
+				/**
+				 * Fires when a Slack result announcement fails.
+				 *
+				 * @param \WP_Error $result  Webhook error.
+				 * @param int       $post_id Event post ID.
+				 */
+				do_action( 'spa_slack_webhook_error', $result, $post_id );
+			} else {
+				$announced = true;
+			}
+		}
+
+		if ( $announced ) {
+			update_post_meta( $post_id, '_spa_last_score_hash', $score_hash );
+		}
 	}
 
 	/**
