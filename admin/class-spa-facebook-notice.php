@@ -72,7 +72,7 @@ class SPA_Facebook_Notice {
 		$digest_text = implode( "\n", $digest_parts );
 		?>
 		<div class="notice notice-info is-dismissible spa-facebook-notice">
-			<p><strong><?php esc_html_e( 'SportsPress Announcer — Recent Results', 'sportspress-announcer' ); ?></strong></p>
+			<p><strong><?php esc_html_e( 'SportsPress Announcer - Recent Results', 'sportspress-announcer' ); ?></strong></p>
 			<?php
 			$by_date_display = array();
 			foreach ( $events as $e ) {

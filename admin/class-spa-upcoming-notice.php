@@ -97,9 +97,42 @@ class SPA_Upcoming_Notice {
 					class="button"
 					data-spa-copy="<?php echo esc_attr( $copy_text ); ?>"
 				><?php esc_html_e( 'Copy schedule', 'sportspress-announcer' ); ?></button>
+				<?php if ( get_option( 'spa_discord_webhook_url', '' ) ) : ?>
+				<button
+					type="button"
+					class="button spa-send-upcoming-btn"
+					data-action="spa_send_upcoming"
+					data-nonce="<?php echo esc_attr( wp_create_nonce( 'spa_send_upcoming_nonce' ) ); ?>"
+				><?php esc_html_e( 'Send to Discord', 'sportspress-announcer' ); ?></button>
+				<?php endif; ?>
+				<?php if ( get_option( SPA_Settings::OPTION_SLACK_WEBHOOK, '' ) ) : ?>
+				<button
+					type="button"
+					class="button spa-send-upcoming-btn"
+					data-action="spa_send_upcoming_slack"
+					data-nonce="<?php echo esc_attr( wp_create_nonce( 'spa_send_upcoming_slack_nonce' ) ); ?>"
+				><?php esc_html_e( 'Send to Slack', 'sportspress-announcer' ); ?></button>
+				<?php endif; ?>
 				<a href="<?php echo esc_url( $dismiss_url ); ?>" class="button"><?php esc_html_e( 'Dismiss', 'sportspress-announcer' ); ?></a>
+				<span class="spa-send-feedback" style="display:none;"></span>
 				<span class="spa-copy-feedback" style="display:none; color:#3c763d;"><?php esc_html_e( 'Copied!', 'sportspress-announcer' ); ?></span>
 			</p>
+			<?php if ( ! get_option( SPA_Settings::OPTION_SLACK_WEBHOOK, '' ) ) : ?>
+			<p style="color:#666; font-size:13px; margin:0 0 8px;">
+				<?php
+				printf(
+					wp_kses(
+						/* translators: %s: settings page URL */
+						__( 'Want this sent automatically to Discord or Slack? <a href="%s">Upgrade to Pro →</a>', 'sportspress-announcer' ),
+						array(
+							'a' => array( 'href' => array() ),
+						)
+					),
+					esc_url( admin_url( 'options-general.php?page=sportspress-announcer' ) )
+				);
+				?>
+			</p>
+			<?php endif; ?>
 		</div>
 		<script>
 		( function () {
@@ -116,6 +149,43 @@ class SPA_Upcoming_Notice {
 							if ( notice ) { notice.style.display = 'none'; }
 						}, 1500 );
 					} );
+				} );
+			} );
+
+			document.querySelectorAll( '.spa-send-upcoming-btn' ).forEach( function ( btn ) {
+				btn.addEventListener( 'click', function () {
+					var feedback = btn.parentElement.querySelector( '.spa-send-feedback' );
+					btn.disabled = true;
+					if ( feedback ) {
+						feedback.style.display = 'inline';
+						feedback.style.color   = '';
+						feedback.textContent   = '<?php echo esc_js( __( 'Sending…', 'sportspress-announcer' ) ); ?>';
+					}
+					var data = new FormData();
+					data.append( 'action', btn.getAttribute( 'data-action' ) );
+					data.append( 'nonce',  btn.getAttribute( 'data-nonce' ) );
+					fetch( ajaxurl, { method: 'POST', body: data } )
+						.then( function ( r ) { return r.json(); } )
+						.then( function ( json ) {
+							if ( feedback ) {
+								if ( json.success ) {
+									feedback.textContent = '<?php echo esc_js( __( '✓ Sent!', 'sportspress-announcer' ) ); ?>';
+									feedback.style.color = '#3c763d';
+								} else {
+									feedback.textContent = '✗ ' + ( json.data || '<?php echo esc_js( __( 'Error', 'sportspress-announcer' ) ); ?>' );
+									feedback.style.color = '#a94442';
+								}
+							}
+						} )
+						.catch( function () {
+							if ( feedback ) {
+								feedback.textContent = '<?php echo esc_js( __( '✗ Request failed.', 'sportspress-announcer' ) ); ?>';
+								feedback.style.color = '#a94442';
+							}
+						} )
+						.finally( function () {
+							btn.disabled = false;
+						} );
 				} );
 			} );
 		} )();

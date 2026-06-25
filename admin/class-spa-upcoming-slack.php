@@ -1,6 +1,6 @@
 <?php
 /**
- * Handles sending an upcoming games digest to Discord, via AJAX or cron.
+ * Handles sending an upcoming games digest to Slack, via AJAX or cron.
  *
  * @package SportsPress_Announcer
  */
@@ -10,24 +10,24 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Sends upcoming SportsPress games to Discord.
+ * Sends upcoming SportsPress games to Slack.
  */
-class SPA_Upcoming_Discord {
+class SPA_Upcoming_Slack {
 
 	/**
 	 * Register the AJAX callback.
 	 */
 	public function __construct() {
-		add_action( 'wp_ajax_spa_send_upcoming', array( $this, 'ajax_send_upcoming' ) );
+		add_action( 'wp_ajax_spa_send_upcoming_slack', array( $this, 'ajax_send_upcoming' ) );
 	}
 
 	/**
-	 * Handle a request to send the upcoming-games digest.
+	 * Handle a request to send the upcoming-games digest to Slack.
 	 *
 	 * @return void
 	 */
 	public function ajax_send_upcoming(): void {
-		check_ajax_referer( 'spa_send_upcoming_nonce', 'nonce' );
+		check_ajax_referer( 'spa_send_upcoming_slack_nonce', 'nonce' );
 
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_send_json_error( __( 'Permission denied.', 'sportspress-announcer' ) );
@@ -47,15 +47,15 @@ class SPA_Upcoming_Discord {
 	}
 
 	/**
-	 * Sends the upcoming games digest to Discord.
+	 * Sends the upcoming games digest to Slack.
 	 * Returns false if there are no games, WP_Error on failure, true on success.
 	 *
-	 * @return bool|WP_Error
+	 * @return bool|\WP_Error
 	 */
 	public function send_digest() {
-		$webhook_url = get_option( 'spa_discord_webhook_url', '' );
+		$webhook_url = get_option( SPA_Settings::OPTION_SLACK_WEBHOOK, '' );
 		if ( empty( $webhook_url ) ) {
-			return new WP_Error( 'no_webhook', __( 'No Discord webhook URL configured.', 'sportspress-announcer' ) );
+			return new \WP_Error( 'no_webhook', __( 'No Slack webhook URL configured.', 'sportspress-announcer' ) );
 		}
 
 		$notice = new SPA_Upcoming_Notice();
@@ -65,18 +65,31 @@ class SPA_Upcoming_Discord {
 			return false;
 		}
 
+		$mrkdwn = $this->build_mrkdwn( $games );
+
 		$payload = array(
-			'embeds' => array(
+			'text'   => __( 'Upcoming Games', 'sportspress-announcer' ),
+			'blocks' => array(
 				array(
-					'title'       => __( 'Upcoming Games', 'sportspress-announcer' ),
-					'description' => $this->build_description( $games ),
-					'color'       => 0x5865F2,
+					'type' => 'header',
+					'text' => array(
+						'type'  => 'plain_text',
+						'text'  => __( 'Upcoming Games', 'sportspress-announcer' ),
+						'emoji' => true,
+					),
+				),
+				array(
+					'type' => 'section',
+					'text' => array(
+						'type' => 'mrkdwn',
+						'text' => $mrkdwn,
+					),
 				),
 			),
 		);
 
-		$discord = new SPA_Webhook_Discord( $webhook_url );
-		$result  = $discord->send( $payload );
+		$slack  = new SPA_Webhook_Slack( $webhook_url );
+		$result = $slack->send( $payload );
 
 		if ( is_wp_error( $result ) ) {
 			return $result;
@@ -86,13 +99,13 @@ class SPA_Upcoming_Discord {
 	}
 
 	/**
-	 * Build the Discord message body grouped by event date.
+	 * Build the Slack mrkdwn message body grouped by event date.
 	 *
 	 * @param array<int, array{date: string, time: string, venue: string, label: string}> $games Upcoming games.
 	 *
 	 * @return string
 	 */
-	private function build_description( array $games ): string {
+	private function build_mrkdwn( array $games ): string {
 		$by_date = array();
 		foreach ( $games as $g ) {
 			$by_date[ $g['date'] ][] = $g;
@@ -101,7 +114,7 @@ class SPA_Upcoming_Discord {
 
 		$lines = array();
 		foreach ( $by_date as $date => $group ) {
-			$lines[] = '**' . $date . '**';
+			$lines[] = '*' . $date . '*';
 			foreach ( $group as $g ) {
 				$line = '• ' . $g['label'];
 				if ( $g['time'] ) {

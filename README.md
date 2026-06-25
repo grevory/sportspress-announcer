@@ -26,15 +26,17 @@ No OAuth. No login flow. Just paste a webhook URL and it runs itself.
 ### Free (WordPress.org)
 - Discord support
 - One webhook / one channel
-- Basic result message: "Final: Sharks 5, Eels 3"
+- Basic result message format
+- Upcoming fixtures digest — admin notice with manual "Send to Discord" push button
 - Manual on/off per competition
 
 ### Pro
 - Slack and additional platforms
+- Automated result announcements (posted automatically on save)
+- Scheduled "this week's fixtures" digest (WP-Cron)
 - Multiple channels — route each division to its own channel
 - Updated standings table posted after each result
 - Custom message templates (mentions, emojis, logos, event page links)
-- Scheduled "this week's fixtures" digest
 - Priority support
 
 **Pro pricing: ~$30–50/year per site.**
@@ -73,11 +75,18 @@ Everything else is Pro or a later iteration.
 sportspress-announcer/
 ├── sportspress-announcer.php   # Main plugin file, hooks bootstrap
 ├── includes/
-│   ├── class-spa-event-handler.php   # Detects result saves, extracts data
-│   ├── class-spa-message-formatter.php  # Builds the message string
-│   └── class-spa-webhook-discord.php    # POSTs to Discord webhook
+│   ├── class-spa-event-handler.php       # Detects result saves, extracts data
+│   ├── class-spa-message-formatter.php   # Builds platform-agnostic messages
+│   ├── class-spa-webhook-discord.php     # POSTs to Discord webhook
+│   ├── class-spa-webhook-slack.php       # POSTs to Slack Incoming Webhook (Pro)
+│   └── class-spa-digest-scheduler.php    # WP-Cron for scheduled digest (Pro)
 ├── admin/
-│   └── class-spa-settings.php          # Settings page
+│   ├── class-spa-settings.php            # Settings page
+│   ├── class-spa-facebook-notice.php     # Admin notice: recent results (Facebook share)
+│   ├── class-spa-upcoming-notice.php     # Admin notice: upcoming fixtures
+│   ├── class-spa-upcoming-discord.php    # AJAX handler: manual Discord digest push
+│   ├── class-spa-upcoming-slack.php      # AJAX handler: manual Slack digest push (Pro)
+│   └── class-spa-team-color.php          # Team brand color meta box
 └── assets/
     ├── css/
     └── js/
@@ -85,12 +94,15 @@ sportspress-announcer/
 
 ## Roadmap
 
-- [x] MVP: Discord result announcer (free)
-- [ ] Standings table after each result (Pro)
+- [x] MVP: Discord result announcer
+- [x] Upcoming fixtures digest — admin notice with manual Discord push
+- [x] Team brand colors in Discord embeds
+- [x] Scheduled digest via WP-Cron (Pro)
 - [ ] Slack support (Pro)
+- [ ] Automated result announcements on save (Pro)
 - [ ] Multiple channels per competition (Pro)
+- [ ] Standings table after each result (Pro)
 - [ ] Custom message templates (Pro)
-- [ ] Weekly fixtures digest (Pro)
 - [ ] Mobile score-entry companion (future)
 
 ## License
