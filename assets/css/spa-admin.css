@@ -1,0 +1,40 @@
+.spa-integrations-header {
+	margin: 28px 0 4px;
+	font-size: 13px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: #646970;
+}
+
+.spa-integration-card {
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-left: 4px solid #2271b1;
+	border-radius: 3px;
+	padding: 16px 20px 20px;
+	margin-bottom: 16px;
+	max-width: 900px;
+}
+
+.spa-integration-card--discord  { border-left-color: #5865F2; }
+.spa-integration-card--slack    { border-left-color: #611f69; }
+.spa-integration-card--facebook { border-left-color: #1877F2; }
+
+.spa-integration-card h2 {
+	margin: 0 0 4px;
+	padding: 0;
+	font-size: 14px;
+	border-bottom: none;
+}
+
+.spa-integration-card .form-table { margin-top: 0; }
+
+.spa-global-section {
+	margin-bottom: 24px;
+	padding-bottom: 12px;
+	border-bottom: 1px solid #dcdcde;
+	max-width: 900px;
+}
+
+.spa-global-section:last-of-type { border-bottom: none; }

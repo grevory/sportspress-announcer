@@ -91,6 +91,12 @@ class SPA_Settings {
 			SPA_VERSION,
 			true
 		);
+		wp_enqueue_style(
+			'spa-admin',
+			SPA_PLUGIN_URL . 'assets/css/spa-admin.css',
+			array(),
+			SPA_VERSION
+		);
 	}
 
 	/**
@@ -1140,16 +1146,64 @@ class SPA_Settings {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			return;
 		}
+
+		global $wp_settings_sections, $wp_settings_fields;
+		$page = self::MENU_SLUG;
+
+		$global_sections = array( 'spa_section_sportspress', 'spa_section_digest', 'spa_section_announcements' );
+		$integration_sections = array(
+			'spa_section_discord'  => 'discord',
+			'spa_section_slack'    => 'slack',
+			'spa_section_facebook' => 'facebook',
+		);
 		?>
 		<div class="wrap">
 			<h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
 
 			<form method="post" action="options.php">
-				<?php
-				settings_fields( 'spa_settings_group' );
-				do_settings_sections( self::MENU_SLUG );
-				submit_button( __( 'Save Settings', 'sportspress-announcer' ) );
+				<?php settings_fields( 'spa_settings_group' ); ?>
+
+				<?php foreach ( $global_sections as $section_id ) :
+					if ( ! isset( $wp_settings_sections[ $page ][ $section_id ] ) ) {
+						continue;
+					}
+					$section = $wp_settings_sections[ $page ][ $section_id ];
 				?>
+				<div class="spa-global-section">
+					<h2><?php echo esc_html( $section['title'] ); ?></h2>
+					<?php if ( $section['callback'] && '__return_false' !== $section['callback'] ) {
+						call_user_func( $section['callback'], $section );
+					} ?>
+					<?php if ( isset( $wp_settings_fields[ $page ][ $section_id ] ) ) : ?>
+					<table class="form-table" role="presentation"><tbody>
+						<?php do_settings_fields( $page, $section_id ); ?>
+					</tbody></table>
+					<?php endif; ?>
+				</div>
+				<?php endforeach; ?>
+
+				<h2 class="spa-integrations-header"><?php esc_html_e( 'Integrations', 'sportspress-announcer' ); ?></h2>
+
+				<?php foreach ( $integration_sections as $section_id => $modifier ) :
+					if ( ! isset( $wp_settings_sections[ $page ][ $section_id ] ) ) {
+						continue;
+					}
+					$section = $wp_settings_sections[ $page ][ $section_id ];
+				?>
+				<div class="spa-integration-card spa-integration-card--<?php echo esc_attr( $modifier ); ?>">
+					<h2><?php echo esc_html( $section['title'] ); ?></h2>
+					<?php if ( $section['callback'] && '__return_false' !== $section['callback'] ) {
+						call_user_func( $section['callback'], $section );
+					} ?>
+					<?php if ( isset( $wp_settings_fields[ $page ][ $section_id ] ) ) : ?>
+					<table class="form-table" role="presentation"><tbody>
+						<?php do_settings_fields( $page, $section_id ); ?>
+					</tbody></table>
+					<?php endif; ?>
+				</div>
+				<?php endforeach; ?>
+
+				<?php submit_button( __( 'Save Settings', 'sportspress-announcer' ) ); ?>
 			</form>
 		</div>
 		<?php
