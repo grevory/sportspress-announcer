@@ -167,23 +167,32 @@ class SPA_Upcoming_Notice {
 					fetch( ajaxurl, { method: 'POST', body: data } )
 						.then( function ( r ) { return r.json(); } )
 						.then( function ( json ) {
-							if ( feedback ) {
-								if ( json.success ) {
+							if ( json.success ) {
+								if ( feedback ) {
 									feedback.textContent = '<?php echo esc_js( __( '✓ Sent!', 'sportspress-announcer' ) ); ?>';
 									feedback.style.color = '#3c763d';
-								} else {
+									feedback.style.display = 'inline';
+								}
+								setTimeout( function () {
+									var notice = btn.closest( '.notice' );
+									if ( notice ) { notice.style.display = 'none'; }
+									fetch( '<?php echo esc_js( wp_nonce_url( admin_url( 'admin-post.php?action=' . self::ACTION_DISMISS ), self::ACTION_DISMISS ) ); ?>', { method: 'GET', redirect: 'manual' } );
+								}, 1500 );
+							} else {
+								if ( feedback ) {
 									feedback.textContent = '✗ ' + ( json.data || '<?php echo esc_js( __( 'Error', 'sportspress-announcer' ) ); ?>' );
 									feedback.style.color = '#a94442';
+									feedback.style.display = 'inline';
 								}
+								btn.disabled = false;
 							}
 						} )
 						.catch( function () {
 							if ( feedback ) {
 								feedback.textContent = '<?php echo esc_js( __( '✗ Request failed.', 'sportspress-announcer' ) ); ?>';
 								feedback.style.color = '#a94442';
+								feedback.style.display = 'inline';
 							}
-						} )
-						.finally( function () {
 							btn.disabled = false;
 						} );
 				} );
