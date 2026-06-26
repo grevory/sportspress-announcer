@@ -142,6 +142,6 @@ class EventHandlerTest extends TestCase {
 			10 => [ $column => $home_score ],
 			20 => [ $column => $away_score ],
 		];
-		$this->post_meta['_league_terms'] = $competition !== '' ? [ $competition ] : [];
+		$this->post_meta['_league_terms'] = $competition !== '' ? [ (object) [ 'name' => $competition, 'term_id' => 123 ] ] : [];
 	}
 }
