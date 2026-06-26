@@ -75,23 +75,30 @@ class SPA_Event_Handler {
 
 		// -- Discord
 		$discord_enabled = get_option( SPA_Settings::OPTION_DISCORD_ENABLED, true );
-		$discord_url     = get_option( 'spa_discord_webhook_url', '' );
 
-		if ( $discord_enabled && ! empty( $discord_url ) ) {
-			$payload = $formatter->format_embed( $event );
-			$discord = new SPA_Webhook_Discord( $discord_url );
-			$result  = $discord->send( $payload );
+		if ( $discord_enabled ) {
+			$channel_map = (array) get_option( SPA_Settings::OPTION_DISCORD_CHANNEL_MAP, array() );
+			$competition = $event['competition'];
+			$discord_url = ( $competition && ! empty( $channel_map[ $competition ] ) )
+				? $channel_map[ $competition ]
+				: get_option( 'spa_discord_webhook_url', '' );
 
-			if ( is_wp_error( $result ) ) {
-				/**
-				 * Fires when a Discord result announcement fails.
-				 *
-				 * @param \WP_Error $result  Webhook error.
-				 * @param int       $post_id Event post ID.
-				 */
-				do_action( 'spa_discord_webhook_error', $result, $post_id );
-			} else {
-				$announced = true;
+			if ( ! empty( $discord_url ) ) {
+				$payload = $formatter->format_embed( $event );
+				$discord = new SPA_Webhook_Discord( $discord_url );
+				$result  = $discord->send( $payload );
+
+				if ( is_wp_error( $result ) ) {
+					/**
+					 * Fires when a Discord result announcement fails.
+					 *
+					 * @param \WP_Error $result  Webhook error.
+					 * @param int       $post_id Event post ID.
+					 */
+					do_action( 'spa_discord_webhook_error', $result, $post_id );
+				} else {
+					$announced = true;
+				}
 			}
 		}
 
@@ -155,8 +162,13 @@ class SPA_Event_Handler {
 		}
 
 		// Competition (league/cup) linked via taxonomy.
-		$leagues     = wp_get_post_terms( $post_id, 'sp_league', array( 'fields' => 'names' ) );
-		$competition = ( ! is_wp_error( $leagues ) && ! empty( $leagues ) ) ? $leagues[0] : '';
+		$leagues     = wp_get_post_terms( $post_id, 'sp_league' );
+		$competition = '';
+		$league_id   = 0;
+		if ( ! is_wp_error( $leagues ) && ! empty( $leagues ) ) {
+			$competition = $leagues[0]->name;
+			$league_id   = (int) $leagues[0]->term_id;
+		}
 
 		return array(
 			'home'        => $home ? $home : __( 'Home', 'sportspress-announcer' ),
@@ -164,6 +176,7 @@ class SPA_Event_Handler {
 			'home_score'  => $home_score,
 			'away_score'  => $away_score,
 			'competition' => $competition,
+			'league_id'   => $league_id,
 			'home_color'  => (string) get_post_meta( $home_id, 'spa_brand_color', true ),
 			'event_url'   => (string) get_permalink( $post_id ),
 		);

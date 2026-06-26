@@ -15,8 +15,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 class SPA_Settings {
 
 	// Discord.
-	private const OPTION_WEBHOOK         = 'spa_discord_webhook_url';
-	public const  OPTION_DISCORD_ENABLED = 'spa_discord_enabled';
+	private const OPTION_WEBHOOK              = 'spa_discord_webhook_url';
+	public const  OPTION_DISCORD_ENABLED      = 'spa_discord_enabled';
+	public const  OPTION_DISCORD_CHANNEL_MAP  = 'spa_discord_channel_map';
 
 	// Slack (Pro).
 	public const OPTION_SLACK_WEBHOOK = 'spa_slack_webhook_url';
@@ -270,6 +271,24 @@ class SPA_Settings {
 			self::OPTION_WEBHOOK,
 			__( 'Webhook URL', 'sportspress-announcer' ),
 			array( $this, 'render_webhook_field' ),
+			self::MENU_SLUG,
+			'spa_section_discord'
+		);
+
+		register_setting(
+			'spa_settings_group',
+			self::OPTION_DISCORD_CHANNEL_MAP,
+			array(
+				'type'              => 'string',
+				'sanitize_callback' => array( $this, 'sanitize_channel_map' ),
+				'default'           => '',
+			)
+		);
+
+		add_settings_field(
+			self::OPTION_DISCORD_CHANNEL_MAP,
+			__( 'Channel Routing', 'sportspress-announcer' ),
+			array( $this, 'render_channel_map_field' ),
 			self::MENU_SLUG,
 			'spa_section_discord'
 		);
@@ -569,6 +588,181 @@ class SPA_Settings {
 					} );
 			} );
 		} );
+		</script>
+		<?php
+	}
+
+	/**
+	 * Sanitize the per-league Discord channel map.
+	 *
+	 * @param mixed $value Raw input (expected array of term_id => url).
+	 * @return array
+	 */
+	public function sanitize_channel_map( $value ): array {
+		if ( ! is_array( $value ) ) {
+			return array();
+		}
+
+		$clean = array();
+
+		foreach ( $value as $row_key => $row ) {
+			// Already-sanitized format: [ 'Competition Name' => 'https://...' ] (e.g. double-sanitize pass).
+			if ( is_string( $row ) ) {
+				$key = sanitize_text_field( trim( (string) $row_key ) );
+				$url = trim( $row );
+			} else {
+				// Form-submitted format: [ 0 => [ 'key' => ..., 'url' => ... ] ].
+				if ( ! is_array( $row ) ) {
+					continue;
+				}
+				$key = sanitize_text_field( trim( (string) ( $row['key'] ?? '' ) ) );
+				$url = trim( (string) ( $row['url'] ?? '' ) );
+			}
+
+			if ( '' === $key || '' === $url ) {
+				continue;
+			}
+			if ( 0 !== strpos( $url, 'https://discord.com/api/webhooks/' ) ) {
+				add_settings_error(
+					self::OPTION_DISCORD_CHANNEL_MAP,
+					'spa_invalid_channel_map_url',
+					sprintf(
+						/* translators: %s: competition/league label */
+						__( 'Invalid Discord webhook URL for "%s" — must start with https://discord.com/api/webhooks/', 'sportspress-announcer' ),
+						$key
+					)
+				);
+				continue;
+			}
+			$clean[ $key ] = esc_url_raw( $url );
+		}
+
+		return $clean;
+	}
+
+	/**
+	 * Render the per-league Discord channel routing field.
+	 *
+	 * @return void
+	 */
+	public function render_channel_map_field(): void {
+		$map    = (array) get_option( self::OPTION_DISCORD_CHANNEL_MAP, array() );
+		$opt    = esc_attr( self::OPTION_DISCORD_CHANNEL_MAP );
+		$ph_key = esc_attr__( 'Division / competition name', 'sportspress-announcer' );
+		$ph_url = esc_attr__( 'https://discord.com/api/webhooks/…', 'sportspress-announcer' );
+
+		// Seed saved rows; if none, pre-populate from sp_league terms.
+		if ( empty( $map ) ) {
+			$leagues = get_terms( array( 'taxonomy' => 'sp_league', 'hide_empty' => false ) );
+			if ( ! is_wp_error( $leagues ) ) {
+				foreach ( $leagues as $term ) {
+					$map[ $term->name ] = '';
+				}
+			}
+		}
+		?>
+		<p class="description" style="margin-bottom:10px;">
+			<?php esc_html_e( 'Route each division to its own Discord channel. The key must match the competition name exactly. Leave the URL blank to use the default webhook. Per-division routing applies to result announcements only — the digest always uses the default webhook.', 'sportspress-announcer' ); ?>
+		</p>
+		<table id="spa-channel-map-table" style="border-collapse:collapse; width:100%; max-width:700px;">
+			<thead>
+				<tr>
+					<th style="text-align:left; padding:0 10px 6px 0; font-weight:600; width:35%;"><?php esc_html_e( 'Competition name', 'sportspress-announcer' ); ?></th>
+					<th style="text-align:left; padding:0 0 6px 0; font-weight:600;"><?php esc_html_e( 'Discord webhook URL', 'sportspress-announcer' ); ?></th>
+					<th style="width:30px;"></th>
+				</tr>
+			</thead>
+			<tbody>
+			<?php
+			$index = 0;
+			foreach ( $map as $key => $url ) :
+			?>
+				<tr class="spa-channel-map-row">
+					<td style="padding:4px 10px 4px 0;">
+						<input
+							type="text"
+							name="<?php echo $opt; ?>[<?php echo $index; ?>][key]"
+							value="<?php echo esc_attr( $key ); ?>"
+							class="regular-text"
+							placeholder="<?php echo $ph_key; ?>"
+							style="width:100%;"
+						/>
+					</td>
+					<td style="padding:4px 6px 4px 0;">
+						<input
+							type="url"
+							name="<?php echo $opt; ?>[<?php echo $index; ?>][url]"
+							value="<?php echo esc_attr( $url ); ?>"
+							class="regular-text"
+							placeholder="<?php echo $ph_url; ?>"
+							style="width:100%;"
+						/>
+					</td>
+					<td style="padding:4px 0; text-align:center;">
+						<button type="button" class="button-link spa-channel-map-remove" title="<?php esc_attr_e( 'Remove', 'sportspress-announcer' ); ?>" style="color:#a00; padding:4px;">&#x2715;</button>
+					</td>
+				</tr>
+			<?php
+			$index++;
+			endforeach;
+			?>
+			</tbody>
+		</table>
+		<p style="margin-top:8px;">
+			<button type="button" id="spa-channel-map-add" class="button">
+				<?php esc_html_e( '+ Add channel', 'sportspress-announcer' ); ?>
+			</button>
+		</p>
+		<script>
+		(function () {
+			var table   = document.getElementById( 'spa-channel-map-table' );
+			var addBtn  = document.getElementById( 'spa-channel-map-add' );
+			var opt     = '<?php echo esc_js( self::OPTION_DISCORD_CHANNEL_MAP ); ?>';
+			var phKey   = '<?php echo esc_js( __( 'Division / competition name', 'sportspress-announcer' ) ); ?>';
+			var phUrl   = '<?php echo esc_js( __( 'https://discord.com/api/webhooks/…', 'sportspress-announcer' ) ); ?>';
+
+			function nextIndex() {
+				return table.querySelectorAll( '.spa-channel-map-row' ).length;
+			}
+
+			function bindRemove( btn ) {
+				btn.addEventListener( 'click', function () {
+					var row = btn.closest( 'tr' );
+					row.parentNode.removeChild( row );
+					reindex();
+				} );
+			}
+
+			function reindex() {
+				table.querySelectorAll( '.spa-channel-map-row' ).forEach( function ( row, i ) {
+					row.querySelectorAll( 'input' ).forEach( function ( input ) {
+						input.name = input.name.replace( /\[\d+\]/, '[' + i + ']' );
+					} );
+				} );
+			}
+
+			addBtn.addEventListener( 'click', function () {
+				var i    = nextIndex();
+				var tbody = table.querySelector( 'tbody' );
+				var tr   = document.createElement( 'tr' );
+				tr.className = 'spa-channel-map-row';
+				tr.innerHTML =
+					'<td style="padding:4px 10px 4px 0;">' +
+						'<input type="text" name="' + opt + '[' + i + '][key]" value="" class="regular-text" placeholder="' + phKey + '" style="width:100%;"/>' +
+					'</td>' +
+					'<td style="padding:4px 6px 4px 0;">' +
+						'<input type="url" name="' + opt + '[' + i + '][url]" value="" class="regular-text" placeholder="' + phUrl + '" style="width:100%;"/>' +
+					'</td>' +
+					'<td style="padding:4px 0; text-align:center;">' +
+						'<button type="button" class="button-link spa-channel-map-remove" title="Remove" style="color:#a00; padding:4px;">&#x2715;</button>' +
+					'</td>';
+				tbody.appendChild( tr );
+				bindRemove( tr.querySelector( '.spa-channel-map-remove' ) );
+				tr.querySelector( 'input' ).focus();
+			} );
+
+			table.querySelectorAll( '.spa-channel-map-remove' ).forEach( bindRemove );
+		}());
 		</script>
 		<?php
 	}
