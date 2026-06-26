@@ -15,14 +15,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 class SPA_Settings {
 
 	// Discord.
-	private const OPTION_WEBHOOK              = 'spa_discord_webhook_url';
-	public const  OPTION_DISCORD_ENABLED      = 'spa_discord_enabled';
-	public const  OPTION_DISCORD_CHANNEL_MAP  = 'spa_discord_channel_map';
+	private const OPTION_WEBHOOK             = 'spa_discord_webhook_url';
+	public const  OPTION_DISCORD_ENABLED     = 'spa_discord_enabled';
+	public const  OPTION_DISCORD_CHANNEL_MAP = 'spa_discord_channel_map';
 
 	// Slack (Pro).
-	public const OPTION_SLACK_WEBHOOK      = 'spa_slack_webhook_url';
-	public const OPTION_SLACK_ENABLED      = 'spa_slack_enabled';
-	public const OPTION_SLACK_CHANNEL_MAP  = 'spa_slack_channel_map';
+	public const OPTION_SLACK_WEBHOOK     = 'spa_slack_webhook_url';
+	public const OPTION_SLACK_ENABLED     = 'spa_slack_enabled';
+	public const OPTION_SLACK_CHANNEL_MAP = 'spa_slack_channel_map';
 
 	// Score column.
 	public const OPTION_SCORE_COLUMN  = 'spa_score_column';
@@ -630,7 +630,7 @@ class SPA_Settings {
 				$key = sanitize_text_field( trim( (string) $row_key ) );
 				$url = trim( $row );
 			} else {
-				// Form-submitted format: [ 0 => [ 'key' => ..., 'url' => ... ] ].
+				// Form-submitted rows provide a competition key and webhook URL.
 				if ( ! is_array( $row ) ) {
 					continue;
 				}
@@ -666,13 +666,18 @@ class SPA_Settings {
 	 */
 	public function render_channel_map_field(): void {
 		$map    = (array) get_option( self::OPTION_DISCORD_CHANNEL_MAP, array() );
-		$opt    = esc_attr( self::OPTION_DISCORD_CHANNEL_MAP );
-		$ph_key = esc_attr__( 'Division / competition name', 'sportspress-announcer' );
-		$ph_url = esc_attr__( 'https://discord.com/api/webhooks/…', 'sportspress-announcer' );
+		$opt    = self::OPTION_DISCORD_CHANNEL_MAP;
+		$ph_key = __( 'Division / competition name', 'sportspress-announcer' );
+		$ph_url = __( 'https://discord.com/api/webhooks/…', 'sportspress-announcer' );
 
 		// Seed saved rows; if none, pre-populate from sp_league terms.
 		if ( empty( $map ) ) {
-			$leagues = get_terms( array( 'taxonomy' => 'sp_league', 'hide_empty' => false ) );
+			$leagues = get_terms(
+				array(
+					'taxonomy'   => 'sp_league',
+					'hide_empty' => false,
+				)
+			);
 			if ( ! is_wp_error( $leagues ) ) {
 				foreach ( $leagues as $term ) {
 					$map[ $term->name ] = '';
@@ -695,34 +700,34 @@ class SPA_Settings {
 			<?php
 			$index = 0;
 			foreach ( $map as $key => $url ) :
-			?>
+				?>
 				<tr class="spa-channel-map-row">
 					<td style="padding:4px 10px 4px 0;">
-						<input
-							type="text"
-							name="<?php echo $opt; ?>[<?php echo $index; ?>][key]"
-							value="<?php echo esc_attr( $key ); ?>"
-							class="regular-text"
-							placeholder="<?php echo $ph_key; ?>"
-							style="width:100%;"
-						/>
+							<input
+								type="text"
+								name="<?php echo esc_attr( $opt ); ?>[<?php echo absint( $index ); ?>][key]"
+								value="<?php echo esc_attr( $key ); ?>"
+								class="regular-text"
+								placeholder="<?php echo esc_attr( $ph_key ); ?>"
+								style="width:100%;"
+							/>
 					</td>
 					<td style="padding:4px 6px 4px 0;">
-						<input
-							type="url"
-							name="<?php echo $opt; ?>[<?php echo $index; ?>][url]"
-							value="<?php echo esc_attr( $url ); ?>"
-							class="regular-text"
-							placeholder="<?php echo $ph_url; ?>"
-							style="width:100%;"
-						/>
+							<input
+								type="url"
+								name="<?php echo esc_attr( $opt ); ?>[<?php echo absint( $index ); ?>][url]"
+								value="<?php echo esc_attr( $url ); ?>"
+								class="regular-text"
+								placeholder="<?php echo esc_attr( $ph_url ); ?>"
+								style="width:100%;"
+							/>
 					</td>
 					<td style="padding:4px 0; text-align:center;">
 						<button type="button" class="button-link spa-channel-map-remove" title="<?php esc_attr_e( 'Remove', 'sportspress-announcer' ); ?>" style="color:#a00; padding:4px;">&#x2715;</button>
 					</td>
 				</tr>
-			<?php
-			$index++;
+				<?php
+				++$index;
 			endforeach;
 			?>
 			</tbody>
@@ -840,12 +845,17 @@ class SPA_Settings {
 	 */
 	public function render_slack_channel_map_field(): void {
 		$map    = (array) get_option( self::OPTION_SLACK_CHANNEL_MAP, array() );
-		$opt    = esc_attr( self::OPTION_SLACK_CHANNEL_MAP );
-		$ph_key = esc_attr__( 'Division / competition name', 'sportspress-announcer' );
-		$ph_url = esc_attr__( 'https://hooks.slack.com/services/…', 'sportspress-announcer' );
+		$opt    = self::OPTION_SLACK_CHANNEL_MAP;
+		$ph_key = __( 'Division / competition name', 'sportspress-announcer' );
+		$ph_url = __( 'https://hooks.slack.com/services/…', 'sportspress-announcer' );
 
 		if ( empty( $map ) ) {
-			$leagues = get_terms( array( 'taxonomy' => 'sp_league', 'hide_empty' => false ) );
+			$leagues = get_terms(
+				array(
+					'taxonomy'   => 'sp_league',
+					'hide_empty' => false,
+				)
+			);
 			if ( ! is_wp_error( $leagues ) ) {
 				foreach ( $leagues as $term ) {
 					$map[ $term->name ] = '';
@@ -868,34 +878,34 @@ class SPA_Settings {
 			<?php
 			$index = 0;
 			foreach ( $map as $key => $url ) :
-			?>
+				?>
 				<tr class="spa-slack-channel-map-row">
 					<td style="padding:4px 10px 4px 0;">
-						<input
-							type="text"
-							name="<?php echo $opt; ?>[<?php echo $index; ?>][key]"
-							value="<?php echo esc_attr( $key ); ?>"
-							class="regular-text"
-							placeholder="<?php echo $ph_key; ?>"
-							style="width:100%;"
-						/>
+							<input
+								type="text"
+								name="<?php echo esc_attr( $opt ); ?>[<?php echo absint( $index ); ?>][key]"
+								value="<?php echo esc_attr( $key ); ?>"
+								class="regular-text"
+								placeholder="<?php echo esc_attr( $ph_key ); ?>"
+								style="width:100%;"
+							/>
 					</td>
 					<td style="padding:4px 6px 4px 0;">
-						<input
-							type="url"
-							name="<?php echo $opt; ?>[<?php echo $index; ?>][url]"
-							value="<?php echo esc_attr( $url ); ?>"
-							class="regular-text"
-							placeholder="<?php echo $ph_url; ?>"
-							style="width:100%;"
-						/>
+							<input
+								type="url"
+								name="<?php echo esc_attr( $opt ); ?>[<?php echo absint( $index ); ?>][url]"
+								value="<?php echo esc_attr( $url ); ?>"
+								class="regular-text"
+								placeholder="<?php echo esc_attr( $ph_url ); ?>"
+								style="width:100%;"
+							/>
 					</td>
 					<td style="padding:4px 0; text-align:center;">
 						<button type="button" class="button-link spa-slack-channel-map-remove" title="<?php esc_attr_e( 'Remove', 'sportspress-announcer' ); ?>" style="color:#a00; padding:4px;">&#x2715;</button>
 					</td>
 				</tr>
-			<?php
-			$index++;
+				<?php
+				++$index;
 			endforeach;
 			?>
 			</tbody>
@@ -1542,7 +1552,7 @@ class SPA_Settings {
 		global $wp_settings_sections, $wp_settings_fields;
 		$page = self::MENU_SLUG;
 
-		$global_sections = array( 'spa_section_sportspress', 'spa_section_digest', 'spa_section_announcements' );
+		$global_sections      = array( 'spa_section_sportspress', 'spa_section_digest', 'spa_section_announcements' );
 		$integration_sections = array(
 			'spa_section_discord'  => 'discord',
 			'spa_section_slack'    => 'slack',
@@ -1555,17 +1565,20 @@ class SPA_Settings {
 			<form method="post" action="options.php">
 				<?php settings_fields( 'spa_settings_group' ); ?>
 
-				<?php foreach ( $global_sections as $section_id ) :
+				<?php
+				foreach ( $global_sections as $section_id ) :
 					if ( ! isset( $wp_settings_sections[ $page ][ $section_id ] ) ) {
 						continue;
 					}
 					$section = $wp_settings_sections[ $page ][ $section_id ];
-				?>
+					?>
 				<div class="spa-global-section">
 					<h2><?php echo esc_html( $section['title'] ); ?></h2>
-					<?php if ( $section['callback'] && '__return_false' !== $section['callback'] ) {
+					<?php
+					if ( $section['callback'] && '__return_false' !== $section['callback'] ) {
 						call_user_func( $section['callback'], $section );
-					} ?>
+					}
+					?>
 					<?php if ( isset( $wp_settings_fields[ $page ][ $section_id ] ) ) : ?>
 					<table class="form-table" role="presentation"><tbody>
 						<?php do_settings_fields( $page, $section_id ); ?>
@@ -1576,17 +1589,20 @@ class SPA_Settings {
 
 				<h2 class="spa-integrations-header"><?php esc_html_e( 'Integrations', 'sportspress-announcer' ); ?></h2>
 
-				<?php foreach ( $integration_sections as $section_id => $modifier ) :
+				<?php
+				foreach ( $integration_sections as $section_id => $modifier ) :
 					if ( ! isset( $wp_settings_sections[ $page ][ $section_id ] ) ) {
 						continue;
 					}
 					$section = $wp_settings_sections[ $page ][ $section_id ];
-				?>
+					?>
 				<div class="spa-integration-card spa-integration-card--<?php echo esc_attr( $modifier ); ?>">
 					<h2><?php echo esc_html( $section['title'] ); ?></h2>
-					<?php if ( $section['callback'] && '__return_false' !== $section['callback'] ) {
+					<?php
+					if ( $section['callback'] && '__return_false' !== $section['callback'] ) {
 						call_user_func( $section['callback'], $section );
-					} ?>
+					}
+					?>
 					<?php if ( isset( $wp_settings_fields[ $page ][ $section_id ] ) ) : ?>
 					<table class="form-table" role="presentation"><tbody>
 						<?php do_settings_fields( $page, $section_id ); ?>

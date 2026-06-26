@@ -55,4 +55,3 @@ function spa_init(): void {
 add_action( 'plugins_loaded', 'spa_init' );
 
 register_deactivation_hook( __FILE__, array( 'SPA_Digest_Scheduler', 'deactivate' ) );
-
