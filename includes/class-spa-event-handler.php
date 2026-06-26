@@ -104,23 +104,30 @@ class SPA_Event_Handler {
 
 		// -- Slack (Pro)
 		$slack_enabled = get_option( SPA_Settings::OPTION_SLACK_ENABLED, false );
-		$slack_url     = get_option( SPA_Settings::OPTION_SLACK_WEBHOOK, '' );
 
-		if ( $slack_enabled && ! empty( $slack_url ) ) {
-			$payload = $formatter->format_slack( $event );
-			$slack   = new SPA_Webhook_Slack( $slack_url );
-			$result  = $slack->send( $payload );
+		if ( $slack_enabled ) {
+			$slack_channel_map = (array) get_option( SPA_Settings::OPTION_SLACK_CHANNEL_MAP, array() );
+			$competition       = $event['competition'];
+			$slack_url         = ( $competition && ! empty( $slack_channel_map[ $competition ] ) )
+				? $slack_channel_map[ $competition ]
+				: get_option( SPA_Settings::OPTION_SLACK_WEBHOOK, '' );
 
-			if ( is_wp_error( $result ) ) {
-				/**
-				 * Fires when a Slack result announcement fails.
-				 *
-				 * @param \WP_Error $result  Webhook error.
-				 * @param int       $post_id Event post ID.
-				 */
-				do_action( 'spa_slack_webhook_error', $result, $post_id );
-			} else {
-				$announced = true;
+			if ( ! empty( $slack_url ) ) {
+				$payload = $formatter->format_slack( $event );
+				$slack   = new SPA_Webhook_Slack( $slack_url );
+				$result  = $slack->send( $payload );
+
+				if ( is_wp_error( $result ) ) {
+					/**
+					 * Fires when a Slack result announcement fails.
+					 *
+					 * @param \WP_Error $result  Webhook error.
+					 * @param int       $post_id Event post ID.
+					 */
+					do_action( 'spa_slack_webhook_error', $result, $post_id );
+				} else {
+					$announced = true;
+				}
 			}
 		}
 
