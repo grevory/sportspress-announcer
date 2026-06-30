@@ -1,40 +1,290 @@
-.spa-integrations-header {
-	margin: 28px 0 4px;
-	font-size: 13px;
-	font-weight: 600;
-	text-transform: uppercase;
-	letter-spacing: 0.04em;
-	color: #646970;
+/* ── Layout ── */
+.spa-page-wrap {
+	display: flex;
+	gap: 24px;
+	align-items: flex-start;
+	max-width: 1100px;
 }
 
+.spa-main {
+	flex: 1;
+	min-width: 0;
+}
+
+/* ── Tab nav ── */
+.spa-tabs {
+	display: flex;
+	border-bottom: 1px solid #c3c4c7;
+	margin-bottom: 18px;
+	gap: 0;
+}
+
+.spa-tab {
+	padding: 8px 14px;
+	font-size: 13px;
+	color: #50575e;
+	border: 1px solid transparent;
+	border-bottom: none;
+	margin-bottom: -1px;
+	border-radius: 3px 3px 0 0;
+	cursor: pointer;
+	background: none;
+	white-space: nowrap;
+	text-decoration: none;
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+}
+
+.spa-tab:hover { color: #1d2327; }
+
+.spa-tab.is-active {
+	background: #f0f0f1;
+	border-color: #c3c4c7 #c3c4c7 #f0f0f1;
+	color: #1d2327;
+	font-weight: 600;
+}
+
+.spa-tab-badge {
+	background: #2271b1;
+	color: #fff;
+	border-radius: 8px;
+	font-size: 10px;
+	padding: 1px 6px;
+	font-weight: 600;
+}
+
+/* ── Tab panels ── */
+.spa-panel { display: none; }
+.spa-panel.is-active { display: block; }
+
+/* ── Integration cards ── */
 .spa-integration-card {
 	background: #fff;
 	border: 1px solid #c3c4c7;
-	border-left: 4px solid #2271b1;
 	border-radius: 3px;
-	padding: 16px 20px 20px;
-	margin-bottom: 16px;
-	max-width: 900px;
+	margin-bottom: 14px;
+	overflow: hidden;
 }
 
-.spa-integration-card--discord  { border-left-color: #5865F2; }
-.spa-integration-card--slack    { border-left-color: #611f69; }
-.spa-integration-card--facebook { border-left-color: #1877F2; }
+.spa-integration-card-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 10px 14px;
+	border-bottom: 1px solid #f0f0f1;
+}
 
-.spa-integration-card h2 {
-	margin: 0 0 4px;
+.spa-integration-card-title {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-weight: 700;
+	font-size: 13px;
+	color: #1d2327;
+}
+
+.spa-platform-icon {
+	width: 22px;
+	height: 22px;
+	border-radius: 4px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-weight: 700;
+	font-size: 12px;
+	color: #fff;
+	flex-shrink: 0;
+}
+
+.spa-platform-icon--discord  { background: #5865f2; }
+.spa-platform-icon--slack    { background: #4a154b; }
+.spa-platform-icon--facebook { background: #1877f2; }
+
+.spa-status-active {
+	font-size: 11px;
+	color: #00a32a;
+	font-weight: 600;
+}
+
+.spa-pro-badge {
+	background: #fcf0e4;
+	border: 1px solid #dba617;
+	color: #996800;
+	font-size: 9px;
+	font-weight: 700;
+	padding: 1px 5px;
+	border-radius: 3px;
+	letter-spacing: 0.4px;
+	text-transform: uppercase;
+}
+
+.spa-integration-card-body {
+	padding: 12px 14px;
+}
+
+.spa-integration-card-body.spa-section-alt {
+	background: #fafafa;
+	border-bottom: 1px solid #f0f0f1;
+}
+
+.spa-section-label {
+	font-size: 10px;
+	color: #646970;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	margin-bottom: 6px;
+}
+
+.spa-pro-lock {
+	background: #fcf0e4;
+	border: 1px solid #f0c33c;
+	border-radius: 3px;
+	padding: 10px 12px;
+	font-size: 12px;
+	color: #996800;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	margin: 12px 14px;
+}
+
+.spa-integration-card--locked { opacity: 0.55; }
+
+.spa-integration-card .form-table { margin: 0; }
+.spa-integration-card .form-table th { padding-left: 0; }
+
+/* ── Global sections (General / Digest / Templates) ── */
+.spa-global-section {
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-radius: 3px;
+	padding: 16px 20px 20px;
+	margin-bottom: 14px;
+}
+
+.spa-global-section h3 {
+	margin: 0 0 6px;
 	padding: 0;
-	font-size: 14px;
+	font-size: 13px;
 	border-bottom: none;
 }
 
-.spa-integration-card .form-table { margin-top: 0; }
+.spa-global-section .form-table { margin-top: 0; }
 
-.spa-global-section {
-	margin-bottom: 24px;
-	padding-bottom: 12px;
-	border-bottom: 1px solid #dcdcde;
-	max-width: 900px;
+/* ── Help sidebar ── */
+.spa-help-sidebar {
+	width: 200px;
+	flex-shrink: 0;
+	background: #fffce8;
+	border: 1px solid #e8d88a;
+	border-radius: 3px;
+	padding: 14px;
+	font-size: 12px;
+	color: #444;
+	line-height: 1.55;
+	position: sticky;
+	top: 32px;
 }
 
-.spa-global-section:last-of-type { border-bottom: none; }
+.spa-help-sidebar h3 {
+	font-size: 15px;
+	color: #333;
+	margin: 0 0 10px;
+	padding: 0;
+	border: none;
+}
+
+.spa-help-sidebar h4 {
+	font-size: 13px;
+	color: #333;
+	margin: 0 0 6px;
+	padding: 0;
+	border: none;
+}
+
+.spa-checklist {
+	list-style: none;
+	margin: 0 0 12px;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.spa-checklist li {
+	display: flex;
+	gap: 6px;
+	align-items: flex-start;
+}
+
+.spa-checklist .spa-check-done {
+	color: #00a32a;
+	flex-shrink: 0;
+}
+
+.spa-checklist .spa-check-todo {
+	color: #646970;
+	flex-shrink: 0;
+}
+
+.spa-checklist .spa-check-done + span {
+	color: #8c8f94;
+	text-decoration: line-through;
+}
+
+/* Interactive items */
+.spa-qs-item {
+	cursor: pointer;
+	border-radius: 3px;
+	padding: 1px 2px;
+	margin: 0 -2px;
+}
+
+.spa-qs-item:hover { background: rgba(0,0,0,.05); }
+
+.spa-qs-item .spa-qs-icon {
+	flex-shrink: 0;
+	color: #646970;
+}
+
+.spa-qs-item.is-done .spa-qs-icon { color: #00a32a; }
+
+.spa-qs-item.is-done > span:last-child {
+	color: #8c8f94;
+	text-decoration: line-through;
+}
+
+.spa-help-divider {
+	height: 1px;
+	background: #e8d88a;
+	margin: 10px 0;
+}
+
+.spa-help-tip {
+	color: #555;
+	font-size: 11px;
+	margin-bottom: 10px;
+}
+
+.spa-help-links {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.spa-help-links a {
+	color: #2271b1;
+	font-size: 11px;
+	text-decoration: none;
+}
+
+.spa-help-links a:hover { text-decoration: underline; }
+
+/* ── Legacy ── (kept for compatibility) */
+.spa-integrations-header { display: none; }
+.spa-integration-card--discord  {}
+.spa-integration-card--slack    {}
+.spa-integration-card--facebook {}

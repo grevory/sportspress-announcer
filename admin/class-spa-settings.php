@@ -52,12 +52,43 @@ class SPA_Settings {
 	/**
 	 * Register settings-page callbacks.
 	 */
+	private const QS_USER_META = 'spa_qs_dismissed';
+
 	public function __construct() {
 		add_action( 'admin_menu', array( $this, 'add_menu' ) );
 		add_action( 'admin_init', array( $this, 'register_settings' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
 		add_action( 'wp_ajax_spa_test_webhook', array( $this, 'ajax_test_webhook' ) );
 		add_action( 'wp_ajax_spa_test_slack_webhook', array( $this, 'ajax_test_slack_webhook' ) );
+		add_action( 'wp_ajax_spa_qs_dismiss', array( $this, 'ajax_qs_dismiss' ) );
+	}
+
+	/**
+	 * Toggle a Quick Start checklist item for the current user.
+	 *
+	 * @return void
+	 */
+	public function ajax_qs_dismiss(): void {
+		check_ajax_referer( 'spa_qs_dismiss_nonce', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error();
+		}
+
+		$item      = sanitize_key( wp_unslash( $_POST['item'] ?? '' ) );
+		$checked   = rest_sanitize_boolean( $_POST['checked'] ?? false );
+		$user_id   = get_current_user_id();
+		$raw       = get_user_meta( $user_id, self::QS_USER_META, true );
+		$dismissed = is_array( $raw ) ? $raw : array();
+
+		if ( $checked ) {
+			$dismissed[ $item ] = true;
+		} else {
+			unset( $dismissed[ $item ] );
+		}
+
+		update_user_meta( $user_id, self::QS_USER_META, $dismissed );
+		wp_send_json_success();
 	}
 
 	/**
@@ -1537,6 +1568,145 @@ class SPA_Settings {
 		<?php
 	}
 
+	/**
+	 * Render a settings field registered for this page.
+	 *
+	 * @param string $page       Settings page slug.
+	 * @param string $section_id Settings section ID.
+	 * @param string $field_id   Settings field ID.
+	 * @return void
+	 */
+	private function render_registered_field( string $page, string $section_id, string $field_id ): void {
+		global $wp_settings_fields;
+
+		$field = $wp_settings_fields[ $page ][ $section_id ][ $field_id ] ?? null;
+
+		if ( ! $field || ! is_callable( $field['callback'] ) ) {
+			return;
+		}
+
+		call_user_func( $field['callback'], $field['args'] ?? array() );
+	}
+
+	/**
+	 * Render registered fields that are not already placed in the custom tab layout.
+	 *
+	 * @param string $page        Settings page slug.
+	 * @param string $section_id  Settings section ID.
+	 * @param array  $handled_ids Field IDs already rendered.
+	 * @return void
+	 */
+	private function render_unhandled_registered_fields( string $page, string $section_id, array $handled_ids ): void {
+		global $wp_settings_fields;
+
+		$fields = $wp_settings_fields[ $page ][ $section_id ] ?? array();
+
+		foreach ( $handled_ids as $field_id ) {
+			unset( $fields[ $field_id ] );
+		}
+
+		if ( empty( $fields ) ) {
+			return;
+		}
+		?>
+		<table class="form-table" role="presentation"><tbody>
+			<?php foreach ( array_keys( $fields ) as $field_id ) : ?>
+				<?php $this->render_registered_field_row( $page, $section_id, $field_id ); ?>
+			<?php endforeach; ?>
+		</tbody></table>
+		<?php
+	}
+
+	/**
+	 * Render a registered settings field row.
+	 *
+	 * @param string $page       Settings page slug.
+	 * @param string $section_id Settings section ID.
+	 * @param string $field_id   Settings field ID.
+	 * @return void
+	 */
+	private function render_registered_field_row( string $page, string $section_id, string $field_id ): void {
+		global $wp_settings_fields;
+
+		$field = $wp_settings_fields[ $page ][ $section_id ][ $field_id ] ?? null;
+
+		if ( ! $field ) {
+			return;
+		}
+		?>
+		<tr>
+			<th scope="row"><?php echo esc_html( $field['title'] ?? '' ); ?></th>
+			<td><?php $this->render_registered_field( $page, $section_id, $field_id ); ?></td>
+		</tr>
+		<?php
+	}
+
+	/**
+	 * Render a registered section callback.
+	 *
+	 * @param string $page       Settings page slug.
+	 * @param string $section_id Settings section ID.
+	 * @return void
+	 */
+	private function render_registered_section_callback( string $page, string $section_id ): void {
+		global $wp_settings_sections;
+
+		$section = $wp_settings_sections[ $page ][ $section_id ] ?? null;
+
+		if ( $section && $section['callback'] && '__return_false' !== $section['callback'] ) {
+			call_user_func( $section['callback'], $section );
+		}
+	}
+
+	/**
+	 * Render a registered settings section.
+	 *
+	 * @param string $page       Settings page slug.
+	 * @param string $section_id Settings section ID.
+	 * @return void
+	 */
+	private function render_registered_section( string $page, string $section_id ): void {
+		global $wp_settings_sections, $wp_settings_fields;
+
+		$section = $wp_settings_sections[ $page ][ $section_id ] ?? null;
+
+		if ( ! $section ) {
+			return;
+		}
+		?>
+		<div class="spa-global-section">
+			<h3><?php echo esc_html( $section['title'] ); ?></h3>
+			<?php $this->render_registered_section_callback( $page, $section_id ); ?>
+			<?php if ( isset( $wp_settings_fields[ $page ][ $section_id ] ) ) : ?>
+			<table class="form-table" role="presentation"><tbody>
+				<?php do_settings_fields( $page, $section_id ); ?>
+			</tbody></table>
+			<?php endif; ?>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render any registered sections that are not assigned to a tab.
+	 *
+	 * @param string $page                Settings page slug.
+	 * @param array  $handled_section_ids Section IDs already rendered.
+	 * @return void
+	 */
+	private function render_unhandled_registered_sections( string $page, array $handled_section_ids ): void {
+		global $wp_settings_sections;
+
+		$sections = $wp_settings_sections[ $page ] ?? array();
+
+		foreach ( $handled_section_ids as $section_id ) {
+			unset( $sections[ $section_id ] );
+		}
+
+		foreach ( array_keys( $sections ) as $section_id ) {
+			$this->render_registered_section( $page, $section_id );
+		}
+	}
+
 	// Page.
 
 	/**
@@ -1549,15 +1719,37 @@ class SPA_Settings {
 			return;
 		}
 
-		global $wp_settings_sections, $wp_settings_fields;
 		$page = self::MENU_SLUG;
 
-		$global_sections      = array( 'spa_section_sportspress', 'spa_section_digest', 'spa_section_announcements' );
-		$integration_sections = array(
-			'spa_section_discord'  => 'discord',
-			'spa_section_slack'    => 'slack',
-			'spa_section_facebook' => 'facebook',
+		$discord_url           = get_option( self::OPTION_WEBHOOK, '' );
+		$discord_active        = ! empty( $discord_url );
+		$discord_channel_count = count( (array) get_option( self::OPTION_DISCORD_CHANNEL_MAP, array() ) );
+		$handled_sections      = array(
+			'spa_section_sportspress',
+			'spa_section_discord',
+			'spa_section_slack',
+			'spa_section_facebook',
+			'spa_section_digest',
+			'spa_section_announcements',
 		);
+		$discord_fields        = array(
+			self::OPTION_DISCORD_ENABLED,
+			self::OPTION_WEBHOOK,
+			self::OPTION_DISCORD_CHANNEL_MAP,
+		);
+		$slack_fields          = array(
+			self::OPTION_SLACK_ENABLED,
+			self::OPTION_SLACK_WEBHOOK,
+			self::OPTION_SLACK_CHANNEL_MAP,
+		);
+
+		// Determine Quick Start checklist state.
+		$qs_raw       = get_user_meta( get_current_user_id(), self::QS_USER_META, true );
+		$qs_dismissed = is_array( $qs_raw ) ? $qs_raw : array();
+		$qs_connected = $discord_active || ! empty( get_option( self::OPTION_SLACK_WEBHOOK, '' ) ) || ! empty( $qs_dismissed['connected'] );
+		$qs_templated = ( get_option( self::OPTION_RESULT_TEMPLATE, self::DEFAULT_RESULT_TEMPLATE ) !== self::DEFAULT_RESULT_TEMPLATE ) || ! empty( $qs_dismissed['templated'] );
+		$qs_tested    = ! empty( $qs_dismissed['tested'] );
+		$qs_published = ! empty( $qs_dismissed['published'] );
 		?>
 		<div class="wrap">
 			<h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
@@ -1565,55 +1757,283 @@ class SPA_Settings {
 			<form method="post" action="options.php">
 				<?php settings_fields( 'spa_settings_group' ); ?>
 
-				<?php
-				foreach ( $global_sections as $section_id ) :
-					if ( ! isset( $wp_settings_sections[ $page ][ $section_id ] ) ) {
-						continue;
-					}
-					$section = $wp_settings_sections[ $page ][ $section_id ];
-					?>
-				<div class="spa-global-section">
-					<h2><?php echo esc_html( $section['title'] ); ?></h2>
-					<?php
-					if ( $section['callback'] && '__return_false' !== $section['callback'] ) {
-						call_user_func( $section['callback'], $section );
-					}
-					?>
-					<?php if ( isset( $wp_settings_fields[ $page ][ $section_id ] ) ) : ?>
-					<table class="form-table" role="presentation"><tbody>
-						<?php do_settings_fields( $page, $section_id ); ?>
-					</tbody></table>
-					<?php endif; ?>
-				</div>
-				<?php endforeach; ?>
+				<div class="spa-page-wrap">
 
-				<h2 class="spa-integrations-header"><?php esc_html_e( 'Integrations', 'sportspress-announcer' ); ?></h2>
+					<!-- Main content -->
+					<div class="spa-main">
 
-				<?php
-				foreach ( $integration_sections as $section_id => $modifier ) :
-					if ( ! isset( $wp_settings_sections[ $page ][ $section_id ] ) ) {
-						continue;
-					}
-					$section = $wp_settings_sections[ $page ][ $section_id ];
-					?>
-				<div class="spa-integration-card spa-integration-card--<?php echo esc_attr( $modifier ); ?>">
-					<h2><?php echo esc_html( $section['title'] ); ?></h2>
-					<?php
-					if ( $section['callback'] && '__return_false' !== $section['callback'] ) {
-						call_user_func( $section['callback'], $section );
-					}
-					?>
-					<?php if ( isset( $wp_settings_fields[ $page ][ $section_id ] ) ) : ?>
-					<table class="form-table" role="presentation"><tbody>
-						<?php do_settings_fields( $page, $section_id ); ?>
-					</tbody></table>
-					<?php endif; ?>
-				</div>
-				<?php endforeach; ?>
+						<!-- Tab nav -->
+						<nav class="spa-tabs" role="tablist">
+							<button type="button" class="spa-tab is-active" data-tab="general" role="tab" aria-selected="true">
+								<?php esc_html_e( 'General', 'sportspress-announcer' ); ?>
+							</button>
+							<button type="button" class="spa-tab" data-tab="channels" role="tab" aria-selected="false">
+								<?php esc_html_e( 'Channels', 'sportspress-announcer' ); ?>
+								<?php if ( $discord_active ) : ?>
+									<span class="spa-tab-badge"><?php echo esc_html( (string) max( 1, $discord_channel_count ) ); ?></span>
+								<?php endif; ?>
+							</button>
+							<button type="button" class="spa-tab" data-tab="digest" role="tab" aria-selected="false">
+								<?php esc_html_e( 'Digest', 'sportspress-announcer' ); ?>
+							</button>
+							<button type="button" class="spa-tab" data-tab="templates" role="tab" aria-selected="false">
+								<?php esc_html_e( 'Templates', 'sportspress-announcer' ); ?>
+							</button>
+						</nav>
 
-				<?php submit_button( __( 'Save Settings', 'sportspress-announcer' ) ); ?>
+						<!-- General tab -->
+						<div id="spa-panel-general" class="spa-panel is-active" role="tabpanel">
+							<?php
+							$this->render_registered_section( $page, 'spa_section_sportspress' );
+							$this->render_unhandled_registered_sections( $page, $handled_sections );
+							?>
+							<?php submit_button( __( 'Save Settings', 'sportspress-announcer' ) ); ?>
+						</div>
+
+						<!-- Channels tab -->
+						<div id="spa-panel-channels" class="spa-panel" role="tabpanel">
+
+							<!-- Discord -->
+							<div class="spa-integration-card">
+								<div class="spa-integration-card-head">
+									<div class="spa-integration-card-title">
+										<span class="spa-platform-icon spa-platform-icon--discord">D</span>
+										<?php esc_html_e( 'Discord', 'sportspress-announcer' ); ?>
+									</div>
+									<?php if ( $discord_active ) : ?>
+										<span class="spa-status-active">&#9679; <?php esc_html_e( 'Active', 'sportspress-announcer' ); ?></span>
+									<?php endif; ?>
+								</div>
+
+								<!-- Enabled toggle -->
+								<div class="spa-integration-card-body spa-section-alt">
+									<div class="spa-section-label"><?php esc_html_e( 'Announcements', 'sportspress-announcer' ); ?></div>
+									<?php $this->render_registered_field( $page, 'spa_section_discord', self::OPTION_DISCORD_ENABLED ); ?>
+								</div>
+
+								<!-- Default webhook -->
+								<div class="spa-integration-card-body spa-section-alt">
+									<div class="spa-section-label"><?php esc_html_e( 'Default Channel', 'sportspress-announcer' ); ?></div>
+									<?php $this->render_registered_field( $page, 'spa_section_discord', self::OPTION_WEBHOOK ); ?>
+								</div>
+
+								<!-- Channel routing -->
+								<div class="spa-integration-card-body">
+									<div class="spa-section-label"><?php esc_html_e( 'Channel Routing', 'sportspress-announcer' ); ?></div>
+									<?php $this->render_registered_field( $page, 'spa_section_discord', self::OPTION_DISCORD_CHANNEL_MAP ); ?>
+								</div>
+
+								<?php $this->render_unhandled_registered_fields( $page, 'spa_section_discord', $discord_fields ); ?>
+							</div>
+
+							<!-- Slack (Pro) -->
+							<div class="spa-integration-card">
+								<div class="spa-integration-card-head">
+									<div class="spa-integration-card-title">
+										<span class="spa-platform-icon spa-platform-icon--slack">S</span>
+										<?php esc_html_e( 'Slack', 'sportspress-announcer' ); ?>
+										<span class="spa-pro-badge"><?php esc_html_e( 'Pro', 'sportspress-announcer' ); ?></span>
+									</div>
+								</div>
+								<div class="spa-integration-card-body">
+									<?php $this->render_registered_section_callback( $page, 'spa_section_slack' ); ?>
+								</div>
+								<div class="spa-integration-card-body spa-section-alt">
+									<div class="spa-section-label"><?php esc_html_e( 'Announcements', 'sportspress-announcer' ); ?></div>
+									<?php $this->render_registered_field( $page, 'spa_section_slack', self::OPTION_SLACK_ENABLED ); ?>
+								</div>
+								<div class="spa-integration-card-body spa-section-alt">
+									<div class="spa-section-label"><?php esc_html_e( 'Webhook URL', 'sportspress-announcer' ); ?></div>
+									<?php $this->render_registered_field( $page, 'spa_section_slack', self::OPTION_SLACK_WEBHOOK ); ?>
+								</div>
+								<div class="spa-integration-card-body">
+									<div class="spa-section-label"><?php esc_html_e( 'Channel Routing', 'sportspress-announcer' ); ?></div>
+									<?php $this->render_registered_field( $page, 'spa_section_slack', self::OPTION_SLACK_CHANNEL_MAP ); ?>
+								</div>
+
+								<?php $this->render_unhandled_registered_fields( $page, 'spa_section_slack', $slack_fields ); ?>
+							</div>
+
+							<!-- Facebook (Pro) -->
+							<div class="spa-integration-card spa-integration-card--locked">
+								<div class="spa-integration-card-head">
+									<div class="spa-integration-card-title">
+										<span class="spa-platform-icon spa-platform-icon--facebook">f</span>
+										<?php esc_html_e( 'Facebook', 'sportspress-announcer' ); ?>
+										<span class="spa-pro-badge"><?php esc_html_e( 'Pro', 'sportspress-announcer' ); ?></span>
+									</div>
+									<a href="https://sportspress-announcer.com/pro" target="_blank" rel="noopener" style="font-size:11px;color:#2271b1;">
+										<?php esc_html_e( 'Upgrade to unlock →', 'sportspress-announcer' ); ?>
+									</a>
+								</div>
+							</div>
+
+							<?php submit_button( __( 'Save Settings', 'sportspress-announcer' ) ); ?>
+						</div>
+
+						<!-- Digest tab -->
+						<div id="spa-panel-digest" class="spa-panel" role="tabpanel">
+							<?php $this->render_registered_section( $page, 'spa_section_digest' ); ?>
+							<?php submit_button( __( 'Save Settings', 'sportspress-announcer' ) ); ?>
+						</div>
+
+						<!-- Templates tab -->
+							<div id="spa-panel-templates" class="spa-panel" role="tabpanel">
+								<?php
+								foreach ( array( 'spa_section_announcements', 'spa_section_facebook' ) as $section_id ) {
+									$this->render_registered_section( $page, $section_id );
+								}
+								?>
+								<?php submit_button( __( 'Save Settings', 'sportspress-announcer' ) ); ?>
+							</div>
+
+					</div><!-- .spa-main -->
+
+					<!-- Help sidebar -->
+					<div class="spa-help-sidebar">
+						<h3><?php esc_html_e( 'Quick Start', 'sportspress-announcer' ); ?></h3>
+						<ul class="spa-checklist">
+							<li>
+								<span class="spa-check-done">✓</span>
+								<span><?php esc_html_e( 'Activate plugin', 'sportspress-announcer' ); ?></span>
+							</li>
+							<li class="spa-qs-item<?php echo $qs_connected ? ' is-done' : ''; ?>" data-item="connected" title="<?php esc_attr_e( 'Click to mark done', 'sportspress-announcer' ); ?>">
+								<span class="spa-qs-icon"><?php echo $qs_connected ? '✓' : '○'; ?></span>
+								<span><?php esc_html_e( 'Connect a channel', 'sportspress-announcer' ); ?></span>
+							</li>
+							<li class="spa-qs-item<?php echo $qs_templated ? ' is-done' : ''; ?>" data-item="templated" title="<?php esc_attr_e( 'Click to mark done', 'sportspress-announcer' ); ?>">
+								<span class="spa-qs-icon"><?php echo $qs_templated ? '✓' : '○'; ?></span>
+								<span><?php esc_html_e( 'Customize result template', 'sportspress-announcer' ); ?></span>
+							</li>
+							<li class="spa-qs-item<?php echo $qs_tested ? ' is-done' : ''; ?>" data-item="tested" title="<?php esc_attr_e( 'Click to mark done', 'sportspress-announcer' ); ?>">
+								<span class="spa-qs-icon"><?php echo $qs_tested ? '✓' : '○'; ?></span>
+								<span><?php esc_html_e( 'Send a test announcement', 'sportspress-announcer' ); ?></span>
+							</li>
+							<li class="spa-qs-item<?php echo $qs_published ? ' is-done' : ''; ?>" data-item="published" title="<?php esc_attr_e( 'Click to mark done', 'sportspress-announcer' ); ?>">
+								<span class="spa-qs-icon"><?php echo $qs_published ? '✓' : '○'; ?></span>
+								<span><?php esc_html_e( 'Publish your first result', 'sportspress-announcer' ); ?></span>
+							</li>
+						</ul>
+
+						<div class="spa-help-divider"></div>
+
+						<h4 id="spa-help-tab-title"><?php esc_html_e( 'On this tab', 'sportspress-announcer' ); ?></h4>
+						<p class="spa-help-tip" id="spa-help-tab-tip">
+							<?php esc_html_e( 'Your score column key must match the result column slug set up in SportsPress → Result Columns.', 'sportspress-announcer' ); ?>
+						</p>
+
+						<div class="spa-help-links">
+							<a href="https://support.discord.com/hc/en-us/articles/228383668" target="_blank" rel="noopener">📖 <?php esc_html_e( 'How to create a webhook', 'sportspress-announcer' ); ?></a>
+							<a href="https://sportspress-announcer.com/docs" target="_blank" rel="noopener">? <?php esc_html_e( 'Full docs →', 'sportspress-announcer' ); ?></a>
+						</div>
+					</div><!-- .spa-help-sidebar -->
+
+				</div><!-- .spa-page-wrap -->
 			</form>
 		</div>
+
+		<script>
+		document.addEventListener( 'DOMContentLoaded', function () {
+			// ── Tab switching ──
+			var tabs   = document.querySelectorAll( '.spa-tab' );
+			var panels = document.querySelectorAll( '.spa-panel' );
+
+			var tips = {
+				general:   '<?php echo esc_js( __( 'Your score column key must match the result column slug set up in SportsPress → Result Columns.', 'sportspress-announcer' ) ); ?>',
+				channels:  '<?php echo esc_js( __( 'One Discord channel handles most leagues. Add routing rules only if you run multiple divisions.', 'sportspress-announcer' ) ); ?>',
+				digest:    '<?php echo esc_js( __( 'The digest lists upcoming games for the next 7 days. Use auto-send to post it to Discord on a schedule.', 'sportspress-announcer' ) ); ?>',
+				templates: '<?php echo esc_js( __( 'Click any placeholder chip to insert it into the template. Team names are auto-bolded on each platform.', 'sportspress-announcer' ) ); ?>',
+			};
+
+			var tipEl = document.getElementById( 'spa-help-tab-tip' );
+
+			tabs.forEach( function ( tab ) {
+				tab.addEventListener( 'click', function () {
+					var target = tab.dataset.tab;
+					tabs.forEach( function ( t ) {
+						t.classList.remove( 'is-active' );
+						t.setAttribute( 'aria-selected', 'false' );
+					} );
+					panels.forEach( function ( p ) { p.classList.remove( 'is-active' ); } );
+					tab.classList.add( 'is-active' );
+					tab.setAttribute( 'aria-selected', 'true' );
+					var panel = document.getElementById( 'spa-panel-' + target );
+					if ( panel ) { panel.classList.add( 'is-active' ); }
+					if ( tipEl && tips[ target ] ) { tipEl.textContent = tips[ target ]; }
+				} );
+			} );
+
+			// ── Quick Start checklist ──
+			var qsNonce = '<?php echo esc_js( wp_create_nonce( 'spa_qs_dismiss_nonce' ) ); ?>';
+
+			function spaQsSetUI( li, done ) {
+				var icon = li.querySelector( '.spa-qs-icon' );
+				if ( done ) {
+					li.classList.add( 'is-done' );
+					if ( icon ) { icon.textContent = '✓'; }
+				} else {
+					li.classList.remove( 'is-done' );
+					if ( icon ) { icon.textContent = '○'; }
+				}
+			}
+
+			function spaQsMark( item, done ) {
+				var li = document.querySelector( '.spa-qs-item[data-item="' + item + '"]' );
+				if ( ! li ) { return; }
+				spaQsSetUI( li, done );
+				var fd = new FormData();
+				fd.append( 'action', 'spa_qs_dismiss' );
+				fd.append( 'nonce', qsNonce );
+				fd.append( 'item', item );
+				fd.append( 'checked', done ? '1' : '0' );
+				fetch( ajaxurl, { method: 'POST', body: fd } )
+					.then( function ( r ) { return r.json(); } )
+					.then( function ( json ) {
+						if ( ! json.success ) {
+							// Revert optimistic UI and log.
+							spaQsSetUI( li, ! done );
+							window.console && console.warn( 'SPA QS save failed', json );
+						}
+					} )
+					.catch( function ( err ) {
+						spaQsSetUI( li, ! done );
+						window.console && console.warn( 'SPA QS request failed', err );
+					} );
+			}
+
+			// Click to toggle any unchecked (or checked) item.
+			document.querySelectorAll( '.spa-qs-item' ).forEach( function ( li ) {
+				li.addEventListener( 'click', function () {
+					var isDone = li.classList.contains( 'is-done' );
+					spaQsMark( li.dataset.item, ! isDone );
+				} );
+			} );
+
+			// Auto-check "tested" when a Discord or Slack test message succeeds.
+			function observeTestSuccess( resultElId ) {
+				var el = document.getElementById( resultElId );
+				if ( ! el ) { return; }
+				var obs = new MutationObserver( function () {
+					if ( el.style.color === 'rgb(70, 180, 80)' || el.style.color === '#46b450' ) {
+						spaQsMark( 'tested', true );
+					}
+				} );
+				obs.observe( el, { attributes: true, childList: true, subtree: true } );
+			}
+			observeTestSuccess( 'spa-test-result' );
+			observeTestSuccess( 'spa-test-slack-result' );
+
+			// Auto-check "published" when the digest publish succeeds.
+			var publishResult = document.getElementById( 'spa-publish-result' );
+			if ( publishResult ) {
+				new MutationObserver( function () {
+					if ( publishResult.style.color === 'rgb(70, 180, 80)' || publishResult.style.color === '#46b450' ) {
+						spaQsMark( 'published', true );
+					}
+				} ).observe( publishResult, { attributes: true, childList: true, subtree: true } );
+			}
+		} );
+		</script>
 		<?php
 	}
 }
