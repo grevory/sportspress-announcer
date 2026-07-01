@@ -96,8 +96,32 @@ class SPA_Event_Handler {
 					 * @param int       $post_id Event post ID.
 					 */
 					do_action( 'spa_discord_webhook_error', $result, $post_id );
+					SPA_Log::write(
+						array(
+							'id'          => $post_id,
+							'type'        => 'result',
+							'label'       => $formatter->format_result( $event ),
+							'channel'     => '',
+							'platform'    => 'discord',
+							'status'      => 'failed',
+							'webhook_url' => $discord_url,
+							'payload'     => $payload,
+						)
+					);
 				} else {
 					$announced = true;
+					SPA_Log::write(
+						array(
+							'id'          => $post_id,
+							'type'        => 'result',
+							'label'       => $formatter->format_result( $event ),
+							'channel'     => $event['competition'] ? $event['competition'] : '',
+							'platform'    => 'discord',
+							'status'      => 'sent',
+							'webhook_url' => $discord_url,
+							'payload'     => $payload,
+						)
+					);
 				}
 			}
 		}
@@ -125,8 +149,32 @@ class SPA_Event_Handler {
 					 * @param int       $post_id Event post ID.
 					 */
 					do_action( 'spa_slack_webhook_error', $result, $post_id );
+					SPA_Log::write(
+						array(
+							'id'          => $post_id,
+							'type'        => 'result',
+							'label'       => $formatter->format_result( $event ),
+							'channel'     => '',
+							'platform'    => 'slack',
+							'status'      => 'failed',
+							'webhook_url' => $slack_url,
+							'payload'     => $payload,
+						)
+					);
 				} else {
 					$announced = true;
+					SPA_Log::write(
+						array(
+							'id'          => $post_id,
+							'type'        => 'result',
+							'label'       => $formatter->format_result( $event ),
+							'channel'     => $event['competition'] ? $event['competition'] : '',
+							'platform'    => 'slack',
+							'status'      => 'sent',
+							'webhook_url' => $slack_url,
+							'payload'     => $payload,
+						)
+					);
 				}
 			}
 		}

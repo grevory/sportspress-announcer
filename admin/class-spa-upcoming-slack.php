@@ -92,8 +92,29 @@ class SPA_Upcoming_Slack {
 		$result = $slack->send( $payload );
 
 		if ( is_wp_error( $result ) ) {
+			SPA_Log::write(
+				array(
+					'type'        => 'digest',
+					'label'       => __( 'Fixtures digest', 'sportspress-announcer' ),
+					'platform'    => 'slack',
+					'status'      => 'failed',
+					'webhook_url' => $webhook_url,
+					'payload'     => $payload,
+				)
+			);
 			return $result;
 		}
+
+		SPA_Log::write(
+			array(
+				'type'        => 'digest',
+				'label'       => __( 'Fixtures digest', 'sportspress-announcer' ),
+				'platform'    => 'slack',
+				'status'      => 'sent',
+				'webhook_url' => $webhook_url,
+				'payload'     => $payload,
+			)
+		);
 
 		return true;
 	}

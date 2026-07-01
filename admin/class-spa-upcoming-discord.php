@@ -79,8 +79,30 @@ class SPA_Upcoming_Discord {
 		$result  = $discord->send( $payload );
 
 		if ( is_wp_error( $result ) ) {
+			SPA_Log::write(
+				array(
+					'type'        => 'digest',
+					'label'       => __( 'Fixtures digest', 'sportspress-announcer' ),
+					'platform'    => 'discord',
+					'status'      => 'failed',
+					'webhook_url' => $webhook_url,
+					'payload'     => $payload,
+				)
+			);
 			return $result;
 		}
+
+		SPA_Log::write(
+			array(
+				'type'        => 'digest',
+				'label'       => __( 'Fixtures digest', 'sportspress-announcer' ),
+				'platform'    => 'discord',
+				'status'      => 'sent',
+				'webhook_url' => $webhook_url,
+				'payload'     => $payload,
+			)
+		);
+		update_option( 'spa_last_digest_sent', time(), false );
 
 		return true;
 	}
