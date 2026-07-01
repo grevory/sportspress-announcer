@@ -23,6 +23,7 @@ define( 'SPA_VERSION', '0.1.0' );
 define( 'SPA_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'SPA_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
+require_once SPA_PLUGIN_DIR . 'includes/class-spa-log.php';
 require_once SPA_PLUGIN_DIR . 'includes/class-spa-message-formatter.php';
 require_once SPA_PLUGIN_DIR . 'includes/class-spa-webhook-discord.php';
 require_once SPA_PLUGIN_DIR . 'includes/class-spa-webhook-slack.php';
