@@ -94,12 +94,10 @@ class SPA_Upcoming_Slack {
 		if ( is_wp_error( $result ) ) {
 			SPA_Log::write(
 				array(
-					'type'        => 'digest',
-					'label'       => __( 'Fixtures digest', 'sportspress-announcer' ),
-					'platform'    => 'slack',
-					'status'      => 'failed',
-					'webhook_url' => $webhook_url,
-					'payload'     => $payload,
+					'type'     => 'digest',
+					'label'    => __( 'Fixtures digest', 'sportspress-announcer' ),
+					'platform' => 'slack',
+					'status'   => 'failed',
 				)
 			);
 			return $result;
@@ -107,12 +105,10 @@ class SPA_Upcoming_Slack {
 
 		SPA_Log::write(
 			array(
-				'type'        => 'digest',
-				'label'       => __( 'Fixtures digest', 'sportspress-announcer' ),
-				'platform'    => 'slack',
-				'status'      => 'sent',
-				'webhook_url' => $webhook_url,
-				'payload'     => $payload,
+				'type'     => 'digest',
+				'label'    => __( 'Fixtures digest', 'sportspress-announcer' ),
+				'platform' => 'slack',
+				'status'   => 'sent',
 			)
 		);
 

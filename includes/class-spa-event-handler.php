@@ -101,11 +101,10 @@ class SPA_Event_Handler {
 							'id'          => $post_id,
 							'type'        => 'result',
 							'label'       => $formatter->format_result( $event ),
-							'channel'     => '',
+							'channel'     => $event['competition'] ? $event['competition'] : '',
+							'competition' => $event['competition'],
 							'platform'    => 'discord',
 							'status'      => 'failed',
-							'webhook_url' => $discord_url,
-							'payload'     => $payload,
 						)
 					);
 				} else {
@@ -116,10 +115,9 @@ class SPA_Event_Handler {
 							'type'        => 'result',
 							'label'       => $formatter->format_result( $event ),
 							'channel'     => $event['competition'] ? $event['competition'] : '',
+							'competition' => $event['competition'],
 							'platform'    => 'discord',
 							'status'      => 'sent',
-							'webhook_url' => $discord_url,
-							'payload'     => $payload,
 						)
 					);
 				}
@@ -154,11 +152,10 @@ class SPA_Event_Handler {
 							'id'          => $post_id,
 							'type'        => 'result',
 							'label'       => $formatter->format_result( $event ),
-							'channel'     => '',
+							'channel'     => $event['competition'] ? $event['competition'] : '',
+							'competition' => $event['competition'],
 							'platform'    => 'slack',
 							'status'      => 'failed',
-							'webhook_url' => $slack_url,
-							'payload'     => $payload,
 						)
 					);
 				} else {
@@ -169,10 +166,9 @@ class SPA_Event_Handler {
 							'type'        => 'result',
 							'label'       => $formatter->format_result( $event ),
 							'channel'     => $event['competition'] ? $event['competition'] : '',
+							'competition' => $event['competition'],
 							'platform'    => 'slack',
 							'status'      => 'sent',
-							'webhook_url' => $slack_url,
-							'payload'     => $payload,
 						)
 					);
 				}

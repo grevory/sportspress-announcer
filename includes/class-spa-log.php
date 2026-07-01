@@ -16,12 +16,11 @@ if ( ! defined( 'ABSPATH' ) ) {
  *   id          int     post_id (0 for digest entries)
  *   type        string  'result' | 'digest'
  *   label       string  Human-readable event name or digest title
- *   channel     string  '#channel-name'
+ *   channel     string  Competition name used as channel label
+ *   competition string  Competition name — used to resolve routing on retry
  *   platform    string  'discord' | 'slack'
  *   sent_at     int     Unix timestamp
  *   status      string  'sent' | 'failed'
- *   webhook_url string  Stored for retry
- *   payload     array   Stored for retry
  */
 class SPA_Log {
 
@@ -43,11 +42,10 @@ class SPA_Log {
 				'type'        => 'result',
 				'label'       => '',
 				'channel'     => '',
+				'competition' => '',
 				'platform'    => 'discord',
 				'sent_at'     => time(),
 				'status'      => 'sent',
-				'webhook_url' => '',
-				'payload'     => array(),
 			),
 			$entry
 		);

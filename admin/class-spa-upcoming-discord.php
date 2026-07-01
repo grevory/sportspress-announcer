@@ -81,12 +81,10 @@ class SPA_Upcoming_Discord {
 		if ( is_wp_error( $result ) ) {
 			SPA_Log::write(
 				array(
-					'type'        => 'digest',
-					'label'       => __( 'Fixtures digest', 'sportspress-announcer' ),
-					'platform'    => 'discord',
-					'status'      => 'failed',
-					'webhook_url' => $webhook_url,
-					'payload'     => $payload,
+					'type'     => 'digest',
+					'label'    => __( 'Fixtures digest', 'sportspress-announcer' ),
+					'platform' => 'discord',
+					'status'   => 'failed',
 				)
 			);
 			return $result;
@@ -94,12 +92,10 @@ class SPA_Upcoming_Discord {
 
 		SPA_Log::write(
 			array(
-				'type'        => 'digest',
-				'label'       => __( 'Fixtures digest', 'sportspress-announcer' ),
-				'platform'    => 'discord',
-				'status'      => 'sent',
-				'webhook_url' => $webhook_url,
-				'payload'     => $payload,
+				'type'     => 'digest',
+				'label'    => __( 'Fixtures digest', 'sportspress-announcer' ),
+				'platform' => 'discord',
+				'status'   => 'sent',
 			)
 		);
 		update_option( 'spa_last_digest_sent', time(), false );
