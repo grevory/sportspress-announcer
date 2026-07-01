@@ -122,7 +122,7 @@ class SPA_Upcoming_Slack {
 	 *
 	 * @return string
 	 */
-	private function build_mrkdwn( array $games ): string {
+	public function build_mrkdwn( array $games ): string {
 		$by_date = array();
 		foreach ( $games as $g ) {
 			$by_date[ $g['date'] ][] = $g;

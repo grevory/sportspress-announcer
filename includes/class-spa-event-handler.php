@@ -187,7 +187,7 @@ class SPA_Event_Handler {
 	 *
 	 * @return array{home: string, away: string, home_score: int|string, away_score: int|string, competition: string, home_color: string, event_url: string}|false
 	 */
-	protected function extract_event_data( int $post_id ) {
+	public function extract_event_data( int $post_id ) {
 		// SportsPress stores teams as a post meta array keyed by team post IDs.
 		$team_ids = get_post_meta( $post_id, 'sp_team', false );
 		if ( empty( $team_ids ) || count( $team_ids ) < 2 ) {

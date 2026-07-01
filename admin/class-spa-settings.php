@@ -61,6 +61,8 @@ class SPA_Settings {
 		add_action( 'wp_ajax_spa_test_webhook', array( $this, 'ajax_test_webhook' ) );
 		add_action( 'wp_ajax_spa_test_slack_webhook', array( $this, 'ajax_test_slack_webhook' ) );
 		add_action( 'wp_ajax_spa_qs_dismiss', array( $this, 'ajax_qs_dismiss' ) );
+		add_action( 'wp_ajax_spa_retry_announcement', array( $this, 'ajax_retry_announcement' ) );
+		add_action( 'wp_ajax_spa_send_digest', array( $this, 'ajax_send_digest' ) );
 	}
 
 	/**
@@ -88,6 +90,172 @@ class SPA_Settings {
 		}
 
 		update_user_meta( $user_id, self::QS_USER_META, $dismissed );
+		wp_send_json_success();
+	}
+
+	/**
+	 * Retry a failed announcement by re-sending to the current webhook.
+	 *
+	 * Resolves the webhook URL from current options using the stored platform
+	 * and competition — secrets are never persisted in the log.
+	 *
+	 * @return void
+	 */
+	public function ajax_retry_announcement(): void {
+		check_ajax_referer( 'spa_retry_nonce', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( __( 'Permission denied.', 'sportspress-announcer' ) );
+		}
+
+		$uid = sanitize_text_field( wp_unslash( $_POST['uid'] ?? '' ) );
+		if ( '' === $uid ) {
+			wp_send_json_error( __( 'Missing entry ID.', 'sportspress-announcer' ) );
+		}
+
+		// Find the entry by stable uid — array index is not stable across concurrent writes.
+		$entry = null;
+		foreach ( SPA_Log::get_all() as $candidate ) {
+			if ( ( $candidate['uid'] ?? '' ) === $uid ) {
+				$entry = $candidate;
+				break;
+			}
+		}
+
+		if ( null === $entry ) {
+			wp_send_json_error( __( 'Log entry not found.', 'sportspress-announcer' ) );
+		}
+
+		if ( 'failed' !== ( $entry['status'] ?? '' ) ) {
+			wp_send_json_error( __( 'Entry is not in a failed state.', 'sportspress-announcer' ) );
+		}
+
+		$platform    = $entry['platform'] ?? 'discord';
+		$competition = $entry['competition'] ?? '';
+		$post_id     = (int) ( $entry['id'] ?? 0 );
+
+		if ( 'result' === $entry['type'] ) {
+			$post = get_post( $post_id );
+			if ( ! $post || 'sp_event' !== $post->post_type ) {
+				wp_send_json_error( __( 'Event post not found.', 'sportspress-announcer' ) );
+			}
+
+			$handler   = new SPA_Event_Handler();
+			$formatter = new SPA_Message_Formatter();
+
+			$event = $handler->extract_event_data( $post_id );
+			if ( ! $event ) {
+				wp_send_json_error( __( 'Could not read event data.', 'sportspress-announcer' ) );
+			}
+
+			if ( 'discord' === $platform ) {
+				$channel_map = (array) get_option( self::OPTION_DISCORD_CHANNEL_MAP, array() );
+				$webhook_url = ( $competition && ! empty( $channel_map[ $competition ] ) )
+					? $channel_map[ $competition ]
+					: get_option( self::OPTION_WEBHOOK, '' );
+
+				if ( empty( $webhook_url ) ) {
+					wp_send_json_error( __( 'No Discord webhook configured.', 'sportspress-announcer' ) );
+				}
+
+				$result = ( new SPA_Webhook_Discord( $webhook_url ) )->send( $formatter->format_embed( $event ) );
+			} else {
+				$channel_map = (array) get_option( self::OPTION_SLACK_CHANNEL_MAP, array() );
+				$webhook_url = ( $competition && ! empty( $channel_map[ $competition ] ) )
+					? $channel_map[ $competition ]
+					: get_option( self::OPTION_SLACK_WEBHOOK, '' );
+
+				if ( empty( $webhook_url ) ) {
+					wp_send_json_error( __( 'No Slack webhook configured.', 'sportspress-announcer' ) );
+				}
+
+				$result = ( new SPA_Webhook_Slack( $webhook_url ) )->send( $formatter->format_slack( $event ) );
+			}
+
+			if ( is_wp_error( $result ) ) {
+				wp_send_json_error( $result->get_error_message() );
+			}
+
+			SPA_Log::update_entry( $uid, array( 'status' => 'sent', 'sent_at' => time() ) );
+			wp_send_json_success();
+		}
+
+		// Digest retry: send directly without going through send_digest(), which would
+		// write a new log entry and leave the original failed row unchanged.
+		if ( 'digest' === $entry['type'] ) {
+			$notice = new SPA_Upcoming_Notice();
+			$games  = $notice->get_upcoming_games();
+
+			if ( empty( $games ) ) {
+				wp_send_json_error( __( 'No upcoming games found.', 'sportspress-announcer' ) );
+			}
+
+			if ( 'discord' === $platform ) {
+				$webhook_url = get_option( self::OPTION_WEBHOOK, '' );
+				if ( empty( $webhook_url ) ) {
+					wp_send_json_error( __( 'No Discord webhook configured.', 'sportspress-announcer' ) );
+				}
+				$sender  = new SPA_Upcoming_Discord();
+				$payload = array(
+					'embeds' => array(
+						array(
+							'title'       => __( 'Upcoming Games', 'sportspress-announcer' ),
+							'description' => $sender->build_description( $games ),
+							'color'       => 0x5865F2,
+						),
+					),
+				);
+				$result = ( new SPA_Webhook_Discord( $webhook_url ) )->send( $payload );
+			} else {
+				$webhook_url = get_option( self::OPTION_SLACK_WEBHOOK, '' );
+				if ( empty( $webhook_url ) ) {
+					wp_send_json_error( __( 'No Slack webhook configured.', 'sportspress-announcer' ) );
+				}
+				$sender  = new SPA_Upcoming_Slack();
+				$mrkdwn  = $sender->build_mrkdwn( $games );
+				$payload = array(
+					'text'   => __( 'Upcoming Games', 'sportspress-announcer' ),
+					'blocks' => array(
+						array( 'type' => 'header', 'text' => array( 'type' => 'plain_text', 'text' => __( 'Upcoming Games', 'sportspress-announcer' ), 'emoji' => true ) ),
+						array( 'type' => 'section', 'text' => array( 'type' => 'mrkdwn', 'text' => $mrkdwn ) ),
+					),
+				);
+				$result = ( new SPA_Webhook_Slack( $webhook_url ) )->send( $payload );
+			}
+
+			if ( is_wp_error( $result ) ) {
+				wp_send_json_error( $result->get_error_message() );
+			}
+
+			SPA_Log::update_entry( $uid, array( 'status' => 'sent', 'sent_at' => time() ) );
+			wp_send_json_success();
+		}
+
+		wp_send_json_error( __( 'Unknown entry type.', 'sportspress-announcer' ) );
+	}
+
+	/**
+	 * Send the upcoming fixtures digest to Discord now.
+	 *
+	 * @return void
+	 */
+	public function ajax_send_digest(): void {
+		check_ajax_referer( 'spa_send_digest_nonce', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( __( 'Permission denied.', 'sportspress-announcer' ) );
+		}
+
+		$sender = new SPA_Upcoming_Discord();
+		$result = $sender->send_digest();
+
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( $result->get_error_message() );
+		}
+		if ( false === $result ) {
+			wp_send_json_error( __( 'No upcoming games found in the next 7 days.', 'sportspress-announcer' ) );
+		}
+
 		wp_send_json_success();
 	}
 

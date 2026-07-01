@@ -38,6 +38,7 @@ class SPA_Log {
 		$log   = self::get_all();
 		$entry = array_merge(
 			array(
+				'uid'         => uniqid( 'spa', true ),
 				'id'          => 0,
 				'type'        => 'result',
 				'label'       => '',
@@ -70,21 +71,29 @@ class SPA_Log {
 	}
 
 	/**
-	 * Update fields on an existing log entry by its 0-based index.
+	 * Update fields on an existing log entry by its stable uid.
 	 *
-	 * @param int   $index Zero-based position in the log array.
-	 * @param array $patch Key-value pairs to merge into the entry.
+	 * @param string $uid   The entry's uid value.
+	 * @param array  $patch Key-value pairs to merge into the entry.
 	 *
-	 * @return bool True on success, false if index is out of bounds.
+	 * @return bool True on success, false if uid not found.
 	 */
-	public static function update_entry( int $index, array $patch ): bool {
-		$log = self::get_all();
+	public static function update_entry( string $uid, array $patch ): bool {
+		$log   = self::get_all();
+		$found = false;
 
-		if ( ! isset( $log[ $index ] ) ) {
+		foreach ( $log as $i => $entry ) {
+			if ( ( $entry['uid'] ?? '' ) === $uid ) {
+				$log[ $i ] = array_merge( $entry, $patch );
+				$found     = true;
+				break;
+			}
+		}
+
+		if ( ! $found ) {
 			return false;
 		}
 
-		$log[ $index ] = array_merge( $log[ $index ], $patch );
 		update_option( self::OPTION, $log, false );
 
 		return true;
