@@ -1,6 +1,9 @@
 <?php
 /**
- * Schedules automatic digest sends via WP-Cron.
+ * Schedules the automatic upcoming-games digest (daily/weekly cadence) via WP-Cron.
+ *
+ * This is the "daily digest" — a heads-up of upcoming fixtures. Distinct from
+ * SPA_Weekly_Digest_Scheduler, which posts the weekly results recap (Pro).
  *
  * @package SportsPress_Announcer
  */
@@ -12,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Manages automatic upcoming-game digest events in WP-Cron.
  */
-class SPA_Digest_Scheduler {
+class SPA_Daily_Digest_Scheduler {
 
 	private const HOOK = 'spa_digest_send';
 

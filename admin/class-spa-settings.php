@@ -45,7 +45,7 @@ class SPA_Settings {
 	public const DEFAULT_UPCOMING_TEMPLATE = '{home} vs {away}';
 
 	// Digest schedule.
-	// (option keys delegated to SPA_Digest_Scheduler).
+	// (option keys delegated to SPA_Daily_Digest_Scheduler).
 
 	private const MENU_SLUG = 'sportspress-announcer';
 
@@ -63,6 +63,7 @@ class SPA_Settings {
 		add_action( 'wp_ajax_spa_qs_dismiss', array( $this, 'ajax_qs_dismiss' ) );
 		add_action( 'wp_ajax_spa_retry_announcement', array( $this, 'ajax_retry_announcement' ) );
 		add_action( 'wp_ajax_spa_send_digest', array( $this, 'ajax_send_digest' ) );
+		add_action( 'wp_ajax_spa_generate_digest_preview', array( $this, 'ajax_generate_digest_preview' ) );
 	}
 
 	/**
@@ -172,7 +173,13 @@ class SPA_Settings {
 				wp_send_json_error( $result->get_error_message() );
 			}
 
-			SPA_Log::update_entry( $uid, array( 'status' => 'sent', 'sent_at' => time() ) );
+			SPA_Log::update_entry(
+				$uid,
+				array(
+					'status'  => 'sent',
+					'sent_at' => time(),
+				)
+			);
 			wp_send_json_success();
 		}
 
@@ -201,7 +208,7 @@ class SPA_Settings {
 						),
 					),
 				);
-				$result = ( new SPA_Webhook_Discord( $webhook_url ) )->send( $payload );
+				$result  = ( new SPA_Webhook_Discord( $webhook_url ) )->send( $payload );
 			} else {
 				$webhook_url = get_option( self::OPTION_SLACK_WEBHOOK, '' );
 				if ( empty( $webhook_url ) ) {
@@ -212,18 +219,37 @@ class SPA_Settings {
 				$payload = array(
 					'text'   => __( 'Upcoming Games', 'sportspress-announcer' ),
 					'blocks' => array(
-						array( 'type' => 'header', 'text' => array( 'type' => 'plain_text', 'text' => __( 'Upcoming Games', 'sportspress-announcer' ), 'emoji' => true ) ),
-						array( 'type' => 'section', 'text' => array( 'type' => 'mrkdwn', 'text' => $mrkdwn ) ),
+						array(
+							'type' => 'header',
+							'text' => array(
+								'type'  => 'plain_text',
+								'text'  => __( 'Upcoming Games', 'sportspress-announcer' ),
+								'emoji' => true,
+							),
+						),
+						array(
+							'type' => 'section',
+							'text' => array(
+								'type' => 'mrkdwn',
+								'text' => $mrkdwn,
+							),
+						),
 					),
 				);
-				$result = ( new SPA_Webhook_Slack( $webhook_url ) )->send( $payload );
+				$result  = ( new SPA_Webhook_Slack( $webhook_url ) )->send( $payload );
 			}
 
 			if ( is_wp_error( $result ) ) {
 				wp_send_json_error( $result->get_error_message() );
 			}
 
-			SPA_Log::update_entry( $uid, array( 'status' => 'sent', 'sent_at' => time() ) );
+			SPA_Log::update_entry(
+				$uid,
+				array(
+					'status'  => 'sent',
+					'sent_at' => time(),
+				)
+			);
 			wp_send_json_success();
 		}
 
@@ -360,7 +386,7 @@ class SPA_Settings {
 
 		register_setting(
 			'spa_settings_group',
-			SPA_Digest_Scheduler::OPTION_ENABLED,
+			SPA_Daily_Digest_Scheduler::OPTION_ENABLED,
 			array(
 				'type'              => 'boolean',
 				'sanitize_callback' => 'rest_sanitize_boolean',
@@ -370,7 +396,7 @@ class SPA_Settings {
 
 		register_setting(
 			'spa_settings_group',
-			SPA_Digest_Scheduler::OPTION_FREQUENCY,
+			SPA_Daily_Digest_Scheduler::OPTION_FREQUENCY,
 			array(
 				'type'              => 'string',
 				'sanitize_callback' => array( $this, 'sanitize_digest_frequency' ),
@@ -380,7 +406,7 @@ class SPA_Settings {
 
 		register_setting(
 			'spa_settings_group',
-			SPA_Digest_Scheduler::OPTION_DAY,
+			SPA_Daily_Digest_Scheduler::OPTION_DAY,
 			array(
 				'type'              => 'string',
 				'sanitize_callback' => array( $this, 'sanitize_digest_day' ),
@@ -390,7 +416,7 @@ class SPA_Settings {
 
 		register_setting(
 			'spa_settings_group',
-			SPA_Digest_Scheduler::OPTION_TIME,
+			SPA_Daily_Digest_Scheduler::OPTION_TIME,
 			array(
 				'type'              => 'string',
 				'sanitize_callback' => array( $this, 'sanitize_digest_time' ),
@@ -405,6 +431,8 @@ class SPA_Settings {
 			self::MENU_SLUG,
 			'spa_section_digest'
 		);
+
+		$this->register_weekly_digest_settings();
 
 		// Result message template (all channels).
 		register_setting(
@@ -1483,10 +1511,10 @@ class SPA_Settings {
 	 * @return void
 	 */
 	public function render_digest_schedule_field(): void {
-		$enabled   = (bool) get_option( SPA_Digest_Scheduler::OPTION_ENABLED, false );
-		$frequency = get_option( SPA_Digest_Scheduler::OPTION_FREQUENCY, 'weekly' );
-		$day       = get_option( SPA_Digest_Scheduler::OPTION_DAY, 'monday' );
-		$time      = get_option( SPA_Digest_Scheduler::OPTION_TIME, '08:00' );
+		$enabled   = (bool) get_option( SPA_Daily_Digest_Scheduler::OPTION_ENABLED, false );
+		$frequency = get_option( SPA_Daily_Digest_Scheduler::OPTION_FREQUENCY, 'weekly' );
+		$day       = get_option( SPA_Daily_Digest_Scheduler::OPTION_DAY, 'monday' );
+		$time      = get_option( SPA_Daily_Digest_Scheduler::OPTION_TIME, '08:00' );
 
 		$days = array(
 			'monday'    => __( 'Monday', 'sportspress-announcer' ),
@@ -1503,8 +1531,8 @@ class SPA_Settings {
 		<label>
 			<input
 				type="checkbox"
-				id="<?php echo esc_attr( SPA_Digest_Scheduler::OPTION_ENABLED ); ?>"
-				name="<?php echo esc_attr( SPA_Digest_Scheduler::OPTION_ENABLED ); ?>"
+				id="<?php echo esc_attr( SPA_Daily_Digest_Scheduler::OPTION_ENABLED ); ?>"
+				name="<?php echo esc_attr( SPA_Daily_Digest_Scheduler::OPTION_ENABLED ); ?>"
 				value="1"
 				<?php checked( $enabled ); ?>
 			/>
@@ -1513,8 +1541,8 @@ class SPA_Settings {
 
 		<div style="margin-top:10px; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
 			<select
-				id="<?php echo esc_attr( SPA_Digest_Scheduler::OPTION_FREQUENCY ); ?>"
-				name="<?php echo esc_attr( SPA_Digest_Scheduler::OPTION_FREQUENCY ); ?>"
+				id="<?php echo esc_attr( SPA_Daily_Digest_Scheduler::OPTION_FREQUENCY ); ?>"
+				name="<?php echo esc_attr( SPA_Daily_Digest_Scheduler::OPTION_FREQUENCY ); ?>"
 			>
 				<option value="daily" <?php selected( $frequency, 'daily' ); ?>><?php esc_html_e( 'Daily', 'sportspress-announcer' ); ?></option>
 				<option value="weekly" <?php selected( $frequency, 'weekly' ); ?>><?php esc_html_e( 'Weekly', 'sportspress-announcer' ); ?></option>
@@ -1522,7 +1550,7 @@ class SPA_Settings {
 
 			<span id="spa-digest-day-wrap" <?php echo 'daily' === $frequency ? 'style="display:none;"' : ''; ?>>
 				<select
-					name="<?php echo esc_attr( SPA_Digest_Scheduler::OPTION_DAY ); ?>"
+					name="<?php echo esc_attr( SPA_Daily_Digest_Scheduler::OPTION_DAY ); ?>"
 				>
 					<?php foreach ( $days as $val => $label ) : ?>
 						<option value="<?php echo esc_attr( $val ); ?>" <?php selected( $day, $val ); ?>><?php echo esc_html( $label ); ?></option>
@@ -1532,7 +1560,7 @@ class SPA_Settings {
 
 			<input
 				type="time"
-				name="<?php echo esc_attr( SPA_Digest_Scheduler::OPTION_TIME ); ?>"
+				name="<?php echo esc_attr( SPA_Daily_Digest_Scheduler::OPTION_TIME ); ?>"
 				value="<?php echo esc_attr( $time ); ?>"
 			/>
 		</div>
@@ -1551,7 +1579,7 @@ class SPA_Settings {
 
 		<script>
 		document.addEventListener( 'DOMContentLoaded', function () {
-			var freq = document.getElementById( '<?php echo esc_js( SPA_Digest_Scheduler::OPTION_FREQUENCY ); ?>' );
+			var freq = document.getElementById( '<?php echo esc_js( SPA_Daily_Digest_Scheduler::OPTION_FREQUENCY ); ?>' );
 			var wrap = document.getElementById( 'spa-digest-day-wrap' );
 			if ( ! freq || ! wrap ) return;
 			freq.addEventListener( 'change', function () {
@@ -1885,18 +1913,30 @@ class SPA_Settings {
 	 * @return void
 	 */
 	private function render_dashboard_tab( bool $discord_active, int $sent_today, int $log_failed, array $recent_log, int $log_total, int $last_digest_ts ): void {
-		$slack_active    = ! empty( get_option( self::OPTION_SLACK_WEBHOOK, '' ) );
-		$retry_nonce     = wp_create_nonce( 'spa_retry_nonce' );
+		$slack_active      = ! empty( get_option( self::OPTION_SLACK_WEBHOOK, '' ) );
+		$retry_nonce       = wp_create_nonce( 'spa_retry_nonce' );
 		$send_digest_nonce = wp_create_nonce( 'spa_send_digest_nonce' );
-		$log_url         = add_query_arg( array( 'page' => self::MENU_SLUG, 'tab' => 'log' ), admin_url( 'options-general.php' ) );
-		$general_url     = add_query_arg( array( 'page' => self::MENU_SLUG, 'tab' => 'general' ), admin_url( 'options-general.php' ) );
+		$log_url           = add_query_arg(
+			array(
+				'page' => self::MENU_SLUG,
+				'tab'  => 'log',
+			),
+			admin_url( 'options-general.php' )
+		);
+		$general_url       = add_query_arg(
+			array(
+				'page' => self::MENU_SLUG,
+				'tab'  => 'general',
+			),
+			admin_url( 'options-general.php' )
+		);
 
 		// Upcoming digest preview.
 		$notice          = new SPA_Upcoming_Notice();
 		$upcoming_games  = $notice->get_upcoming_games();
 		$next_date_label = '';
 		if ( ! empty( $upcoming_games ) ) {
-			$dates           = array_column( $upcoming_games, 'date' );
+			$dates = array_column( $upcoming_games, 'date' );
 			sort( $dates );
 			$next_date_label = $dates[0];
 		}
@@ -2192,9 +2232,15 @@ class SPA_Settings {
 			$all_filtered = SPA_Log::get_page( 9999, 1, $filters, $search );
 			$total        = count( $all_filtered );
 		}
-		$total_pages  = (int) ceil( $total / $per_page );
-		$retry_nonce  = wp_create_nonce( 'spa_retry_nonce' );
-		$base_url     = add_query_arg( array( 'page' => self::MENU_SLUG, 'tab' => 'log' ), admin_url( 'options-general.php' ) );
+		$total_pages = (int) ceil( $total / $per_page );
+		$retry_nonce = wp_create_nonce( 'spa_retry_nonce' );
+		$base_url    = add_query_arg(
+			array(
+				'page' => self::MENU_SLUG,
+				'tab'  => 'log',
+			),
+			admin_url( 'options-general.php' )
+		);
 
 		$count_all    = SPA_Log::count();
 		$count_result = SPA_Log::count( array( 'type' => 'result' ) );
@@ -2240,11 +2286,12 @@ class SPA_Settings {
 					<?php esc_html_e( 'No entries found.', 'sportspress-announcer' ); ?>
 				</div>
 			<?php else : ?>
-				<?php foreach ( $entries as $entry ) :
-					$is_failed  = 'failed' === ( $entry['status'] ?? '' );
-					$is_digest  = 'digest' === ( $entry['type'] ?? '' );
-					$ts         = (int) ( $entry['sent_at'] ?? 0 );
-					$diff       = time() - $ts;
+				<?php
+				foreach ( $entries as $entry ) :
+					$is_failed = 'failed' === ( $entry['status'] ?? '' );
+					$is_digest = 'digest' === ( $entry['type'] ?? '' );
+					$ts        = (int) ( $entry['sent_at'] ?? 0 );
+					$diff      = time() - $ts;
 					if ( $diff < 3600 ) {
 						$time_label = sprintf(
 							/* translators: %d: minutes ago */
@@ -2266,10 +2313,10 @@ class SPA_Settings {
 					} elseif ( $is_digest ) {
 						$row_class .= ' spa-log-row--digest';
 					}
-					$type_label  = 'result' === ( $entry['type'] ?? '' )
+					$type_label = 'result' === ( $entry['type'] ?? '' )
 						? esc_html__( 'Result', 'sportspress-announcer' )
 						: esc_html__( 'Digest', 'sportspress-announcer' );
-					$type_color  = 'result' === ( $entry['type'] ?? '' ) ? '#2271b1' : '#996800';
+					$type_color = 'result' === ( $entry['type'] ?? '' ) ? '#2271b1' : '#996800';
 					?>
 					<div class="<?php echo esc_attr( $row_class ); ?>">
 						<span style="color:<?php echo esc_attr( $type_color ); ?>;font-weight:600"><?php echo $type_label; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></span>
@@ -2383,18 +2430,18 @@ class SPA_Settings {
 			: 'dashboard';
 
 		// Log data for Dashboard + Log tabs.
-		$log            = SPA_Log::get_all();
-		$log_total      = count( $log );
-		$log_failed     = count( array_filter( $log, static fn( $e ) => 'failed' === ( $e['status'] ?? '' ) ) );
-		$sent_today     = count(
+		$log              = SPA_Log::get_all();
+		$log_total        = count( $log );
+		$log_failed       = count( array_filter( $log, static fn( $e ) => 'failed' === ( $e['status'] ?? '' ) ) );
+		$sent_today       = count(
 			array_filter(
 				$log,
 				static fn( $e ) => ( $e['sent_at'] ?? 0 ) >= strtotime( 'today midnight' )
 			)
 		);
-		$last_digest_ts = (int) get_option( 'spa_last_digest_sent', 0 );
-		$recent_log     = array_slice( $log, 0, 3 );
-		$handled_sections      = array(
+		$last_digest_ts   = (int) get_option( 'spa_last_digest_sent', 0 );
+		$recent_log       = array_slice( $log, 0, 3 );
+		$handled_sections = array(
 			'spa_section_sportspress',
 			'spa_section_discord',
 			'spa_section_slack',
@@ -2402,12 +2449,12 @@ class SPA_Settings {
 			'spa_section_digest',
 			'spa_section_announcements',
 		);
-		$discord_fields        = array(
+		$discord_fields   = array(
 			self::OPTION_DISCORD_ENABLED,
 			self::OPTION_WEBHOOK,
 			self::OPTION_DISCORD_CHANNEL_MAP,
 		);
-		$slack_fields          = array(
+		$slack_fields     = array(
 			self::OPTION_SLACK_ENABLED,
 			self::OPTION_SLACK_WEBHOOK,
 			self::OPTION_SLACK_CHANNEL_MAP,
@@ -2555,6 +2602,8 @@ class SPA_Settings {
 						<!-- Digest tab -->
 						<div id="spa-panel-digest" class="spa-panel<?php echo 'digest' === $active_tab ? ' is-active' : ''; ?>" role="tabpanel">
 							<?php $this->render_registered_section( $page, 'spa_section_digest' ); ?>
+							<hr style="margin:24px 0">
+							<?php $this->render_weekly_digest_section(); ?>
 							<?php submit_button( __( 'Save Settings', 'sportspress-announcer' ) ); ?>
 						</div>
 
@@ -2727,5 +2776,368 @@ class SPA_Settings {
 		} );
 		</script>
 		<?php
+	}
+
+	// -------------------------------------------------------------------------
+	// Weekly Digest (results recap) — Pro-gated posting, free preview.
+	// -------------------------------------------------------------------------
+
+	/**
+	 * Register all spa_weekly_digest_* settings under the shared group.
+	 */
+	private function register_weekly_digest_settings(): void {
+		$bool_fields = array(
+			'spa_weekly_digest_enabled',
+			'spa_weekly_digest_include_results',
+			'spa_weekly_digest_include_standings',
+			'spa_weekly_digest_include_leaders',
+			'spa_weekly_digest_include_upcoming',
+			'spa_weekly_digest_publish_as_post',
+		);
+		foreach ( $bool_fields as $field ) {
+			register_setting(
+				'spa_settings_group',
+				$field,
+				array(
+					'type'              => 'boolean',
+					'sanitize_callback' => 'rest_sanitize_boolean',
+					'default'           => false,
+				)
+			);
+		}
+
+		register_setting(
+			'spa_settings_group',
+			'spa_weekly_digest_day',
+			array(
+				'type'              => 'string',
+				'sanitize_callback' => array( $this, 'sanitize_digest_day' ),
+				'default'           => 'monday',
+			)
+		);
+
+		register_setting(
+			'spa_settings_group',
+			'spa_weekly_digest_time',
+			array(
+				'type'              => 'string',
+				'sanitize_callback' => array( $this, 'sanitize_digest_time' ),
+				'default'           => '09:00',
+			)
+		);
+
+		register_setting(
+			'spa_settings_group',
+			'spa_weekly_digest_leagues',
+			array(
+				'type'              => 'array',
+				'sanitize_callback' => array( $this, 'sanitize_weekly_digest_leagues' ),
+				'default'           => array(),
+			)
+		);
+
+		register_setting(
+			'spa_settings_group',
+			'spa_weekly_digest_stat_keys',
+			array(
+				'type'              => 'array',
+				'sanitize_callback' => array( $this, 'sanitize_weekly_digest_stat_keys' ),
+				'default'           => array(),
+			)
+		);
+	}
+
+	/**
+	 * Sanitize the selected-leagues array to positive integers.
+	 *
+	 * @param mixed $value Raw value.
+	 * @return int[]
+	 */
+	public function sanitize_weekly_digest_leagues( $value ): array {
+		return array_values( array_filter( array_map( 'intval', (array) $value ) ) );
+	}
+
+	/**
+	 * Sanitize stat keys — sanitize_key, cap at 3.
+	 *
+	 * @param mixed $value Raw value.
+	 * @return string[]
+	 */
+	public function sanitize_weekly_digest_stat_keys( $value ): array {
+		return array_slice( array_map( 'sanitize_key', (array) $value ), 0, 3 );
+	}
+
+	/**
+	 * Render the Weekly Digest form. Free users see it disabled with a
+	 * Pro upgrade strip; the preview button is always active.
+	 *
+	 * @return void
+	 */
+	public function render_weekly_digest_section(): void {
+		$locked = ! SPA_License::is_pro();
+		$dis    = $locked ? ' disabled' : '';
+
+		$leagues         = $this->get_league_terms();
+		$available_stats = $this->get_available_stat_keys();
+		$selected_stats  = (array) get_option( 'spa_weekly_digest_stat_keys', array() );
+		$selected_lg     = array_map( 'strval', (array) get_option( 'spa_weekly_digest_leagues', array() ) );
+		?>
+		<div class="spa-weekly-digest<?php echo $locked ? ' spa-pro-locked' : ''; ?>">
+
+			<h3><?php esc_html_e( 'Weekly Digest — Results Recap', 'sportspress-announcer' ); ?></h3>
+			<p class="description">
+				<?php esc_html_e( 'A weekly rhythm: results, standings movement, and stat leaders, posted automatically to your channels.', 'sportspress-announcer' ); ?>
+			</p>
+
+			<?php if ( $locked ) : ?>
+			<div class="spa-pro-strip">
+				<span class="dashicons dashicons-lock"></span>
+				<?php esc_html_e( 'Scheduling & automatic posting require Pro.', 'sportspress-announcer' ); ?>
+				<a href="<?php echo esc_url( $this->weekly_digest_upgrade_url() ); ?>" target="_blank" rel="noopener noreferrer">
+					<?php esc_html_e( 'Upgrade to Pro — $39/yr →', 'sportspress-announcer' ); ?>
+				</a>
+			</div>
+			<?php endif; ?>
+
+			<table class="form-table" role="presentation">
+				<tr>
+					<th scope="row"><?php esc_html_e( 'Enable', 'sportspress-announcer' ); ?></th>
+					<td>
+						<label>
+							<input type="checkbox" name="spa_weekly_digest_enabled" value="1"
+								<?php checked( get_option( 'spa_weekly_digest_enabled' ) ); ?><?php echo $dis; // phpcs:ignore ?>>
+							<?php esc_html_e( 'Send an automatic weekly recap to configured channels', 'sportspress-announcer' ); ?>
+						</label>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><?php esc_html_e( 'Send day', 'sportspress-announcer' ); ?></th>
+					<td>
+						<select name="spa_weekly_digest_day"<?php echo $dis; // phpcs:ignore ?>>
+							<?php
+							$current_day = get_option( 'spa_weekly_digest_day', 'monday' );
+							foreach ( $this->weekday_choices() as $value => $label ) {
+								printf(
+									'<option value="%s"%s>%s</option>',
+									esc_attr( $value ),
+									selected( $current_day, $value, false ),
+									esc_html( $label )
+								);
+							}
+							?>
+						</select>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><?php esc_html_e( 'Send time', 'sportspress-announcer' ); ?></th>
+					<td>
+						<input type="time" name="spa_weekly_digest_time"
+							value="<?php echo esc_attr( get_option( 'spa_weekly_digest_time', '09:00' ) ); ?>"<?php echo $dis; // phpcs:ignore ?>>
+						<p class="description">
+							<?php
+							printf(
+								/* translators: %s: site timezone string */
+								esc_html__( 'Uses your site timezone (%s). On low-traffic sites, set up a real server cron hitting wp-cron.php for reliable delivery.', 'sportspress-announcer' ),
+								esc_html( wp_timezone_string() )
+							);
+							if ( defined( 'DISABLE_WP_CRON' ) && DISABLE_WP_CRON ) {
+								echo ' <strong>' . esc_html__( 'DISABLE_WP_CRON is active — a real cron job is required.', 'sportspress-announcer' ) . '</strong>';
+							}
+							?>
+						</p>
+					</td>
+				</tr>
+
+				<?php if ( ! empty( $leagues ) ) : ?>
+				<tr>
+					<th scope="row"><?php esc_html_e( 'Leagues', 'sportspress-announcer' ); ?></th>
+					<td>
+						<?php foreach ( $leagues as $league ) : ?>
+						<label style="display:block;margin-bottom:4px">
+							<input type="checkbox" name="spa_weekly_digest_leagues[]"
+								value="<?php echo esc_attr( $league->term_id ); ?>"
+								<?php checked( in_array( (string) $league->term_id, $selected_lg, true ) ); ?><?php echo $dis; // phpcs:ignore ?>>
+							<?php echo esc_html( $league->name ); ?>
+						</label>
+						<?php endforeach; ?>
+						<p class="description"><?php esc_html_e( 'One digest is posted per selected league.', 'sportspress-announcer' ); ?></p>
+					</td>
+				</tr>
+				<?php endif; ?>
+
+				<tr>
+					<th scope="row"><?php esc_html_e( 'Content', 'sportspress-announcer' ); ?></th>
+					<td>
+						<?php
+						$toggles     = array(
+							'spa_weekly_digest_include_results'   => __( 'Results', 'sportspress-announcer' ),
+							'spa_weekly_digest_include_standings' => __( 'Standings & movement', 'sportspress-announcer' ),
+							'spa_weekly_digest_include_leaders'   => __( 'Stat leaders', 'sportspress-announcer' ),
+							'spa_weekly_digest_include_upcoming'  => __( 'Upcoming games', 'sportspress-announcer' ),
+							'spa_weekly_digest_publish_as_post'   => __( 'Also publish as a site post', 'sportspress-announcer' ),
+						);
+						$defaults_on = array( 'spa_weekly_digest_include_results', 'spa_weekly_digest_include_standings', 'spa_weekly_digest_include_leaders' );
+						foreach ( $toggles as $option => $label ) :
+							$default = in_array( $option, $defaults_on, true );
+							?>
+						<label style="display:block;margin-bottom:4px">
+							<input type="checkbox" name="<?php echo esc_attr( $option ); ?>" value="1"
+								<?php checked( get_option( $option, $default ) ); ?><?php echo $dis; // phpcs:ignore ?>>
+							<?php echo esc_html( $label ); ?>
+						</label>
+						<?php endforeach; ?>
+					</td>
+				</tr>
+
+				<?php if ( ! empty( $available_stats ) ) : ?>
+				<tr>
+					<th scope="row"><?php esc_html_e( 'Stat leaders (up to 3)', 'sportspress-announcer' ); ?></th>
+					<td>
+						<?php foreach ( $available_stats as $stat_key => $stat_label ) : ?>
+						<label style="display:block;margin-bottom:4px">
+							<input type="checkbox" name="spa_weekly_digest_stat_keys[]"
+								value="<?php echo esc_attr( $stat_key ); ?>"
+								<?php checked( in_array( $stat_key, $selected_stats, true ) ); ?><?php echo $dis; // phpcs:ignore ?>>
+							<?php echo esc_html( $stat_label ); ?>
+						</label>
+						<?php endforeach; ?>
+					</td>
+				</tr>
+				<?php endif; ?>
+			</table>
+
+			<hr>
+
+			<h4><?php esc_html_e( 'Preview', 'sportspress-announcer' ); ?></h4>
+			<p class="description">
+				<?php esc_html_e( 'Generate a preview using your real SportsPress data. Available on the free plan.', 'sportspress-announcer' ); ?>
+			</p>
+
+			<?php if ( ! empty( $leagues ) ) : ?>
+			<p>
+				<label for="spa-weekly-preview-league"><?php esc_html_e( 'League:', 'sportspress-announcer' ); ?></label>
+				<select id="spa-weekly-preview-league">
+					<?php foreach ( $leagues as $league ) : ?>
+					<option value="<?php echo esc_attr( $league->term_id ); ?>"><?php echo esc_html( $league->name ); ?></option>
+					<?php endforeach; ?>
+				</select>
+			</p>
+			<?php endif; ?>
+
+			<button type="button" id="spa-weekly-preview-btn" class="button button-secondary"
+				data-nonce="<?php echo esc_attr( wp_create_nonce( 'spa_generate_digest_preview_nonce' ) ); ?>">
+				<?php esc_html_e( 'Generate Preview', 'sportspress-announcer' ); ?>
+			</button>
+			<span id="spa-weekly-preview-spinner" class="spinner" style="float:none;vertical-align:middle;display:none;"></span>
+
+			<div id="spa-weekly-preview-output" style="margin-top:16px;display:none;"></div>
+		</div>
+
+		<script>
+		( function() {
+			var btn = document.getElementById( 'spa-weekly-preview-btn' );
+			if ( ! btn ) { return; }
+			btn.addEventListener( 'click', function() {
+				var leagueSel = document.getElementById( 'spa-weekly-preview-league' );
+				var output    = document.getElementById( 'spa-weekly-preview-output' );
+				var spinner   = document.getElementById( 'spa-weekly-preview-spinner' );
+				spinner.style.display = 'inline-block';
+				output.style.display  = 'none';
+
+				var fd = new FormData();
+				fd.append( 'action', 'spa_generate_digest_preview' );
+				fd.append( 'nonce', btn.dataset.nonce );
+				fd.append( 'league_id', leagueSel ? leagueSel.value : 0 );
+
+				fetch( ajaxurl, { method: 'POST', body: fd, credentials: 'same-origin' } )
+					.then( function( r ) { return r.json(); } )
+					.then( function( res ) {
+						spinner.style.display = 'none';
+						output.style.display  = 'block';
+						output.innerHTML = res.success
+							? res.data.html
+							: '<p style="color:#d63638"><?php echo esc_js( __( 'Could not generate preview. Check that SportsPress is active and leagues are configured.', 'sportspress-announcer' ) ); ?></p>';
+					} )
+					.catch( function() {
+						spinner.style.display = 'none';
+						output.style.display  = 'block';
+						output.innerHTML = '<p style="color:#d63638"><?php echo esc_js( __( 'Request failed.', 'sportspress-announcer' ) ); ?></p>';
+					} );
+			} );
+		}() );
+		</script>
+		<?php
+	}
+
+	/** @return WP_Term[] */
+	private function get_league_terms(): array {
+		$terms = get_terms(
+			array(
+				'taxonomy'   => 'sp_league',
+				'hide_empty' => false,
+			)
+		);
+		return ( $terms && ! is_wp_error( $terms ) ) ? $terms : array();
+	}
+
+	/** @return array<string,string> weekday slug => label */
+	private function weekday_choices(): array {
+		return array(
+			'monday'    => __( 'Monday', 'sportspress-announcer' ),
+			'tuesday'   => __( 'Tuesday', 'sportspress-announcer' ),
+			'wednesday' => __( 'Wednesday', 'sportspress-announcer' ),
+			'thursday'  => __( 'Thursday', 'sportspress-announcer' ),
+			'friday'    => __( 'Friday', 'sportspress-announcer' ),
+			'saturday'  => __( 'Saturday', 'sportspress-announcer' ),
+			'sunday'    => __( 'Sunday', 'sportspress-announcer' ),
+		);
+	}
+
+	/**
+	 * Available SportsPress performance stat slugs → labels, with a fallback.
+	 *
+	 * @return array<string,string>
+	 */
+	private function get_available_stat_keys(): array {
+		if ( function_exists( 'sp_get_var_labels' ) ) {
+			$labels = sp_get_var_labels( 'sp_performance' );
+			if ( ! empty( $labels ) && is_array( $labels ) ) {
+				return $labels;
+			}
+		}
+		return array(
+			'goals'   => __( 'Goals', 'sportspress-announcer' ),
+			'assists' => __( 'Assists', 'sportspress-announcer' ),
+			'points'  => __( 'Points', 'sportspress-announcer' ),
+		);
+	}
+
+	private function weekly_digest_upgrade_url(): string {
+		return add_query_arg( 'utm_source', 'plugin-weekly-digest', 'https://example.com/sportspress-announcer-pro' );
+	}
+
+	/**
+	 * AJAX: generate a digest preview for a given league.
+	 * Free and Pro — no license gate.
+	 */
+	public function ajax_generate_digest_preview(): void {
+		check_ajax_referer( 'spa_generate_digest_preview_nonce', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'sportspress-announcer' ) ) );
+		}
+
+		$league_id = intval( wp_unslash( $_POST['league_id'] ?? 0 ) );
+
+		if ( ! class_exists( 'SPA_Digest_Builder' ) || ! class_exists( 'SPA_Digest_Formatter' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Digest classes not loaded.', 'sportspress-announcer' ) ) );
+		}
+
+		$builder = new SPA_Digest_Builder( $league_id, SPA_Digest_Builder::options_from_settings() );
+
+		$data      = $builder->build();
+		$formatter = new SPA_Digest_Formatter( $data );
+
+		wp_send_json_success( array( 'html' => $formatter->to_html() ) );
 	}
 }

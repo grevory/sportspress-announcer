@@ -22,6 +22,70 @@ class SPA_Event_Handler {
 		// has already written sp_results meta before we read it.
 		// save_post_sp_event fires before save_post entirely, so scores would be stale.
 		add_action( 'save_post', array( $this, 'on_event_save' ), 20, 2 );
+
+		if ( is_admin() ) {
+			add_action( 'admin_notices', array( $this, 'maybe_render_weekly_upsell' ) );
+			add_action( 'wp_ajax_spa_dismiss_weekly_upsell', array( $this, 'ajax_dismiss_weekly_upsell' ) );
+		}
+	}
+
+	/**
+	 * Render the one-time Weekly Digest upsell after a successful announcement.
+	 * Free users only; dismissible per-user (WP.org: one dismissible notice max).
+	 *
+	 * @return void
+	 */
+	public function maybe_render_weekly_upsell(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+		if ( ! get_transient( 'spa_show_weekly_upsell' ) ) {
+			return;
+		}
+		delete_transient( 'spa_show_weekly_upsell' );
+
+		if ( SPA_License::is_pro() || get_user_meta( get_current_user_id(), 'spa_weekly_upsell_dismissed', true ) ) {
+			return;
+		}
+
+		$digest_url = admin_url( 'options-general.php?page=sportspress-announcer&tab=digest' );
+		$nonce      = wp_create_nonce( 'spa_dismiss_weekly_upsell_nonce' );
+		?>
+		<div class="notice notice-info is-dismissible spa-weekly-upsell" data-nonce="<?php echo esc_attr( $nonce ); ?>">
+			<p>
+				<?php esc_html_e( 'Result announced! 🏆', 'sportspress-announcer' ); ?>
+				<?php esc_html_e( 'Turn one-off scores into a weekly rhythm —', 'sportspress-announcer' ); ?>
+				<a href="<?php echo esc_url( $digest_url ); ?>"><?php esc_html_e( 'set up the Weekly Digest →', 'sportspress-announcer' ); ?></a>
+			</p>
+		</div>
+		<script>
+		( function() {
+			var notice = document.querySelector( '.spa-weekly-upsell' );
+			if ( ! notice ) { return; }
+			notice.addEventListener( 'click', function( e ) {
+				if ( ! e.target.classList.contains( 'notice-dismiss' ) ) { return; }
+				var fd = new FormData();
+				fd.append( 'action', 'spa_dismiss_weekly_upsell' );
+				fd.append( 'nonce', notice.dataset.nonce );
+				fetch( ajaxurl, { method: 'POST', body: fd, credentials: 'same-origin' } );
+			} );
+		}() );
+		</script>
+		<?php
+	}
+
+	/**
+	 * AJAX: remember that the current user dismissed the Weekly Digest upsell.
+	 *
+	 * @return void
+	 */
+	public function ajax_dismiss_weekly_upsell(): void {
+		check_ajax_referer( 'spa_dismiss_weekly_upsell_nonce', 'nonce' );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error();
+		}
+		update_user_meta( get_current_user_id(), 'spa_weekly_upsell_dismissed', 1 );
+		wp_send_json_success();
 	}
 
 	/**
@@ -177,6 +241,12 @@ class SPA_Event_Handler {
 
 		if ( $announced ) {
 			update_post_meta( $post_id, '_spa_last_score_hash', $score_hash );
+
+			// Free-tier upsell: flag a one-time Weekly Digest hint for the next
+			// admin page load. Only for free users who haven't dismissed it.
+			if ( ! SPA_License::is_pro() && ! get_user_meta( get_current_user_id(), 'spa_weekly_upsell_dismissed', true ) ) {
+				set_transient( 'spa_show_weekly_upsell', 1, 5 * MINUTE_IN_SECONDS );
+			}
 		}
 	}
 

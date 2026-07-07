@@ -12,6 +12,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Load the classes under test.
+require_once dirname( __DIR__ ) . '/includes/licensing/class-spa-license.php';
 require_once dirname( __DIR__ ) . '/admin/class-spa-settings.php';
 require_once dirname( __DIR__ ) . '/includes/class-spa-message-formatter.php';
 require_once dirname( __DIR__ ) . '/includes/class-spa-event-handler.php';
+require_once dirname( __DIR__ ) . '/includes/digest/class-spa-digest-builder.php';
+require_once dirname( __DIR__ ) . '/includes/digest/class-spa-digest-formatter.php';
+require_once dirname( __DIR__ ) . '/includes/digest/class-spa-weekly-digest-scheduler.php';

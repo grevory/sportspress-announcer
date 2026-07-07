@@ -28,7 +28,11 @@ require_once SPA_PLUGIN_DIR . 'includes/class-spa-message-formatter.php';
 require_once SPA_PLUGIN_DIR . 'includes/class-spa-webhook-discord.php';
 require_once SPA_PLUGIN_DIR . 'includes/class-spa-webhook-slack.php';
 require_once SPA_PLUGIN_DIR . 'includes/class-spa-event-handler.php';
-require_once SPA_PLUGIN_DIR . 'includes/class-spa-digest-scheduler.php';
+require_once SPA_PLUGIN_DIR . 'includes/licensing/class-spa-license.php';
+require_once SPA_PLUGIN_DIR . 'includes/digest/class-spa-digest-builder.php';
+require_once SPA_PLUGIN_DIR . 'includes/digest/class-spa-digest-formatter.php';
+require_once SPA_PLUGIN_DIR . 'includes/digest/class-spa-daily-digest-scheduler.php';
+require_once SPA_PLUGIN_DIR . 'includes/digest/class-spa-weekly-digest-scheduler.php';
 require_once SPA_PLUGIN_DIR . 'admin/class-spa-settings.php';
 require_once SPA_PLUGIN_DIR . 'admin/class-spa-facebook-notice.php';
 require_once SPA_PLUGIN_DIR . 'admin/class-spa-upcoming-notice.php';
@@ -51,8 +55,10 @@ function spa_init(): void {
 		new SPA_Team_Color();
 	}
 	new SPA_Event_Handler();
-	new SPA_Digest_Scheduler();
+	new SPA_Daily_Digest_Scheduler();
+	new SPA_Weekly_Digest_Scheduler();
 }
 add_action( 'plugins_loaded', 'spa_init' );
 
-register_deactivation_hook( __FILE__, array( 'SPA_Digest_Scheduler', 'deactivate' ) );
+register_deactivation_hook( __FILE__, array( 'SPA_Daily_Digest_Scheduler', 'deactivate' ) );
+register_deactivation_hook( __FILE__, array( 'SPA_Weekly_Digest_Scheduler', 'deactivate' ) );

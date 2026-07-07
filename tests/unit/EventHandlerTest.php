@@ -24,6 +24,7 @@ class EventHandlerTest extends TestCase {
 		$this->post_meta = [];
 
 		Functions\when( 'add_action' )->justReturn();
+		Functions\when( 'is_admin' )->justReturn( false );
 		Functions\when( '__' )->returnArg();
 		Functions\when( 'get_option' )->alias(
 			fn( $key, $default = null ) => $key === 'spa_score_column' ? ( $this->post_meta['_score_column'] ?? 'goals' ) : $default

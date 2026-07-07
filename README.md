@@ -23,23 +23,24 @@ No OAuth. No login flow. Just paste a webhook URL and it runs itself.
 
 ## Free vs. Pro
 
+Free covers the event ("a game happened"). Pro covers the ritual ("the weekly rhythm").
+
 ### Free (WordPress.org)
 - Discord support
-- One webhook / one channel
-- Basic result message format
+- Per-competition channel routing
+- Score announcement on result save
 - Upcoming fixtures digest — admin notice with manual "Send to Discord" push button
-- Manual on/off per competition
+- **Weekly Digest preview** — generate and preview a full digest using real SportsPress data in wp-admin (no scheduling or posting)
 
-### Pro
-- Slack and additional platforms
-- Automated result announcements (posted automatically on save)
-- Scheduled "this week's fixtures" digest (WP-Cron)
-- Multiple channels — route each division to its own channel
-- Updated standings table posted after each result
-- Custom message templates (mentions, emojis, logos, event page links)
+### Pro ($39/yr)
+- **Weekly Digest** — scheduled, auto-posted recap: results, standings with movement arrows, configurable stat leaders (goals/assists/any SP stat)
+- Slack support
+- Publish digest as a WordPress post
+- Multiple channels per competition
+- Custom message templates
 - Priority support
 
-**Pro pricing: ~$30–50/year per site.**
+**One plugin, two tiers.** Pro is unlocked by a license key — no separate download required.
 
 ## Installation (development)
 
@@ -75,34 +76,63 @@ Everything else is Pro or a later iteration.
 sportspress-announcer/
 ├── sportspress-announcer.php   # Main plugin file, hooks bootstrap
 ├── includes/
-│   ├── class-spa-event-handler.php       # Detects result saves, extracts data
-│   ├── class-spa-message-formatter.php   # Builds platform-agnostic messages
-│   ├── class-spa-webhook-discord.php     # POSTs to Discord webhook
-│   ├── class-spa-webhook-slack.php       # POSTs to Slack Incoming Webhook (Pro)
-│   └── class-spa-digest-scheduler.php    # WP-Cron for scheduled digest (Pro)
+│   ├── class-spa-event-handler.php           # Detects result saves, extracts data
+│   ├── class-spa-message-formatter.php       # Builds platform-agnostic messages
+│   ├── class-spa-webhook-discord.php         # POSTs to Discord webhook
+│   ├── class-spa-webhook-slack.php           # POSTs to Slack Incoming Webhook
+│   ├── class-spa-digest-scheduler.php        # WP-Cron for upcoming-games digest
+│   ├── class-spa-log.php                     # In-memory send log
+│   ├── digest/
+│   │   ├── class-digest-builder.php          # Queries SP data → DigestData (FREE)
+│   │   ├── class-digest-formatter.php        # Renders DigestData → Discord/HTML (FREE)
+│   │   └── class-digest-scheduler.php        # Weekly cron dispatch (PRO-gated)
+│   └── licensing/
+│       └── class-license.php                 # SPA_License::is_pro() — stub for now
 ├── admin/
-│   ├── class-spa-settings.php            # Settings page
-│   ├── class-spa-facebook-notice.php     # Admin notice: recent results (Facebook share)
-│   ├── class-spa-upcoming-notice.php     # Admin notice: upcoming fixtures
-│   ├── class-spa-upcoming-discord.php    # AJAX handler: manual Discord digest push
-│   ├── class-spa-upcoming-slack.php      # AJAX handler: manual Slack digest push (Pro)
-│   └── class-spa-team-color.php          # Team brand color meta box
+│   ├── class-spa-settings.php                # Settings page + AJAX handlers
+│   ├── class-digest-settings-tab.php         # Weekly Digest tab (locked/unlocked)
+│   ├── class-spa-facebook-notice.php         # Admin notice: recent results (Facebook share)
+│   ├── class-spa-upcoming-notice.php         # Admin notice: upcoming fixtures
+│   ├── class-spa-upcoming-discord.php        # AJAX handler: manual Discord digest push
+│   ├── class-spa-upcoming-slack.php          # AJAX handler: manual Slack digest push
+│   └── class-spa-team-color.php              # Team brand color meta box
 └── assets/
-    ├── css/
-    └── js/
+    ├── css/spa-admin.css
+    └── js/spa-emoji-picker.js
 ```
+
+### DigestData shape
+
+`SPA_Digest_Builder::build()` returns:
+
+```php
+[
+  'league_id'    => int,
+  'period'       => ['start' => 'Y-m-d', 'end' => 'Y-m-d'],
+  'results'      => [['home', 'away', 'home_score', 'away_score', 'competition', 'event_url', 'date'], ...],
+  'standings'    => [['rank', 'name', 'played', 'points', 'movement' => 'up|down|same|new'], ...],
+  'stat_leaders' => [['stat', 'label', 'players' => [['name', 'team', 'value'], ...]], ...],
+  'upcoming'     => [...],   // SPA_Upcoming_Notice format, filtered by league
+  'is_empty'     => bool,
+]
+```
+
+Standings movement is diffed against a snapshot stored in `spa_digest_standings_snapshot_{league_id}`.
+Last-sent timestamps per league are stored in `spa_digest_last_sent_{league_id}` for idempotency.
 
 ## Roadmap
 
 - [x] MVP: Discord result announcer
 - [x] Upcoming fixtures digest — admin notice with manual Discord push
 - [x] Team brand colors in Discord embeds
-- [x] Scheduled digest via WP-Cron (Pro)
-- [ ] Slack support (Pro)
-- [ ] Automated result announcements on save (Pro)
-- [ ] Multiple channels per competition (Pro)
-- [ ] Standings table after each result (Pro)
-- [ ] Custom message templates (Pro)
+- [x] Scheduled upcoming-games digest via WP-Cron
+- [x] Weekly Digest builder + formatter (results, standings movement, stat leaders) — FREE preview
+- [x] Weekly Digest scheduling + posting (Pro-gated, license stub)
+- [x] Digest settings tab (locked/unlocked states)
+- [ ] Wire real license-key validation (Freemius or custom EDD — TBD)
+- [ ] Slack Weekly Digest formatter
+- [ ] Post-success upsell notice linking to Digest tab
+- [ ] Unit tests: standings diff, empty-week detection, Discord field truncation
 - [ ] Mobile score-entry companion (future)
 
 ## License
