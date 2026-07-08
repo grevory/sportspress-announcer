@@ -89,10 +89,10 @@ Group findings under these headings. For each, the trigger to look for:
 
 ## Pre-commit mode
 
-Known-debt files listed in `EXEMPT` (in [bin/smell-lint.php](../../../bin/smell-lint.php))
-are downgraded from blocking to `warn (known debt)` — currently only
-`admin/class-spa-settings.php`, a large untested admin class awaiting a
-dedicated refactor. Keep that list shrinking; remove a file once it's clean.
+The whole source is smell-clean and the gate blocks any new high-severity smell
+outright — there is no exemption list. If a large refactor ever needs a
+temporary bridge, prefer `git commit --no-verify` on that single commit over
+reintroducing a blanket exemption.
 
 When run as the commit gate, output must be machine-simple:
 - Print each **high**-severity finding as `SMELL <file>:<line> <name>`.

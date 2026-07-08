@@ -114,146 +114,177 @@ class SPA_Settings {
 			wp_send_json_error( __( 'Missing entry ID.', 'sportspress-announcer' ) );
 		}
 
-		// Find the entry by stable uid — array index is not stable across concurrent writes.
-		$entry = null;
-		foreach ( SPA_Log::get_all() as $candidate ) {
-			if ( ( $candidate['uid'] ?? '' ) === $uid ) {
-				$entry = $candidate;
-				break;
-			}
-		}
-
+		$entry = $this->find_log_entry( $uid );
 		if ( null === $entry ) {
 			wp_send_json_error( __( 'Log entry not found.', 'sportspress-announcer' ) );
 		}
 
-		$platform    = $entry['platform'] ?? 'discord';
-		$competition = $entry['competition'] ?? '';
-		$post_id     = (int) ( $entry['id'] ?? 0 );
-
 		if ( 'result' === $entry['type'] ) {
-			$post = get_post( $post_id );
-			if ( ! $post || 'sp_event' !== $post->post_type ) {
-				wp_send_json_error( __( 'Event post not found.', 'sportspress-announcer' ) );
-			}
-
-			$handler   = new SPA_Event_Handler();
-			$formatter = new SPA_Message_Formatter();
-
-			$event = $handler->extract_event_data( $post_id );
-			if ( ! $event ) {
-				wp_send_json_error( __( 'Could not read event data.', 'sportspress-announcer' ) );
-			}
-
-			if ( 'discord' === $platform ) {
-				$channel_map = (array) get_option( self::OPTION_DISCORD_CHANNEL_MAP, array() );
-				$webhook_url = ( $competition && ! empty( $channel_map[ $competition ] ) )
-					? $channel_map[ $competition ]
-					: get_option( self::OPTION_WEBHOOK, '' );
-
-				if ( empty( $webhook_url ) ) {
-					wp_send_json_error( __( 'No Discord webhook configured.', 'sportspress-announcer' ) );
-				}
-
-				$result = ( new SPA_Webhook_Discord( $webhook_url ) )->send( $formatter->format_embed( $event ) );
-			} else {
-				$channel_map = (array) get_option( self::OPTION_SLACK_CHANNEL_MAP, array() );
-				$webhook_url = ( $competition && ! empty( $channel_map[ $competition ] ) )
-					? $channel_map[ $competition ]
-					: get_option( self::OPTION_SLACK_WEBHOOK, '' );
-
-				if ( empty( $webhook_url ) ) {
-					wp_send_json_error( __( 'No Slack webhook configured.', 'sportspress-announcer' ) );
-				}
-
-				$result = ( new SPA_Webhook_Slack( $webhook_url ) )->send( $formatter->format_slack( $event ) );
-			}
-
-			if ( is_wp_error( $result ) ) {
-				wp_send_json_error( $result->get_error_message() );
-			}
-
-			SPA_Log::update_entry(
-				$uid,
-				array(
-					'status'  => 'sent',
-					'sent_at' => time(),
-				)
-			);
-			wp_send_json_success();
+			$this->retry_result_announcement( $uid, $entry );
 		}
 
 		// Digest retry: send directly without going through send_digest(), which would
 		// write a new log entry and leave the original failed row unchanged.
 		if ( 'digest' === $entry['type'] ) {
-			$notice = new SPA_Upcoming_Notice();
-			$games  = $notice->get_upcoming_games();
-
-			if ( empty( $games ) ) {
-				wp_send_json_error( __( 'No upcoming games found.', 'sportspress-announcer' ) );
-			}
-
-			if ( 'discord' === $platform ) {
-				$webhook_url = get_option( self::OPTION_WEBHOOK, '' );
-				if ( empty( $webhook_url ) ) {
-					wp_send_json_error( __( 'No Discord webhook configured.', 'sportspress-announcer' ) );
-				}
-				$sender  = new SPA_Upcoming_Discord();
-				$payload = array(
-					'embeds' => array(
-						array(
-							'title'       => __( 'Upcoming Games', 'sportspress-announcer' ),
-							'description' => $sender->build_description( $games ),
-							'color'       => 0x5865F2,
-						),
-					),
-				);
-				$result  = ( new SPA_Webhook_Discord( $webhook_url ) )->send( $payload );
-			} else {
-				$webhook_url = get_option( self::OPTION_SLACK_WEBHOOK, '' );
-				if ( empty( $webhook_url ) ) {
-					wp_send_json_error( __( 'No Slack webhook configured.', 'sportspress-announcer' ) );
-				}
-				$sender  = new SPA_Upcoming_Slack();
-				$mrkdwn  = $sender->build_mrkdwn( $games );
-				$payload = array(
-					'text'   => __( 'Upcoming Games', 'sportspress-announcer' ),
-					'blocks' => array(
-						array(
-							'type' => 'header',
-							'text' => array(
-								'type'  => 'plain_text',
-								'text'  => __( 'Upcoming Games', 'sportspress-announcer' ),
-								'emoji' => true,
-							),
-						),
-						array(
-							'type' => 'section',
-							'text' => array(
-								'type' => 'mrkdwn',
-								'text' => $mrkdwn,
-							),
-						),
-					),
-				);
-				$result  = ( new SPA_Webhook_Slack( $webhook_url ) )->send( $payload );
-			}
-
-			if ( is_wp_error( $result ) ) {
-				wp_send_json_error( $result->get_error_message() );
-			}
-
-			SPA_Log::update_entry(
-				$uid,
-				array(
-					'status'  => 'sent',
-					'sent_at' => time(),
-				)
-			);
-			wp_send_json_success();
+			$this->retry_digest_announcement( $uid, $entry );
 		}
 
 		wp_send_json_error( __( 'Unknown entry type.', 'sportspress-announcer' ) );
+	}
+
+	/**
+	 * Find a log entry by its stable uid (array index is not stable).
+	 *
+	 * @param string $uid Log entry uid.
+	 * @return array|null
+	 */
+	private function find_log_entry( string $uid ): ?array {
+		foreach ( SPA_Log::get_all() as $candidate ) {
+			if ( ( $candidate['uid'] ?? '' ) === $uid ) {
+				return $candidate;
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Re-send a failed result announcement. Ends the request via wp_send_json_*.
+	 *
+	 * @param string $uid   Log entry uid.
+	 * @param array  $entry Log entry.
+	 * @return void
+	 */
+	private function retry_result_announcement( string $uid, array $entry ): void {
+		$platform    = $entry['platform'] ?? 'discord';
+		$competition = $entry['competition'] ?? '';
+		$post_id     = (int) ( $entry['id'] ?? 0 );
+
+		$post = get_post( $post_id );
+		if ( ! $post || 'sp_event' !== $post->post_type ) {
+			wp_send_json_error( __( 'Event post not found.', 'sportspress-announcer' ) );
+		}
+
+		$handler   = new SPA_Event_Handler();
+		$formatter = new SPA_Message_Formatter();
+
+		$event = $handler->extract_event_data( $post_id );
+		if ( ! $event ) {
+			wp_send_json_error( __( 'Could not read event data.', 'sportspress-announcer' ) );
+		}
+
+		if ( 'discord' === $platform ) {
+			$channel_map = (array) get_option( self::OPTION_DISCORD_CHANNEL_MAP, array() );
+			$webhook_url = ( $competition && ! empty( $channel_map[ $competition ] ) )
+				? $channel_map[ $competition ]
+				: get_option( self::OPTION_WEBHOOK, '' );
+
+			if ( empty( $webhook_url ) ) {
+				wp_send_json_error( __( 'No Discord webhook configured.', 'sportspress-announcer' ) );
+			}
+
+			$result = ( new SPA_Webhook_Discord( $webhook_url ) )->send( $formatter->format_embed( $event ) );
+		} else {
+			$channel_map = (array) get_option( self::OPTION_SLACK_CHANNEL_MAP, array() );
+			$webhook_url = ( $competition && ! empty( $channel_map[ $competition ] ) )
+				? $channel_map[ $competition ]
+				: get_option( self::OPTION_SLACK_WEBHOOK, '' );
+
+			if ( empty( $webhook_url ) ) {
+				wp_send_json_error( __( 'No Slack webhook configured.', 'sportspress-announcer' ) );
+			}
+
+			$result = ( new SPA_Webhook_Slack( $webhook_url ) )->send( $formatter->format_slack( $event ) );
+		}
+
+		$this->finish_retry( $uid, $result );
+	}
+
+	/**
+	 * Re-send a failed upcoming-fixtures digest. Ends the request.
+	 *
+	 * @param string $uid   Log entry uid.
+	 * @param array  $entry Log entry.
+	 * @return void
+	 */
+	private function retry_digest_announcement( string $uid, array $entry ): void {
+		$platform = $entry['platform'] ?? 'discord';
+
+		$notice = new SPA_Upcoming_Notice();
+		$games  = $notice->get_upcoming_games();
+
+		if ( empty( $games ) ) {
+			wp_send_json_error( __( 'No upcoming games found.', 'sportspress-announcer' ) );
+		}
+
+		if ( 'discord' === $platform ) {
+			$webhook_url = get_option( self::OPTION_WEBHOOK, '' );
+			if ( empty( $webhook_url ) ) {
+				wp_send_json_error( __( 'No Discord webhook configured.', 'sportspress-announcer' ) );
+			}
+			$sender  = new SPA_Upcoming_Discord();
+			$payload = array(
+				'embeds' => array(
+					array(
+						'title'       => __( 'Upcoming Games', 'sportspress-announcer' ),
+						'description' => $sender->build_description( $games ),
+						'color'       => 0x5865F2,
+					),
+				),
+			);
+			$result  = ( new SPA_Webhook_Discord( $webhook_url ) )->send( $payload );
+		} else {
+			$webhook_url = get_option( self::OPTION_SLACK_WEBHOOK, '' );
+			if ( empty( $webhook_url ) ) {
+				wp_send_json_error( __( 'No Slack webhook configured.', 'sportspress-announcer' ) );
+			}
+			$sender  = new SPA_Upcoming_Slack();
+			$mrkdwn  = $sender->build_mrkdwn( $games );
+			$payload = array(
+				'text'   => __( 'Upcoming Games', 'sportspress-announcer' ),
+				'blocks' => array(
+					array(
+						'type' => 'header',
+						'text' => array(
+							'type'  => 'plain_text',
+							'text'  => __( 'Upcoming Games', 'sportspress-announcer' ),
+							'emoji' => true,
+						),
+					),
+					array(
+						'type' => 'section',
+						'text' => array(
+							'type' => 'mrkdwn',
+							'text' => $mrkdwn,
+						),
+					),
+				),
+			);
+			$result  = ( new SPA_Webhook_Slack( $webhook_url ) )->send( $payload );
+		}
+
+		$this->finish_retry( $uid, $result );
+	}
+
+	/**
+	 * Mark a retried entry as sent on success, or return the error. Ends request.
+	 *
+	 * @param string $uid    Log entry uid.
+	 * @param mixed  $result Webhook send result (WP_Error on failure).
+	 * @return void
+	 */
+	private function finish_retry( string $uid, $result ): void {
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( $result->get_error_message() );
+		}
+
+		SPA_Log::update_entry(
+			$uid,
+			array(
+				'status'  => 'sent',
+				'sent_at' => time(),
+			)
+		);
+		wp_send_json_success();
 	}
 
 	/**
@@ -314,6 +345,21 @@ class SPA_Settings {
 			SPA_VERSION,
 			true
 		);
+		wp_enqueue_script(
+			'spa-quickstart',
+			SPA_PLUGIN_URL . 'assets/js/spa-quickstart.js',
+			array(),
+			SPA_VERSION,
+			true
+		);
+		wp_localize_script(
+			'spa-quickstart',
+			'SPA_QS',
+			array(
+				'ajaxurl' => admin_url( 'admin-ajax.php' ),
+				'nonce'   => wp_create_nonce( 'spa_qs_dismiss_nonce' ),
+			)
+		);
 		wp_enqueue_style(
 			'spa-admin',
 			SPA_PLUGIN_URL . 'assets/css/spa-admin.css',
@@ -328,8 +374,20 @@ class SPA_Settings {
 	 * @return void
 	 */
 	public function register_settings(): void {
+		$this->register_sportspress_settings();
+		$this->register_digest_settings();
+		$this->register_announcements_settings();
+		$this->register_discord_settings();
+		$this->register_slack_settings();
+		$this->register_facebook_settings();
+	}
 
-		// SportsPress section.
+	/**
+	 * Register the SportsPress settings section.
+	 *
+	 * @return void
+	 */
+	private function register_sportspress_settings(): void {
 		register_setting(
 			'spa_settings_group',
 			self::OPTION_SCORE_COLUMN,
@@ -349,8 +407,14 @@ class SPA_Settings {
 			self::MENU_SLUG,
 			'spa_section_sportspress'
 		);
+	}
 
-		// Digest section.
+	/**
+	 * Register the Digest settings section (templates + schedule).
+	 *
+	 * @return void
+	 */
+	private function register_digest_settings(): void {
 		register_setting(
 			'spa_settings_group',
 			self::OPTION_UPCOMING_TEMPLATE,
@@ -384,6 +448,25 @@ class SPA_Settings {
 			'spa_section_digest'
 		);
 
+		$this->register_digest_schedule_settings();
+
+		add_settings_field(
+			'spa_digest_schedule',
+			__( 'Auto-send', 'sportspress-announcer' ),
+			array( $this, 'render_digest_schedule_field' ),
+			self::MENU_SLUG,
+			'spa_section_digest'
+		);
+
+		$this->register_weekly_digest_settings();
+	}
+
+	/**
+	 * Register the daily-digest auto-send schedule options.
+	 *
+	 * @return void
+	 */
+	private function register_digest_schedule_settings(): void {
 		register_setting(
 			'spa_settings_group',
 			SPA_Daily_Digest_Scheduler::OPTION_ENABLED,
@@ -423,18 +506,14 @@ class SPA_Settings {
 				'default'           => '08:00',
 			)
 		);
+	}
 
-		add_settings_field(
-			'spa_digest_schedule',
-			__( 'Auto-send', 'sportspress-announcer' ),
-			array( $this, 'render_digest_schedule_field' ),
-			self::MENU_SLUG,
-			'spa_section_digest'
-		);
-
-		$this->register_weekly_digest_settings();
-
-		// Result message template (all channels).
+	/**
+	 * Register the Announcements section (result message template).
+	 *
+	 * @return void
+	 */
+	private function register_announcements_settings(): void {
 		register_setting(
 			'spa_settings_group',
 			self::OPTION_RESULT_TEMPLATE,
@@ -459,8 +538,14 @@ class SPA_Settings {
 			self::MENU_SLUG,
 			'spa_section_announcements'
 		);
+	}
 
-		// Discord section.
+	/**
+	 * Register the Discord settings section.
+	 *
+	 * @return void
+	 */
+	private function register_discord_settings(): void {
 		register_setting(
 			'spa_settings_group',
 			self::OPTION_WEBHOOK,
@@ -516,8 +601,14 @@ class SPA_Settings {
 			self::MENU_SLUG,
 			'spa_section_discord'
 		);
+	}
 
-		// Slack section (Pro).
+	/**
+	 * Register the Slack (Pro) settings section.
+	 *
+	 * @return void
+	 */
+	private function register_slack_settings(): void {
 		register_setting(
 			'spa_settings_group',
 			self::OPTION_SLACK_WEBHOOK,
@@ -561,6 +652,15 @@ class SPA_Settings {
 			'spa_section_slack'
 		);
 
+		$this->register_slack_channel_map();
+	}
+
+	/**
+	 * Register the Slack per-competition channel routing option.
+	 *
+	 * @return void
+	 */
+	private function register_slack_channel_map(): void {
 		register_setting(
 			'spa_settings_group',
 			self::OPTION_SLACK_CHANNEL_MAP,
@@ -578,8 +678,14 @@ class SPA_Settings {
 			self::MENU_SLUG,
 			'spa_section_slack'
 		);
+	}
 
-		// Facebook section.
+	/**
+	 * Register the Facebook settings section.
+	 *
+	 * @return void
+	 */
+	private function register_facebook_settings(): void {
 		register_setting(
 			'spa_settings_group',
 			self::OPTION_FACEBOOK_ENABLED,
@@ -796,6 +902,17 @@ class SPA_Settings {
 			</button>
 			<span id="spa-test-result" style="display:inline-flex; align-items:center; min-height:30px; margin-left:8px; vertical-align:middle;"></span>
 		</p>
+		<?php
+		$this->render_webhook_test_script();
+	}
+
+	/**
+	 * Inline script wiring the Discord "Send Test Message" button.
+	 *
+	 * @return void
+	 */
+	private function render_webhook_test_script(): void {
+		?>
 		<script>
 		document.addEventListener( 'DOMContentLoaded', function () {
 			var btn    = document.getElementById( 'spa-test-webhook' );
@@ -888,25 +1005,10 @@ class SPA_Settings {
 	 * @return void
 	 */
 	public function render_channel_map_field(): void {
-		$map    = (array) get_option( self::OPTION_DISCORD_CHANNEL_MAP, array() );
+		$map    = $this->seed_channel_map( self::OPTION_DISCORD_CHANNEL_MAP );
 		$opt    = self::OPTION_DISCORD_CHANNEL_MAP;
 		$ph_key = __( 'Division / competition name', 'sportspress-announcer' );
 		$ph_url = __( 'https://discord.com/api/webhooks/…', 'sportspress-announcer' );
-
-		// Seed saved rows; if none, pre-populate from sp_league terms.
-		if ( empty( $map ) ) {
-			$leagues = get_terms(
-				array(
-					'taxonomy'   => 'sp_league',
-					'hide_empty' => false,
-				)
-			);
-			if ( ! is_wp_error( $leagues ) ) {
-				foreach ( $leagues as $term ) {
-					$map[ $term->name ] = '';
-				}
-			}
-		}
 		?>
 		<p class="description" style="margin-bottom:10px;">
 			<?php esc_html_e( 'Route each division to its own Discord channel. The key must match the competition name exactly. Leave the URL blank to use the default webhook. Per-division routing applies to result announcements only — the digest always uses the default webhook.', 'sportspress-announcer' ); ?>
@@ -922,36 +1024,20 @@ class SPA_Settings {
 			<tbody>
 			<?php
 			$index = 0;
-			foreach ( $map as $key => $url ) :
-				?>
-				<tr class="spa-channel-map-row">
-					<td style="padding:4px 10px 4px 0;">
-							<input
-								type="text"
-								name="<?php echo esc_attr( $opt ); ?>[<?php echo absint( $index ); ?>][key]"
-								value="<?php echo esc_attr( $key ); ?>"
-								class="regular-text"
-								placeholder="<?php echo esc_attr( $ph_key ); ?>"
-								style="width:100%;"
-							/>
-					</td>
-					<td style="padding:4px 6px 4px 0;">
-							<input
-								type="url"
-								name="<?php echo esc_attr( $opt ); ?>[<?php echo absint( $index ); ?>][url]"
-								value="<?php echo esc_attr( $url ); ?>"
-								class="regular-text"
-								placeholder="<?php echo esc_attr( $ph_url ); ?>"
-								style="width:100%;"
-							/>
-					</td>
-					<td style="padding:4px 0; text-align:center;">
-						<button type="button" class="button-link spa-channel-map-remove" title="<?php esc_attr_e( 'Remove', 'sportspress-announcer' ); ?>" style="color:#a00; padding:4px;">&#x2715;</button>
-					</td>
-				</tr>
-				<?php
+			foreach ( $map as $key => $url ) {
+				$this->render_channel_map_row(
+					array(
+						'class'  => 'spa-channel-map-row',
+						'opt'    => $opt,
+						'index'  => $index,
+						'key'    => $key,
+						'url'    => $url,
+						'ph_key' => $ph_key,
+						'ph_url' => $ph_url,
+					)
+				);
 				++$index;
-			endforeach;
+			}
 			?>
 			</tbody>
 		</table>
@@ -960,6 +1046,92 @@ class SPA_Settings {
 				<?php esc_html_e( '+ Add channel', 'sportspress-announcer' ); ?>
 			</button>
 		</p>
+		<?php
+		$this->render_channel_map_script();
+	}
+
+	/**
+	 * Load the saved channel map, seeding empty rows from sp_league terms.
+	 *
+	 * @param string $option Channel-map option name.
+	 * @return array
+	 */
+	private function seed_channel_map( string $option ): array {
+		$map = (array) get_option( $option, array() );
+		if ( ! empty( $map ) ) {
+			return $map;
+		}
+
+		$leagues = get_terms(
+			array(
+				'taxonomy'   => 'sp_league',
+				'hide_empty' => false,
+			)
+		);
+		if ( is_wp_error( $leagues ) ) {
+			return $map;
+		}
+		foreach ( $leagues as $term ) {
+			$map[ $term->name ] = '';
+		}
+		return $map;
+	}
+
+	/**
+	 * Render one editable channel-map row. The remove-button class is derived
+	 * from the row class (e.g. "spa-channel-map-row" → "spa-channel-map-remove").
+	 *
+	 * @param array $row {
+	 *     Row fields.
+	 *
+	 *     @type string $class  Row CSS class the field's script binds to.
+	 *     @type string $opt    Option name used for input names.
+	 *     @type int    $index  Row index.
+	 *     @type string $key    Competition name.
+	 *     @type string $url    Webhook URL.
+	 *     @type string $ph_key Key input placeholder.
+	 *     @type string $ph_url URL input placeholder.
+	 * }
+	 * @return void
+	 */
+	private function render_channel_map_row( array $row ): void {
+		$remove_class = str_replace( '-row', '-remove', $row['class'] );
+		?>
+		<tr class="<?php echo esc_attr( $row['class'] ); ?>">
+			<td style="padding:4px 10px 4px 0;">
+					<input
+						type="text"
+						name="<?php echo esc_attr( $row['opt'] ); ?>[<?php echo absint( $row['index'] ); ?>][key]"
+						value="<?php echo esc_attr( $row['key'] ); ?>"
+						class="regular-text"
+						placeholder="<?php echo esc_attr( $row['ph_key'] ); ?>"
+						style="width:100%;"
+					/>
+			</td>
+			<td style="padding:4px 6px 4px 0;">
+					<input
+						type="url"
+						name="<?php echo esc_attr( $row['opt'] ); ?>[<?php echo absint( $row['index'] ); ?>][url]"
+						value="<?php echo esc_attr( $row['url'] ); ?>"
+						class="regular-text"
+						placeholder="<?php echo esc_attr( $row['ph_url'] ); ?>"
+						style="width:100%;"
+					/>
+			</td>
+			<td style="padding:4px 0; text-align:center;">
+				<button type="button" class="button-link <?php echo esc_attr( $remove_class ); ?>" title="<?php esc_attr_e( 'Remove', 'sportspress-announcer' ); ?>" style="color:#a00; padding:4px;">&#x2715;</button>
+			</td>
+		</tr>
+		<?php
+	}
+
+	/**
+	 * Inline script for the Discord channel-map add/remove/reindex behavior.
+	 *
+	 * @return void
+	 */
+	private function render_channel_map_script(): void {
+		?>
 		<script>
 		(function () {
 			var table   = document.getElementById( 'spa-channel-map-table' );
@@ -1067,24 +1239,10 @@ class SPA_Settings {
 	 * @return void
 	 */
 	public function render_slack_channel_map_field(): void {
-		$map    = (array) get_option( self::OPTION_SLACK_CHANNEL_MAP, array() );
+		$map    = $this->seed_channel_map( self::OPTION_SLACK_CHANNEL_MAP );
 		$opt    = self::OPTION_SLACK_CHANNEL_MAP;
 		$ph_key = __( 'Division / competition name', 'sportspress-announcer' );
 		$ph_url = __( 'https://hooks.slack.com/services/…', 'sportspress-announcer' );
-
-		if ( empty( $map ) ) {
-			$leagues = get_terms(
-				array(
-					'taxonomy'   => 'sp_league',
-					'hide_empty' => false,
-				)
-			);
-			if ( ! is_wp_error( $leagues ) ) {
-				foreach ( $leagues as $term ) {
-					$map[ $term->name ] = '';
-				}
-			}
-		}
 		?>
 		<p class="description" style="margin-bottom:10px;">
 			<?php esc_html_e( 'Optionally route each division to its own Slack channel. The key must match the competition name exactly. Leave the URL blank to use the default webhook above. Per-division routing applies to result announcements only.', 'sportspress-announcer' ); ?>
@@ -1100,36 +1258,20 @@ class SPA_Settings {
 			<tbody>
 			<?php
 			$index = 0;
-			foreach ( $map as $key => $url ) :
-				?>
-				<tr class="spa-slack-channel-map-row">
-					<td style="padding:4px 10px 4px 0;">
-							<input
-								type="text"
-								name="<?php echo esc_attr( $opt ); ?>[<?php echo absint( $index ); ?>][key]"
-								value="<?php echo esc_attr( $key ); ?>"
-								class="regular-text"
-								placeholder="<?php echo esc_attr( $ph_key ); ?>"
-								style="width:100%;"
-							/>
-					</td>
-					<td style="padding:4px 6px 4px 0;">
-							<input
-								type="url"
-								name="<?php echo esc_attr( $opt ); ?>[<?php echo absint( $index ); ?>][url]"
-								value="<?php echo esc_attr( $url ); ?>"
-								class="regular-text"
-								placeholder="<?php echo esc_attr( $ph_url ); ?>"
-								style="width:100%;"
-							/>
-					</td>
-					<td style="padding:4px 0; text-align:center;">
-						<button type="button" class="button-link spa-slack-channel-map-remove" title="<?php esc_attr_e( 'Remove', 'sportspress-announcer' ); ?>" style="color:#a00; padding:4px;">&#x2715;</button>
-					</td>
-				</tr>
-				<?php
+			foreach ( $map as $key => $url ) {
+				$this->render_channel_map_row(
+					array(
+						'class'  => 'spa-slack-channel-map-row',
+						'opt'    => $opt,
+						'index'  => $index,
+						'key'    => $key,
+						'url'    => $url,
+						'ph_key' => $ph_key,
+						'ph_url' => $ph_url,
+					)
+				);
 				++$index;
-			endforeach;
+			}
 			?>
 			</tbody>
 		</table>
@@ -1138,6 +1280,17 @@ class SPA_Settings {
 				<?php esc_html_e( '+ Add channel', 'sportspress-announcer' ); ?>
 			</button>
 		</p>
+		<?php
+		$this->render_slack_channel_map_script();
+	}
+
+	/**
+	 * Inline script for the Slack channel-map add/remove/reindex behavior.
+	 *
+	 * @return void
+	 */
+	private function render_slack_channel_map_script(): void {
+		?>
 		<script>
 		(function () {
 			var table   = document.getElementById( 'spa-slack-channel-map-table' );
@@ -1352,34 +1505,9 @@ class SPA_Settings {
 			return;
 		}
 
-		// Build preview text (same grouping logic as the digest senders).
-		$notice  = new SPA_Upcoming_Notice();
-		$games   = $notice->get_upcoming_games();
-		$by_date = array();
-		foreach ( $games as $g ) {
-			$by_date[ $g['date'] ][] = $g;
-		}
-		ksort( $by_date );
-		$preview_lines = array();
-		$first         = true;
-		foreach ( $by_date as $date => $group ) {
-			if ( ! $first ) {
-				$preview_lines[] = '';
-			}
-			$first           = false;
-			$preview_lines[] = $date;
-			foreach ( $group as $g ) {
-				$line = '• ' . $g['label'];
-				if ( $g['time'] ) {
-					$line .= ' - ' . $g['time'];
-				}
-				if ( $g['venue'] ) {
-					$line .= ' @ ' . $g['venue'];
-				}
-				$preview_lines[] = $line;
-			}
-		}
-		$preview_text = implode( "\n", $preview_lines );
+		$notice       = new SPA_Upcoming_Notice();
+		$games        = $notice->get_upcoming_games();
+		$preview_text = $this->build_upcoming_preview_text( $games );
 		?>
 		<?php if ( ! empty( $games ) ) : ?>
 		<p style="margin-bottom:6px;">
@@ -1397,22 +1525,57 @@ class SPA_Settings {
 			</button>
 			<span id="spa-publish-result" style="display:inline-flex; align-items:center; min-height:30px; margin-left:8px; vertical-align:middle;"></span>
 		</p>
+		<?php
+		$this->render_upcoming_publish_script( $send_discord, $send_slack );
+	}
+
+	/**
+	 * Build the grouped plain-text preview of upcoming games.
+	 *
+	 * @param array[] $games Upcoming games from SPA_Upcoming_Notice.
+	 * @return string
+	 */
+	private function build_upcoming_preview_text( array $games ): string {
+		$by_date = array();
+		foreach ( $games as $g ) {
+			$by_date[ $g['date'] ][] = $g;
+		}
+		ksort( $by_date );
+
+		$lines = array();
+		$first = true;
+		foreach ( $by_date as $date => $group ) {
+			if ( ! $first ) {
+				$lines[] = '';
+			}
+			$first   = false;
+			$lines[] = $date;
+			foreach ( $group as $g ) {
+				$line = '• ' . $g['label'];
+				if ( $g['time'] ) {
+					$line .= ' - ' . $g['time'];
+				}
+				if ( $g['venue'] ) {
+					$line .= ' @ ' . $g['venue'];
+				}
+				$lines[] = $line;
+			}
+		}
+		return implode( "\n", $lines );
+	}
+
+	/**
+	 * Inline script for the digest preview toggle and publish button.
+	 *
+	 * @param bool $send_discord Whether a Discord webhook is configured.
+	 * @param bool $send_slack   Whether a Slack webhook is configured.
+	 * @return void
+	 */
+	private function render_upcoming_publish_script( bool $send_discord, bool $send_slack ): void {
+		$this->render_preview_toggle_script();
+		?>
 		<script>
 		document.addEventListener( 'DOMContentLoaded', function () {
-			var toggle  = document.getElementById( 'spa-preview-toggle' );
-			var preview = document.getElementById( 'spa-preview-box' );
-			if ( toggle && preview ) {
-				toggle.addEventListener( 'click', function ( e ) {
-					e.preventDefault();
-					var open = preview.style.display !== 'none';
-					preview.style.display = open ? 'none' : 'block';
-					toggle.textContent    = open
-						? '<?php echo esc_js( __( 'Preview digest ▸', 'sportspress-announcer' ) ); ?>'
-						: '<?php echo esc_js( __( 'Preview digest ▾', 'sportspress-announcer' ) ); ?>';
-					toggle.setAttribute( 'aria-expanded', open ? 'false' : 'true' );
-				} );
-			}
-
 			var btn    = document.getElementById( 'spa-publish-upcoming' );
 			var result = document.getElementById( 'spa-publish-result' );
 			if ( ! btn || ! result ) return;
@@ -1469,6 +1632,32 @@ class SPA_Settings {
 	}
 
 	/**
+	 * Inline script toggling the upcoming-digest preview box.
+	 *
+	 * @return void
+	 */
+	private function render_preview_toggle_script(): void {
+		?>
+		<script>
+		document.addEventListener( 'DOMContentLoaded', function () {
+			var toggle  = document.getElementById( 'spa-preview-toggle' );
+			var preview = document.getElementById( 'spa-preview-box' );
+			if ( ! toggle || ! preview ) return;
+			toggle.addEventListener( 'click', function ( e ) {
+				e.preventDefault();
+				var open = preview.style.display !== 'none';
+				preview.style.display = open ? 'none' : 'block';
+				toggle.textContent    = open
+					? '<?php echo esc_js( __( 'Preview digest ▸', 'sportspress-announcer' ) ); ?>'
+					: '<?php echo esc_js( __( 'Preview digest ▾', 'sportspress-announcer' ) ); ?>';
+				toggle.setAttribute( 'aria-expanded', open ? 'false' : 'true' );
+			} );
+		} );
+		</script>
+		<?php
+	}
+
+	/**
 	 * Sanitize the digest frequency.
 	 *
 	 * @param string $value Submitted frequency.
@@ -1516,16 +1705,6 @@ class SPA_Settings {
 		$day       = get_option( SPA_Daily_Digest_Scheduler::OPTION_DAY, 'monday' );
 		$time      = get_option( SPA_Daily_Digest_Scheduler::OPTION_TIME, '08:00' );
 
-		$days = array(
-			'monday'    => __( 'Monday', 'sportspress-announcer' ),
-			'tuesday'   => __( 'Tuesday', 'sportspress-announcer' ),
-			'wednesday' => __( 'Wednesday', 'sportspress-announcer' ),
-			'thursday'  => __( 'Thursday', 'sportspress-announcer' ),
-			'friday'    => __( 'Friday', 'sportspress-announcer' ),
-			'saturday'  => __( 'Saturday', 'sportspress-announcer' ),
-			'sunday'    => __( 'Sunday', 'sportspress-announcer' ),
-		);
-
 		$next = wp_next_scheduled( 'spa_digest_send' );
 		?>
 		<label>
@@ -1552,9 +1731,7 @@ class SPA_Settings {
 				<select
 					name="<?php echo esc_attr( SPA_Daily_Digest_Scheduler::OPTION_DAY ); ?>"
 				>
-					<?php foreach ( $days as $val => $label ) : ?>
-						<option value="<?php echo esc_attr( $val ); ?>" <?php selected( $day, $val ); ?>><?php echo esc_html( $label ); ?></option>
-					<?php endforeach; ?>
+					<?php $this->render_weekday_options( $day ); ?>
 				</select>
 			</span>
 
@@ -1576,7 +1753,17 @@ class SPA_Settings {
 				?>
 			</p>
 		<?php endif; ?>
+		<?php
+		$this->render_digest_schedule_script();
+	}
 
+	/**
+	 * Inline script showing/hiding the weekday selector by frequency.
+	 *
+	 * @return void
+	 */
+	private function render_digest_schedule_script(): void {
+		?>
 		<script>
 		document.addEventListener( 'DOMContentLoaded', function () {
 			var freq = document.getElementById( '<?php echo esc_js( SPA_Daily_Digest_Scheduler::OPTION_FREQUENCY ); ?>' );
@@ -1722,6 +1909,17 @@ class SPA_Settings {
 			</button>
 			<span id="spa-test-slack-result" style="display:inline-flex; align-items:center; min-height:30px; margin-left:8px; vertical-align:middle;"></span>
 		</p>
+		<?php
+		$this->render_slack_webhook_test_script();
+	}
+
+	/**
+	 * Inline script wiring the Slack "Send Test Message" button.
+	 *
+	 * @return void
+	 */
+	private function render_slack_webhook_test_script(): void {
+		?>
 		<script>
 		document.addEventListener( 'DOMContentLoaded', function () {
 			var btn    = document.getElementById( 'spa-test-slack-webhook' );
@@ -1904,45 +2102,43 @@ class SPA_Settings {
 	/**
 	 * Render the Dashboard tab.
 	 *
-	 * @param bool    $discord_active  Whether a Discord webhook is configured.
-	 * @param int     $sent_today      Announcements sent since midnight.
-	 * @param int     $log_failed      Total failed entries in the log.
-	 * @param array[] $recent_log      Last 3 log entries.
-	 * @param int     $log_total       Total log entries.
-	 * @param int     $last_digest_ts  Unix timestamp of last digest send (0 if never).
+	 * @param array $ctx Dashboard context from dashboard_context() — keys:
+	 *                   discord_active, sent_today, log_failed, recent_log,
+	 *                   log_total, last_digest_ts.
 	 * @return void
 	 */
-	private function render_dashboard_tab( bool $discord_active, int $sent_today, int $log_failed, array $recent_log, int $log_total, int $last_digest_ts ): void {
-		$slack_active      = ! empty( get_option( self::OPTION_SLACK_WEBHOOK, '' ) );
-		$retry_nonce       = wp_create_nonce( 'spa_retry_nonce' );
-		$send_digest_nonce = wp_create_nonce( 'spa_send_digest_nonce' );
-		$log_url           = add_query_arg(
+	private function render_dashboard_tab( array $ctx ): void {
+		$log_url = add_query_arg(
 			array(
 				'page' => self::MENU_SLUG,
 				'tab'  => 'log',
 			),
 			admin_url( 'options-general.php' )
 		);
-		$general_url       = add_query_arg(
+
+		$this->render_dashboard_status_bar( $ctx['discord_active'], $ctx['sent_today'], $ctx['log_failed'] );
+		$this->render_dashboard_recent_card( $ctx['recent_log'], $ctx['log_total'], $log_url );
+		$this->render_dashboard_digest_card( $ctx['last_digest_ts'], $log_url );
+		$this->render_dashboard_script();
+	}
+
+	/**
+	 * Dashboard status bar (channel status + today's counts).
+	 *
+	 * @param bool $discord_active Whether Discord is configured.
+	 * @param int  $sent_today     Announcements sent today.
+	 * @param int  $log_failed     Failed announcements.
+	 * @return void
+	 */
+	private function render_dashboard_status_bar( bool $discord_active, int $sent_today, int $log_failed ): void {
+		$general_url = add_query_arg(
 			array(
 				'page' => self::MENU_SLUG,
 				'tab'  => 'general',
 			),
 			admin_url( 'options-general.php' )
 		);
-
-		// Upcoming digest preview.
-		$notice          = new SPA_Upcoming_Notice();
-		$upcoming_games  = $notice->get_upcoming_games();
-		$next_date_label = '';
-		if ( ! empty( $upcoming_games ) ) {
-			$dates = array_column( $upcoming_games, 'date' );
-			sort( $dates );
-			$next_date_label = $dates[0];
-		}
 		?>
-
-		<!-- Status bar -->
 		<div class="spa-status-bar">
 			<?php if ( $discord_active ) : ?>
 				<span class="spa-status-dot spa-status-dot--green"></span>
@@ -1984,8 +2180,20 @@ class SPA_Settings {
 				&#9881; <?php esc_html_e( 'General settings', 'sportspress-announcer' ); ?>
 			</a>
 		</div>
+		<?php
+	}
 
-		<!-- Recent Announcements card -->
+	/**
+	 * Dashboard "Recent Announcements" card.
+	 *
+	 * @param array[] $recent_log Recent log entries.
+	 * @param int     $log_total  Total log entry count.
+	 * @param string  $log_url    URL to the Log tab.
+	 * @return void
+	 */
+	private function render_dashboard_recent_card( array $recent_log, int $log_total, string $log_url ): void {
+		$retry_nonce = wp_create_nonce( 'spa_retry_nonce' );
+		?>
 		<div class="spa-dashboard-card">
 			<div class="spa-dashboard-card-head">
 				<span class="spa-dashboard-card-title">&#128226; <?php esc_html_e( 'Recent Announcements', 'sportspress-announcer' ); ?></span>
@@ -1998,44 +2206,7 @@ class SPA_Settings {
 				</div>
 			<?php else : ?>
 				<?php foreach ( $recent_log as $entry ) : ?>
-					<?php
-					$is_failed  = 'failed' === ( $entry['status'] ?? '' );
-					$time_label = '';
-					$ts         = (int) ( $entry['sent_at'] ?? 0 );
-					if ( $ts > 0 ) {
-						$diff = time() - $ts;
-						if ( $diff < 3600 ) {
-							$time_label = sprintf(
-								/* translators: %d: minutes ago */
-								_n( '%dm', '%dm', (int) floor( $diff / 60 ), 'sportspress-announcer' ),
-								(int) floor( $diff / 60 )
-							);
-						} elseif ( $diff < 86400 ) {
-							$time_label = sprintf(
-								/* translators: %d: hours ago */
-								_n( '%dh', '%dh', (int) floor( $diff / 3600 ), 'sportspress-announcer' ),
-								(int) floor( $diff / 3600 )
-							);
-						} else {
-							$time_label = wp_date( 'M j', $ts );
-						}
-					}
-					?>
-					<div class="spa-dashboard-card-row<?php echo $is_failed ? ' spa-dashboard-card-row--failed' : ''; ?>">
-						<span class="spa-status-dot <?php echo $is_failed ? 'spa-status-dot--red' : 'spa-status-dot--green'; ?>"></span>
-						<span class="spa-dashboard-row-label"><?php echo esc_html( $entry['label'] ?? '' ); ?></span>
-						<span class="spa-dashboard-row-meta"><?php echo esc_html( $entry['channel'] ?? '' ); ?></span>
-						<span class="spa-dashboard-row-time"><?php echo $is_failed ? '<span style="color:#d63638">fail</span>' : esc_html( $time_label ); ?></span>
-						<?php if ( $is_failed ) : ?>
-							<button type="button" class="button spa-retry-btn" data-uid="<?php echo esc_attr( $entry['uid'] ?? '' ); ?>" data-nonce="<?php echo esc_attr( $retry_nonce ); ?>">
-								<?php esc_html_e( 'Retry', 'sportspress-announcer' ); ?>
-							</button>
-						<?php else : ?>
-							<button type="button" class="button spa-retry-btn" data-uid="<?php echo esc_attr( $entry['uid'] ?? '' ); ?>" data-nonce="<?php echo esc_attr( $retry_nonce ); ?>" data-resend="1">
-								<?php esc_html_e( 'Resend', 'sportspress-announcer' ); ?>
-							</button>
-						<?php endif; ?>
-					</div>
+					<?php $this->render_dashboard_log_row( $entry, $retry_nonce ); ?>
 				<?php endforeach; ?>
 			<?php endif; ?>
 
@@ -2053,8 +2224,81 @@ class SPA_Settings {
 				</a>
 			</div>
 		</div>
+		<?php
+	}
 
-		<!-- Upcoming Digest card -->
+	/**
+	 * Render one row in the dashboard recent-announcements card.
+	 *
+	 * @param array  $entry       Log entry.
+	 * @param string $retry_nonce Retry action nonce.
+	 * @return void
+	 */
+	private function render_dashboard_log_row( array $entry, string $retry_nonce ): void {
+		$is_failed  = 'failed' === ( $entry['status'] ?? '' );
+		$time_label = $this->relative_time_label( (int) ( $entry['sent_at'] ?? 0 ) );
+		?>
+		<div class="spa-dashboard-card-row<?php echo $is_failed ? ' spa-dashboard-card-row--failed' : ''; ?>">
+			<span class="spa-status-dot <?php echo $is_failed ? 'spa-status-dot--red' : 'spa-status-dot--green'; ?>"></span>
+			<span class="spa-dashboard-row-label"><?php echo esc_html( $entry['label'] ?? '' ); ?></span>
+			<span class="spa-dashboard-row-meta"><?php echo esc_html( $entry['channel'] ?? '' ); ?></span>
+			<span class="spa-dashboard-row-time"><?php echo $is_failed ? '<span style="color:#d63638">fail</span>' : esc_html( $time_label ); ?></span>
+			<?php if ( $is_failed ) : ?>
+				<button type="button" class="button spa-retry-btn" data-uid="<?php echo esc_attr( $entry['uid'] ?? '' ); ?>" data-nonce="<?php echo esc_attr( $retry_nonce ); ?>">
+					<?php esc_html_e( 'Retry', 'sportspress-announcer' ); ?>
+				</button>
+			<?php else : ?>
+				<button type="button" class="button spa-retry-btn" data-uid="<?php echo esc_attr( $entry['uid'] ?? '' ); ?>" data-nonce="<?php echo esc_attr( $retry_nonce ); ?>" data-resend="1">
+					<?php esc_html_e( 'Resend', 'sportspress-announcer' ); ?>
+				</button>
+			<?php endif; ?>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Format a "time ago" label for a unix timestamp (blank when zero).
+	 *
+	 * @param int $ts Sent-at timestamp.
+	 * @return string
+	 */
+	private function relative_time_label( int $ts ): string {
+		if ( $ts <= 0 ) {
+			return '';
+		}
+		$diff = time() - $ts;
+		if ( $diff < 3600 ) {
+			$mins = (int) floor( $diff / 60 );
+			/* translators: %d: minutes ago */
+			return sprintf( _n( '%dm', '%dm', $mins, 'sportspress-announcer' ), $mins );
+		}
+		if ( $diff < 86400 ) {
+			$hours = (int) floor( $diff / 3600 );
+			/* translators: %d: hours ago */
+			return sprintf( _n( '%dh', '%dh', $hours, 'sportspress-announcer' ), $hours );
+		}
+		return wp_date( 'M j', $ts );
+	}
+
+	/**
+	 * Dashboard "Upcoming Digest" card.
+	 *
+	 * @param int    $last_digest_ts Timestamp of the last sent digest.
+	 * @param string $log_url        URL to the Log tab.
+	 * @return void
+	 */
+	private function render_dashboard_digest_card( int $last_digest_ts, string $log_url ): void {
+		$send_digest_nonce = wp_create_nonce( 'spa_send_digest_nonce' );
+
+		$notice          = new SPA_Upcoming_Notice();
+		$upcoming_games  = $notice->get_upcoming_games();
+		$next_date_label = '';
+		if ( ! empty( $upcoming_games ) ) {
+			$dates = array_column( $upcoming_games, 'date' );
+			sort( $dates );
+			$next_date_label = $dates[0];
+		}
+		?>
 		<div class="spa-dashboard-card">
 			<div class="spa-dashboard-card-head">
 				<span class="spa-dashboard-card-title">&#128197; <?php esc_html_e( 'Upcoming Digest', 'sportspress-announcer' ); ?></span>
@@ -2075,25 +2319,7 @@ class SPA_Settings {
 
 			<div class="spa-dashboard-card-body">
 				<?php if ( ! empty( $upcoming_games ) ) : ?>
-					<!-- Discord-style preview -->
-					<div class="spa-discord-preview">
-						<div class="spa-discord-preview-bot"><?php esc_html_e( 'SportsPress Bot', 'sportspress-announcer' ); ?></div>
-						<strong><?php esc_html_e( 'Upcoming Games', 'sportspress-announcer' ); ?></strong><br>
-						<?php
-						$preview_games = array_slice( $upcoming_games, 0, 4 );
-						foreach ( $preview_games as $game ) {
-							echo '&#127903; ' . esc_html( $game['label'] );
-							if ( ! empty( $game['time'] ) ) {
-								echo ' · ' . esc_html( $game['time'] );
-							}
-							echo '<br>';
-						}
-						$overflow = count( $upcoming_games ) - 4;
-						if ( $overflow > 0 ) {
-							echo '<span style="color:#72767d;font-size:11px">+ ' . esc_html( (string) $overflow ) . ' ' . esc_html__( 'more', 'sportspress-announcer' ) . '</span>';
-						}
-						?>
-					</div>
+					<?php $this->render_digest_preview( $upcoming_games ); ?>
 				<?php else : ?>
 					<p style="color:#8c8f94;font-size:12px;margin:0 0 10px"><?php esc_html_e( 'No upcoming games found in the next 7 days.', 'sportspress-announcer' ); ?></p>
 				<?php endif; ?>
@@ -2110,28 +2336,77 @@ class SPA_Settings {
 				</div>
 			</div>
 
-			<div class="spa-dashboard-card-foot">
-				<?php if ( $last_digest_ts > 0 ) : ?>
-					<?php
-					echo esc_html(
-						sprintf(
-							/* translators: %s: formatted date and time */
-							__( 'Last digest: %s', 'sportspress-announcer' ),
-							wp_date( 'D M j · g:ia', $last_digest_ts )
-						)
-					);
-					?>
-					&nbsp;·&nbsp;
-					<a href="<?php echo esc_url( $log_url ); ?>"><?php esc_html_e( 'View in log →', 'sportspress-announcer' ); ?></a>
-				<?php else : ?>
-					<span style="color:#8c8f94"><?php esc_html_e( 'No digest sent yet.', 'sportspress-announcer' ); ?></span>
-				<?php endif; ?>
-			</div>
+			<?php $this->render_digest_card_foot( $last_digest_ts, $log_url ); ?>
 		</div>
+		<?php
+	}
 
+	/**
+	 * Footer of the Upcoming Digest card (last-sent timestamp / empty state).
+	 *
+	 * @param int    $last_digest_ts Timestamp of the last sent digest.
+	 * @param string $log_url        URL to the Log tab.
+	 * @return void
+	 */
+	private function render_digest_card_foot( int $last_digest_ts, string $log_url ): void {
+		?>
+		<div class="spa-dashboard-card-foot">
+			<?php if ( $last_digest_ts > 0 ) : ?>
+				<?php
+				echo esc_html(
+					sprintf(
+						/* translators: %s: formatted date and time */
+						__( 'Last digest: %s', 'sportspress-announcer' ),
+						wp_date( 'D M j · g:ia', $last_digest_ts )
+					)
+				);
+				?>
+				&nbsp;·&nbsp;
+				<a href="<?php echo esc_url( $log_url ); ?>"><?php esc_html_e( 'View in log →', 'sportspress-announcer' ); ?></a>
+			<?php else : ?>
+				<span style="color:#8c8f94"><?php esc_html_e( 'No digest sent yet.', 'sportspress-announcer' ); ?></span>
+			<?php endif; ?>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Discord-style preview of the next few upcoming games.
+	 *
+	 * @param array[] $upcoming_games Upcoming games.
+	 * @return void
+	 */
+	private function render_digest_preview( array $upcoming_games ): void {
+		?>
+		<div class="spa-discord-preview">
+			<div class="spa-discord-preview-bot"><?php esc_html_e( 'SportsPress Bot', 'sportspress-announcer' ); ?></div>
+			<strong><?php esc_html_e( 'Upcoming Games', 'sportspress-announcer' ); ?></strong><br>
+			<?php
+			foreach ( array_slice( $upcoming_games, 0, 4 ) as $game ) {
+				echo '&#127903; ' . esc_html( $game['label'] );
+				if ( ! empty( $game['time'] ) ) {
+					echo ' · ' . esc_html( $game['time'] );
+				}
+				echo '<br>';
+			}
+			$overflow = count( $upcoming_games ) - 4;
+			if ( $overflow > 0 ) {
+				echo '<span style="color:#72767d;font-size:11px">+ ' . esc_html( (string) $overflow ) . ' ' . esc_html__( 'more', 'sportspress-announcer' ) . '</span>';
+			}
+			?>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Inline script for the dashboard retry/resend buttons.
+	 *
+	 * @return void
+	 */
+	private function render_retry_button_script(): void {
+		?>
 		<script>
 		document.addEventListener( 'DOMContentLoaded', function () {
-			// Retry / Resend buttons.
 			document.querySelectorAll( '.spa-retry-btn' ).forEach( function ( btn ) {
 				btn.addEventListener( 'click', function () {
 					var uid     = btn.dataset.uid;
@@ -2174,7 +2449,21 @@ class SPA_Settings {
 						} );
 				} );
 			} );
+		} );
+		</script>
+		<?php
+	}
 
+	/**
+	 * Inline script for the dashboard send-digest button.
+	 *
+	 * @return void
+	 */
+	private function render_dashboard_script(): void {
+		$this->render_retry_button_script();
+		?>
+		<script>
+		document.addEventListener( 'DOMContentLoaded', function () {
 			// Send digest button.
 			var digestBtn    = document.getElementById( 'spa-send-digest-btn' );
 			var digestResult = document.getElementById( 'spa-send-digest-result' );
@@ -2242,12 +2531,27 @@ class SPA_Settings {
 			admin_url( 'options-general.php' )
 		);
 
+		?>
+		<?php
+		$this->render_log_toolbar( $type_filter, $search, $base_url );
+		$this->render_log_table( $entries, $retry_nonce );
+		$this->render_log_pagination( $paged, $per_page, $total, $total_pages, $base_url );
+		$this->render_log_retry_script();
+	}
+
+	/**
+	 * Log tab: filter pills and search box.
+	 *
+	 * @param string $type_filter Active type filter ('' | result | digest).
+	 * @param string $search      Current search term.
+	 * @param string $base_url    Base Log-tab URL.
+	 * @return void
+	 */
+	private function render_log_toolbar( string $type_filter, string $search, string $base_url ): void {
 		$count_all    = SPA_Log::count();
 		$count_result = SPA_Log::count( array( 'type' => 'result' ) );
 		$count_digest = SPA_Log::count( array( 'type' => 'digest' ) );
 		?>
-
-		<!-- Filter pills + search -->
 		<div class="spa-log-toolbar">
 			<div class="spa-filter-pills">
 				<a href="<?php echo esc_url( $base_url ); ?>" class="spa-pill<?php echo '' === $type_filter ? ' spa-pill--active' : ''; ?>">
@@ -2269,10 +2573,19 @@ class SPA_Settings {
 				<input type="search" name="log_search" value="<?php echo esc_attr( $search ); ?>" placeholder="<?php esc_attr_e( 'Search…', 'sportspress-announcer' ); ?>" class="spa-log-search">
 			</form>
 		</div>
+		<?php
+	}
 
-		<!-- Log table -->
+	/**
+	 * Log tab: the entries table.
+	 *
+	 * @param array[] $entries     Log entries for the current page.
+	 * @param string  $retry_nonce Retry action nonce.
+	 * @return void
+	 */
+	private function render_log_table( array $entries, string $retry_nonce ): void {
+		?>
 		<div class="spa-dashboard-card" style="margin-bottom:8px">
-			<!-- Header -->
 			<div class="spa-log-row spa-log-row--header">
 				<span><?php esc_html_e( 'Type', 'sportspress-announcer' ); ?></span>
 				<span><?php esc_html_e( 'Event', 'sportspress-announcer' ); ?></span>
@@ -2286,61 +2599,92 @@ class SPA_Settings {
 					<?php esc_html_e( 'No entries found.', 'sportspress-announcer' ); ?>
 				</div>
 			<?php else : ?>
-				<?php
-				foreach ( $entries as $entry ) :
-					$is_failed = 'failed' === ( $entry['status'] ?? '' );
-					$is_digest = 'digest' === ( $entry['type'] ?? '' );
-					$ts        = (int) ( $entry['sent_at'] ?? 0 );
-					$diff      = time() - $ts;
-					if ( $diff < 3600 ) {
-						$time_label = sprintf(
-							/* translators: %d: minutes ago */
-							_n( '%dm ago', '%dm ago', (int) floor( $diff / 60 ), 'sportspress-announcer' ),
-							(int) floor( $diff / 60 )
-						);
-					} elseif ( $diff < 86400 ) {
-						$time_label = sprintf(
-							/* translators: %d: hours ago */
-							_n( '%dh ago', '%dh ago', (int) floor( $diff / 3600 ), 'sportspress-announcer' ),
-							(int) floor( $diff / 3600 )
-						);
-					} else {
-						$time_label = $ts > 0 ? wp_date( 'M j', $ts ) : '—';
-					}
-					$row_class = 'spa-log-row';
-					if ( $is_failed ) {
-						$row_class .= ' spa-log-row--failed';
-					} elseif ( $is_digest ) {
-						$row_class .= ' spa-log-row--digest';
-					}
-					$type_label = 'result' === ( $entry['type'] ?? '' )
-						? esc_html__( 'Result', 'sportspress-announcer' )
-						: esc_html__( 'Digest', 'sportspress-announcer' );
-					$type_color = 'result' === ( $entry['type'] ?? '' ) ? '#2271b1' : '#996800';
-					?>
-					<div class="<?php echo esc_attr( $row_class ); ?>">
-						<span style="color:<?php echo esc_attr( $type_color ); ?>;font-weight:600"><?php echo $type_label; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></span>
-						<span style="color:#1d2327"><?php echo esc_html( $entry['label'] ?? '' ); ?></span>
-						<span style="color:#50575e"><?php echo esc_html( $entry['channel'] ?? '' ); ?></span>
-						<span style="color:#8c8f94"><?php echo esc_html( $time_label ); ?></span>
-						<?php if ( $is_failed ) : ?>
-							<button type="button" class="button spa-retry-btn spa-log-retry-btn" data-uid="<?php echo esc_attr( $entry['uid'] ?? '' ); ?>" data-nonce="<?php echo esc_attr( $retry_nonce ); ?>">
-								&#10007; <?php esc_html_e( 'Retry', 'sportspress-announcer' ); ?>
-							</button>
-						<?php else : ?>
-							<span style="color:#00a32a;font-weight:600">&#10003; <?php esc_html_e( 'Sent', 'sportspress-announcer' ); ?></span>
-						<?php endif; ?>
-					</div>
+				<?php foreach ( $entries as $entry ) : ?>
+					<?php $this->render_log_table_row( $entry, $retry_nonce ); ?>
 				<?php endforeach; ?>
 			<?php endif; ?>
 		</div>
+		<?php
+	}
 
-		<!-- Pagination -->
+	/**
+	 * Log tab: a single entry row.
+	 *
+	 * @param array  $entry       Log entry.
+	 * @param string $retry_nonce Retry action nonce.
+	 * @return void
+	 */
+	private function render_log_table_row( array $entry, string $retry_nonce ): void {
+		$is_failed  = 'failed' === ( $entry['status'] ?? '' );
+		$is_digest  = 'digest' === ( $entry['type'] ?? '' );
+		$is_result  = 'result' === ( $entry['type'] ?? '' );
+		$time_label = $this->log_time_label( (int) ( $entry['sent_at'] ?? 0 ) );
+
+		$row_class = 'spa-log-row';
+		if ( $is_failed ) {
+			$row_class .= ' spa-log-row--failed';
+		} elseif ( $is_digest ) {
+			$row_class .= ' spa-log-row--digest';
+		}
+		$type_label = $is_result
+			? esc_html__( 'Result', 'sportspress-announcer' )
+			: esc_html__( 'Digest', 'sportspress-announcer' );
+		$type_color = $is_result ? '#2271b1' : '#996800';
+		?>
+		<div class="<?php echo esc_attr( $row_class ); ?>">
+			<span style="color:<?php echo esc_attr( $type_color ); ?>;font-weight:600"><?php echo $type_label; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></span>
+			<span style="color:#1d2327"><?php echo esc_html( $entry['label'] ?? '' ); ?></span>
+			<span style="color:#50575e"><?php echo esc_html( $entry['channel'] ?? '' ); ?></span>
+			<span style="color:#8c8f94"><?php echo esc_html( $time_label ); ?></span>
+			<?php if ( $is_failed ) : ?>
+				<button type="button" class="button spa-retry-btn spa-log-retry-btn" data-uid="<?php echo esc_attr( $entry['uid'] ?? '' ); ?>" data-nonce="<?php echo esc_attr( $retry_nonce ); ?>">
+					&#10007; <?php esc_html_e( 'Retry', 'sportspress-announcer' ); ?>
+				</button>
+			<?php else : ?>
+				<span style="color:#00a32a;font-weight:600">&#10003; <?php esc_html_e( 'Sent', 'sportspress-announcer' ); ?></span>
+			<?php endif; ?>
+		</div>
+		<?php
+	}
+
+	/**
+	 * "Time ago" label for the log table (blank timestamp → em dash).
+	 *
+	 * @param int $ts Sent-at timestamp.
+	 * @return string
+	 */
+	private function log_time_label( int $ts ): string {
+		$diff = time() - $ts;
+		if ( $diff < 3600 ) {
+			$mins = (int) floor( $diff / 60 );
+			/* translators: %d: minutes ago */
+			return sprintf( _n( '%dm ago', '%dm ago', $mins, 'sportspress-announcer' ), $mins );
+		}
+		if ( $diff < 86400 ) {
+			$hours = (int) floor( $diff / 3600 );
+			/* translators: %d: hours ago */
+			return sprintf( _n( '%dh ago', '%dh ago', $hours, 'sportspress-announcer' ), $hours );
+		}
+		return $ts > 0 ? wp_date( 'M j', $ts ) : '—';
+	}
+
+	/**
+	 * Log tab: pagination bar.
+	 *
+	 * @param int    $paged       Current page.
+	 * @param int    $per_page    Entries per page.
+	 * @param int    $total       Total matching entries.
+	 * @param int    $total_pages Total page count.
+	 * @param string $base_url    Base Log-tab URL.
+	 * @return void
+	 */
+	private function render_log_pagination( int $paged, int $per_page, int $total, int $total_pages, string $base_url ): void {
+		$from = min( ( $paged - 1 ) * $per_page + 1, $total );
+		$to   = min( $paged * $per_page, $total );
+		?>
 		<div class="spa-log-pagination">
 			<span>
 				<?php
-				$from = min( ( $paged - 1 ) * $per_page + 1, $total );
-				$to   = min( $paged * $per_page, $total );
 				echo esc_html(
 					sprintf(
 						/* translators: 1: first entry, 2: last entry, 3: total */
@@ -2365,7 +2709,16 @@ class SPA_Settings {
 				<?php endif; ?>
 			</div>
 		</div>
+		<?php
+	}
 
+	/**
+	 * Log tab: inline retry-button script.
+	 *
+	 * @return void
+	 */
+	private function render_log_retry_script(): void {
+		?>
 		<script>
 		document.addEventListener( 'DOMContentLoaded', function () {
 			document.querySelectorAll( '.spa-log-retry-btn' ).forEach( function ( btn ) {
@@ -2412,16 +2765,13 @@ class SPA_Settings {
 	 *
 	 * @return void
 	 */
-	public function render_page(): void {
-		if ( ! current_user_can( 'manage_options' ) ) {
-			return;
-		}
-
-		$page = self::MENU_SLUG;
-
-		$discord_url           = get_option( self::OPTION_WEBHOOK, '' );
-		$discord_active        = ! empty( $discord_url );
-		$discord_channel_count = count( (array) get_option( self::OPTION_DISCORD_CHANNEL_MAP, array() ) );
+	/**
+	 * Assemble the data the settings page and its tabs need to render.
+	 *
+	 * @return array
+	 */
+	private function page_context(): array {
+		$discord_active = ! empty( get_option( self::OPTION_WEBHOOK, '' ) );
 
 		// Active tab — server-side, falls back to dashboard.
 		$allowed_tabs = array( 'dashboard', 'channels', 'digest', 'templates', 'general', 'log' );
@@ -2429,44 +2779,120 @@ class SPA_Settings {
 			? sanitize_key( $_GET['tab'] ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 			: 'dashboard';
 
-		// Log data for Dashboard + Log tabs.
-		$log              = SPA_Log::get_all();
-		$log_total        = count( $log );
-		$log_failed       = count( array_filter( $log, static fn( $e ) => 'failed' === ( $e['status'] ?? '' ) ) );
-		$sent_today       = count(
-			array_filter(
-				$log,
-				static fn( $e ) => ( $e['sent_at'] ?? 0 ) >= strtotime( 'today midnight' )
-			)
+		return array(
+			'discord_active'        => $discord_active,
+			'discord_channel_count' => count( (array) get_option( self::OPTION_DISCORD_CHANNEL_MAP, array() ) ),
+			'active_tab'            => $active_tab,
+			'handled_sections'      => array(
+				'spa_section_sportspress',
+				'spa_section_discord',
+				'spa_section_slack',
+				'spa_section_facebook',
+				'spa_section_digest',
+				'spa_section_announcements',
+			),
+			'discord_fields'        => array(
+				self::OPTION_DISCORD_ENABLED,
+				self::OPTION_WEBHOOK,
+				self::OPTION_DISCORD_CHANNEL_MAP,
+			),
+			'slack_fields'          => array(
+				self::OPTION_SLACK_ENABLED,
+				self::OPTION_SLACK_WEBHOOK,
+				self::OPTION_SLACK_CHANNEL_MAP,
+			),
+			'dashboard'             => $this->dashboard_context(),
+			'quick_start'           => $this->quick_start_context( $discord_active ),
 		);
-		$last_digest_ts   = (int) get_option( 'spa_last_digest_sent', 0 );
-		$recent_log       = array_slice( $log, 0, 3 );
-		$handled_sections = array(
-			'spa_section_sportspress',
-			'spa_section_discord',
-			'spa_section_slack',
-			'spa_section_facebook',
-			'spa_section_digest',
-			'spa_section_announcements',
-		);
-		$discord_fields   = array(
-			self::OPTION_DISCORD_ENABLED,
-			self::OPTION_WEBHOOK,
-			self::OPTION_DISCORD_CHANNEL_MAP,
-		);
-		$slack_fields     = array(
-			self::OPTION_SLACK_ENABLED,
-			self::OPTION_SLACK_WEBHOOK,
-			self::OPTION_SLACK_CHANNEL_MAP,
-		);
+	}
 
-		// Determine Quick Start checklist state.
+	/**
+	 * Dashboard-tab context (counts + recent log).
+	 *
+	 * @return array
+	 */
+	private function dashboard_context(): array {
+		$log = SPA_Log::get_all();
+		return array(
+			'discord_active' => ! empty( get_option( self::OPTION_WEBHOOK, '' ) ),
+			'sent_today'     => count(
+				array_filter(
+					$log,
+					static fn( $e ) => ( $e['sent_at'] ?? 0 ) >= strtotime( 'today midnight' )
+				)
+			),
+			'log_failed'     => count( array_filter( $log, static fn( $e ) => 'failed' === ( $e['status'] ?? '' ) ) ),
+			'recent_log'     => array_slice( $log, 0, 3 ),
+			'log_total'      => count( $log ),
+			'last_digest_ts' => (int) get_option( 'spa_last_digest_sent', 0 ),
+		);
+	}
+
+	/**
+	 * Quick Start checklist completion flags.
+	 *
+	 * @param bool $discord_active Whether Discord is configured.
+	 * @return array
+	 */
+	private function quick_start_context( bool $discord_active ): array {
 		$qs_raw       = get_user_meta( get_current_user_id(), self::QS_USER_META, true );
 		$qs_dismissed = is_array( $qs_raw ) ? $qs_raw : array();
-		$qs_connected = $discord_active || ! empty( get_option( self::OPTION_SLACK_WEBHOOK, '' ) ) || ! empty( $qs_dismissed['connected'] );
-		$qs_templated = ( get_option( self::OPTION_RESULT_TEMPLATE, self::DEFAULT_RESULT_TEMPLATE ) !== self::DEFAULT_RESULT_TEMPLATE ) || ! empty( $qs_dismissed['templated'] );
-		$qs_tested    = ! empty( $qs_dismissed['tested'] );
-		$qs_published = ! empty( $qs_dismissed['published'] );
+
+		return array(
+			'connected' => $discord_active || ! empty( get_option( self::OPTION_SLACK_WEBHOOK, '' ) ) || ! empty( $qs_dismissed['connected'] ),
+			'templated' => ( get_option( self::OPTION_RESULT_TEMPLATE, self::DEFAULT_RESULT_TEMPLATE ) !== self::DEFAULT_RESULT_TEMPLATE ) || ! empty( $qs_dismissed['templated'] ),
+			'tested'    => ! empty( $qs_dismissed['tested'] ),
+			'published' => ! empty( $qs_dismissed['published'] ),
+		);
+	}
+
+	/**
+	 * Render the tab navigation bar.
+	 *
+	 * @param string $active_tab            Active tab slug.
+	 * @param bool   $discord_active        Whether Discord is configured.
+	 * @param int    $discord_channel_count Number of routed Discord channels.
+	 * @return void
+	 */
+	private function render_page_tabs( string $active_tab, bool $discord_active, int $discord_channel_count ): void {
+		?>
+		<nav class="spa-tabs" role="tablist">
+			<button type="button" class="spa-tab<?php echo 'dashboard' === $active_tab ? ' is-active' : ''; ?>" data-tab="dashboard" role="tab" aria-selected="<?php echo 'dashboard' === $active_tab ? 'true' : 'false'; ?>">
+				<?php esc_html_e( 'Dashboard', 'sportspress-announcer' ); ?>
+			</button>
+			<button type="button" class="spa-tab<?php echo 'channels' === $active_tab ? ' is-active' : ''; ?>" data-tab="channels" role="tab" aria-selected="<?php echo 'channels' === $active_tab ? 'true' : 'false'; ?>">
+				<?php esc_html_e( 'Channels', 'sportspress-announcer' ); ?>
+				<?php if ( $discord_active ) : ?>
+					<span class="spa-tab-badge"><?php echo esc_html( (string) max( 1, $discord_channel_count ) ); ?></span>
+				<?php endif; ?>
+			</button>
+			<button type="button" class="spa-tab<?php echo 'digest' === $active_tab ? ' is-active' : ''; ?>" data-tab="digest" role="tab" aria-selected="<?php echo 'digest' === $active_tab ? 'true' : 'false'; ?>">
+				<?php esc_html_e( 'Digest', 'sportspress-announcer' ); ?>
+			</button>
+			<button type="button" class="spa-tab<?php echo 'templates' === $active_tab ? ' is-active' : ''; ?>" data-tab="templates" role="tab" aria-selected="<?php echo 'templates' === $active_tab ? 'true' : 'false'; ?>">
+				<?php esc_html_e( 'Templates', 'sportspress-announcer' ); ?>
+			</button>
+			<button type="button" class="spa-tab<?php echo 'general' === $active_tab ? ' is-active' : ''; ?>" data-tab="general" role="tab" aria-selected="<?php echo 'general' === $active_tab ? 'true' : 'false'; ?>">
+				<?php esc_html_e( 'General', 'sportspress-announcer' ); ?>
+			</button>
+			<button type="button" class="spa-tab<?php echo 'log' === $active_tab ? ' is-active' : ''; ?>" data-tab="log" role="tab" aria-selected="<?php echo 'log' === $active_tab ? 'true' : 'false'; ?>">
+				<?php esc_html_e( 'Log', 'sportspress-announcer' ); ?>
+			</button>
+		</nav>
+		<?php
+	}
+
+	/**
+	 * Render the plugin settings page.
+	 *
+	 * @return void
+	 */
+	public function render_page(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		$ctx = $this->page_context();
 		?>
 		<div class="wrap">
 			<h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
@@ -2479,197 +2905,259 @@ class SPA_Settings {
 					<!-- Main content -->
 					<div class="spa-main">
 
-						<!-- Tab nav -->
-						<nav class="spa-tabs" role="tablist">
-							<button type="button" class="spa-tab<?php echo 'dashboard' === $active_tab ? ' is-active' : ''; ?>" data-tab="dashboard" role="tab" aria-selected="<?php echo 'dashboard' === $active_tab ? 'true' : 'false'; ?>">
-								<?php esc_html_e( 'Dashboard', 'sportspress-announcer' ); ?>
-							</button>
-							<button type="button" class="spa-tab<?php echo 'channels' === $active_tab ? ' is-active' : ''; ?>" data-tab="channels" role="tab" aria-selected="<?php echo 'channels' === $active_tab ? 'true' : 'false'; ?>">
-								<?php esc_html_e( 'Channels', 'sportspress-announcer' ); ?>
-								<?php if ( $discord_active ) : ?>
-									<span class="spa-tab-badge"><?php echo esc_html( (string) max( 1, $discord_channel_count ) ); ?></span>
-								<?php endif; ?>
-							</button>
-							<button type="button" class="spa-tab<?php echo 'digest' === $active_tab ? ' is-active' : ''; ?>" data-tab="digest" role="tab" aria-selected="<?php echo 'digest' === $active_tab ? 'true' : 'false'; ?>">
-								<?php esc_html_e( 'Digest', 'sportspress-announcer' ); ?>
-							</button>
-							<button type="button" class="spa-tab<?php echo 'templates' === $active_tab ? ' is-active' : ''; ?>" data-tab="templates" role="tab" aria-selected="<?php echo 'templates' === $active_tab ? 'true' : 'false'; ?>">
-								<?php esc_html_e( 'Templates', 'sportspress-announcer' ); ?>
-							</button>
-							<button type="button" class="spa-tab<?php echo 'general' === $active_tab ? ' is-active' : ''; ?>" data-tab="general" role="tab" aria-selected="<?php echo 'general' === $active_tab ? 'true' : 'false'; ?>">
-								<?php esc_html_e( 'General', 'sportspress-announcer' ); ?>
-							</button>
-							<button type="button" class="spa-tab<?php echo 'log' === $active_tab ? ' is-active' : ''; ?>" data-tab="log" role="tab" aria-selected="<?php echo 'log' === $active_tab ? 'true' : 'false'; ?>">
-								<?php esc_html_e( 'Log', 'sportspress-announcer' ); ?>
-							</button>
-						</nav>
-
-						<!-- Dashboard tab -->
-						<div id="spa-panel-dashboard" class="spa-panel<?php echo 'dashboard' === $active_tab ? ' is-active' : ''; ?>" role="tabpanel">
-							<?php $this->render_dashboard_tab( $discord_active, $sent_today, $log_failed, $recent_log, $log_total, $last_digest_ts ); ?>
-						</div>
-
-						<!-- General tab -->
-						<div id="spa-panel-general" class="spa-panel<?php echo 'general' === $active_tab ? ' is-active' : ''; ?>" role="tabpanel">
-							<?php
-							$this->render_registered_section( $page, 'spa_section_sportspress' );
-							$this->render_unhandled_registered_sections( $page, $handled_sections );
-							?>
-							<?php submit_button( __( 'Save Settings', 'sportspress-announcer' ) ); ?>
-						</div>
-
-						<!-- Channels tab -->
-						<div id="spa-panel-channels" class="spa-panel<?php echo 'channels' === $active_tab ? ' is-active' : ''; ?>" role="tabpanel">
-
-							<!-- Discord -->
-							<div class="spa-integration-card">
-								<div class="spa-integration-card-head">
-									<div class="spa-integration-card-title">
-										<span class="spa-platform-icon spa-platform-icon--discord">D</span>
-										<?php esc_html_e( 'Discord', 'sportspress-announcer' ); ?>
-									</div>
-									<?php if ( $discord_active ) : ?>
-										<span class="spa-status-active">&#9679; <?php esc_html_e( 'Active', 'sportspress-announcer' ); ?></span>
-									<?php endif; ?>
-								</div>
-
-								<!-- Enabled toggle -->
-								<div class="spa-integration-card-body spa-section-alt">
-									<div class="spa-section-label"><?php esc_html_e( 'Announcements', 'sportspress-announcer' ); ?></div>
-									<?php $this->render_registered_field( $page, 'spa_section_discord', self::OPTION_DISCORD_ENABLED ); ?>
-								</div>
-
-								<!-- Default webhook -->
-								<div class="spa-integration-card-body spa-section-alt">
-									<div class="spa-section-label"><?php esc_html_e( 'Default Channel', 'sportspress-announcer' ); ?></div>
-									<?php $this->render_registered_field( $page, 'spa_section_discord', self::OPTION_WEBHOOK ); ?>
-								</div>
-
-								<!-- Channel routing -->
-								<div class="spa-integration-card-body">
-									<div class="spa-section-label"><?php esc_html_e( 'Channel Routing', 'sportspress-announcer' ); ?></div>
-									<?php $this->render_registered_field( $page, 'spa_section_discord', self::OPTION_DISCORD_CHANNEL_MAP ); ?>
-								</div>
-
-								<?php $this->render_unhandled_registered_fields( $page, 'spa_section_discord', $discord_fields ); ?>
-							</div>
-
-							<!-- Slack (Pro) -->
-							<div class="spa-integration-card">
-								<div class="spa-integration-card-head">
-									<div class="spa-integration-card-title">
-										<span class="spa-platform-icon spa-platform-icon--slack">S</span>
-										<?php esc_html_e( 'Slack', 'sportspress-announcer' ); ?>
-										<span class="spa-pro-badge"><?php esc_html_e( 'Pro', 'sportspress-announcer' ); ?></span>
-									</div>
-								</div>
-								<div class="spa-integration-card-body">
-									<?php $this->render_registered_section_callback( $page, 'spa_section_slack' ); ?>
-								</div>
-								<div class="spa-integration-card-body spa-section-alt">
-									<div class="spa-section-label"><?php esc_html_e( 'Announcements', 'sportspress-announcer' ); ?></div>
-									<?php $this->render_registered_field( $page, 'spa_section_slack', self::OPTION_SLACK_ENABLED ); ?>
-								</div>
-								<div class="spa-integration-card-body spa-section-alt">
-									<div class="spa-section-label"><?php esc_html_e( 'Webhook URL', 'sportspress-announcer' ); ?></div>
-									<?php $this->render_registered_field( $page, 'spa_section_slack', self::OPTION_SLACK_WEBHOOK ); ?>
-								</div>
-								<div class="spa-integration-card-body">
-									<div class="spa-section-label"><?php esc_html_e( 'Channel Routing', 'sportspress-announcer' ); ?></div>
-									<?php $this->render_registered_field( $page, 'spa_section_slack', self::OPTION_SLACK_CHANNEL_MAP ); ?>
-								</div>
-
-								<?php $this->render_unhandled_registered_fields( $page, 'spa_section_slack', $slack_fields ); ?>
-							</div>
-
-							<!-- Facebook (Pro) -->
-							<div class="spa-integration-card spa-integration-card--locked">
-								<div class="spa-integration-card-head">
-									<div class="spa-integration-card-title">
-										<span class="spa-platform-icon spa-platform-icon--facebook">f</span>
-										<?php esc_html_e( 'Facebook', 'sportspress-announcer' ); ?>
-										<span class="spa-pro-badge"><?php esc_html_e( 'Pro', 'sportspress-announcer' ); ?></span>
-									</div>
-									<a href="https://sportspress-announcer.com/pro" target="_blank" rel="noopener" style="font-size:11px;color:#2271b1;">
-										<?php esc_html_e( 'Upgrade to unlock →', 'sportspress-announcer' ); ?>
-									</a>
-								</div>
-							</div>
-
-							<?php submit_button( __( 'Save Settings', 'sportspress-announcer' ) ); ?>
-						</div>
-
-						<!-- Digest tab -->
-						<div id="spa-panel-digest" class="spa-panel<?php echo 'digest' === $active_tab ? ' is-active' : ''; ?>" role="tabpanel">
-							<?php $this->render_registered_section( $page, 'spa_section_digest' ); ?>
-							<hr style="margin:24px 0">
-							<?php $this->render_weekly_digest_section(); ?>
-							<?php submit_button( __( 'Save Settings', 'sportspress-announcer' ) ); ?>
-						</div>
-
-						<!-- Templates tab -->
-							<div id="spa-panel-templates" class="spa-panel<?php echo 'templates' === $active_tab ? ' is-active' : ''; ?>" role="tabpanel">
-								<?php
-								foreach ( array( 'spa_section_announcements', 'spa_section_facebook' ) as $section_id ) {
-									$this->render_registered_section( $page, $section_id );
-								}
-								?>
-								<?php submit_button( __( 'Save Settings', 'sportspress-announcer' ) ); ?>
-							</div>
-
-						<!-- Log tab -->
-						<div id="spa-panel-log" class="spa-panel<?php echo 'log' === $active_tab ? ' is-active' : ''; ?>" role="tabpanel">
-							<?php $this->render_log_tab(); ?>
-						</div>
+						<?php $this->render_page_tabs( $ctx['active_tab'], $ctx['discord_active'], $ctx['discord_channel_count'] ); ?>
+						<?php $this->render_page_panels( $ctx ); ?>
 
 					</div><!-- .spa-main -->
 
-					<!-- Help sidebar -->
-					<div class="spa-help-sidebar">
-						<h3><?php esc_html_e( 'Quick Start', 'sportspress-announcer' ); ?></h3>
-						<ul class="spa-checklist">
-							<li>
-								<span class="spa-check-done">✓</span>
-								<span><?php esc_html_e( 'Activate plugin', 'sportspress-announcer' ); ?></span>
-							</li>
-							<li class="spa-qs-item<?php echo $qs_connected ? ' is-done' : ''; ?>" data-item="connected" title="<?php esc_attr_e( 'Click to mark done', 'sportspress-announcer' ); ?>">
-								<span class="spa-qs-icon"><?php echo $qs_connected ? '✓' : '○'; ?></span>
-								<span><?php esc_html_e( 'Connect a channel', 'sportspress-announcer' ); ?></span>
-							</li>
-							<li class="spa-qs-item<?php echo $qs_templated ? ' is-done' : ''; ?>" data-item="templated" title="<?php esc_attr_e( 'Click to mark done', 'sportspress-announcer' ); ?>">
-								<span class="spa-qs-icon"><?php echo $qs_templated ? '✓' : '○'; ?></span>
-								<span><?php esc_html_e( 'Customize result template', 'sportspress-announcer' ); ?></span>
-							</li>
-							<li class="spa-qs-item<?php echo $qs_tested ? ' is-done' : ''; ?>" data-item="tested" title="<?php esc_attr_e( 'Click to mark done', 'sportspress-announcer' ); ?>">
-								<span class="spa-qs-icon"><?php echo $qs_tested ? '✓' : '○'; ?></span>
-								<span><?php esc_html_e( 'Send a test announcement', 'sportspress-announcer' ); ?></span>
-							</li>
-							<li class="spa-qs-item<?php echo $qs_published ? ' is-done' : ''; ?>" data-item="published" title="<?php esc_attr_e( 'Click to mark done', 'sportspress-announcer' ); ?>">
-								<span class="spa-qs-icon"><?php echo $qs_published ? '✓' : '○'; ?></span>
-								<span><?php esc_html_e( 'Publish your first result', 'sportspress-announcer' ); ?></span>
-							</li>
-						</ul>
-
-						<div class="spa-help-divider"></div>
-
-						<h4 id="spa-help-tab-title"><?php esc_html_e( 'On this tab', 'sportspress-announcer' ); ?></h4>
-						<p class="spa-help-tip" id="spa-help-tab-tip">
-							<?php esc_html_e( 'Your score column key must match the result column slug set up in SportsPress → Result Columns.', 'sportspress-announcer' ); ?>
-						</p>
-
-						<div class="spa-help-links">
-							<a href="https://support.discord.com/hc/en-us/articles/228383668" target="_blank" rel="noopener">📖 <?php esc_html_e( 'How to create a webhook', 'sportspress-announcer' ); ?></a>
-							<a href="https://sportspress-announcer.com/docs" target="_blank" rel="noopener">? <?php esc_html_e( 'Full docs →', 'sportspress-announcer' ); ?></a>
-						</div>
-					</div><!-- .spa-help-sidebar -->
+					<?php $this->render_help_sidebar( $ctx['quick_start'] ); ?>
 
 				</div><!-- .spa-page-wrap -->
 			</form>
 		</div>
+		<?php
+		$this->render_page_script( $ctx['active_tab'] );
+	}
 
+	/**
+	 * Render all six tab panels.
+	 *
+	 * @param array $ctx Page context from page_context().
+	 * @return void
+	 */
+	private function render_page_panels( array $ctx ): void {
+		$page       = self::MENU_SLUG;
+		$active_tab = $ctx['active_tab'];
+		?>
+		<!-- Dashboard tab -->
+		<div id="spa-panel-dashboard" class="spa-panel<?php echo 'dashboard' === $active_tab ? ' is-active' : ''; ?>" role="tabpanel">
+			<?php $this->render_dashboard_tab( $ctx['dashboard'] ); ?>
+		</div>
+
+		<!-- General tab -->
+		<div id="spa-panel-general" class="spa-panel<?php echo 'general' === $active_tab ? ' is-active' : ''; ?>" role="tabpanel">
+			<?php
+			$this->render_registered_section( $page, 'spa_section_sportspress' );
+			$this->render_unhandled_registered_sections( $page, $ctx['handled_sections'] );
+			?>
+			<?php submit_button( __( 'Save Settings', 'sportspress-announcer' ) ); ?>
+		</div>
+
+		<!-- Channels tab -->
+		<div id="spa-panel-channels" class="spa-panel<?php echo 'channels' === $active_tab ? ' is-active' : ''; ?>" role="tabpanel">
+			<?php $this->render_channels_panel( $page, $ctx['discord_active'], $ctx['discord_fields'], $ctx['slack_fields'] ); ?>
+		</div>
+
+		<!-- Digest tab -->
+		<div id="spa-panel-digest" class="spa-panel<?php echo 'digest' === $active_tab ? ' is-active' : ''; ?>" role="tabpanel">
+			<?php $this->render_registered_section( $page, 'spa_section_digest' ); ?>
+			<hr style="margin:24px 0">
+			<?php $this->render_weekly_digest_section(); ?>
+			<?php submit_button( __( 'Save Settings', 'sportspress-announcer' ) ); ?>
+		</div>
+
+		<!-- Templates tab -->
+		<div id="spa-panel-templates" class="spa-panel<?php echo 'templates' === $active_tab ? ' is-active' : ''; ?>" role="tabpanel">
+			<?php
+			foreach ( array( 'spa_section_announcements', 'spa_section_facebook' ) as $section_id ) {
+				$this->render_registered_section( $page, $section_id );
+			}
+			?>
+			<?php submit_button( __( 'Save Settings', 'sportspress-announcer' ) ); ?>
+		</div>
+
+		<!-- Log tab -->
+		<div id="spa-panel-log" class="spa-panel<?php echo 'log' === $active_tab ? ' is-active' : ''; ?>" role="tabpanel">
+			<?php $this->render_log_tab(); ?>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Channels tab: Discord, Slack, and Facebook integration cards.
+	 *
+	 * @param string $page           Settings page slug.
+	 * @param bool   $discord_active Whether Discord is configured.
+	 * @param array  $discord_fields Handled Discord field ids.
+	 * @param array  $slack_fields   Handled Slack field ids.
+	 * @return void
+	 */
+	private function render_channels_panel( string $page, bool $discord_active, array $discord_fields, array $slack_fields ): void {
+		$this->render_discord_card( $page, $discord_active, $discord_fields );
+		$this->render_slack_card( $page, $slack_fields );
+		$this->render_facebook_card();
+		submit_button( __( 'Save Settings', 'sportspress-announcer' ) );
+	}
+
+	/**
+	 * Channels tab: Discord integration card.
+	 *
+	 * @param string $page           Settings page slug.
+	 * @param bool   $discord_active Whether Discord is configured.
+	 * @param array  $discord_fields Handled Discord field ids.
+	 * @return void
+	 */
+	private function render_discord_card( string $page, bool $discord_active, array $discord_fields ): void {
+		?>
+		<div class="spa-integration-card">
+			<div class="spa-integration-card-head">
+				<div class="spa-integration-card-title">
+					<span class="spa-platform-icon spa-platform-icon--discord">D</span>
+					<?php esc_html_e( 'Discord', 'sportspress-announcer' ); ?>
+				</div>
+				<?php if ( $discord_active ) : ?>
+					<span class="spa-status-active">&#9679; <?php esc_html_e( 'Active', 'sportspress-announcer' ); ?></span>
+				<?php endif; ?>
+			</div>
+
+			<!-- Enabled toggle -->
+			<div class="spa-integration-card-body spa-section-alt">
+				<div class="spa-section-label"><?php esc_html_e( 'Announcements', 'sportspress-announcer' ); ?></div>
+				<?php $this->render_registered_field( $page, 'spa_section_discord', self::OPTION_DISCORD_ENABLED ); ?>
+			</div>
+
+			<!-- Default webhook -->
+			<div class="spa-integration-card-body spa-section-alt">
+				<div class="spa-section-label"><?php esc_html_e( 'Default Channel', 'sportspress-announcer' ); ?></div>
+				<?php $this->render_registered_field( $page, 'spa_section_discord', self::OPTION_WEBHOOK ); ?>
+			</div>
+
+			<!-- Channel routing -->
+			<div class="spa-integration-card-body">
+				<div class="spa-section-label"><?php esc_html_e( 'Channel Routing', 'sportspress-announcer' ); ?></div>
+				<?php $this->render_registered_field( $page, 'spa_section_discord', self::OPTION_DISCORD_CHANNEL_MAP ); ?>
+			</div>
+
+			<?php $this->render_unhandled_registered_fields( $page, 'spa_section_discord', $discord_fields ); ?>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Channels tab: Slack (Pro) integration card.
+	 *
+	 * @param string $page         Settings page slug.
+	 * @param array  $slack_fields Handled Slack field ids.
+	 * @return void
+	 */
+	private function render_slack_card( string $page, array $slack_fields ): void {
+		?>
+		<div class="spa-integration-card">
+			<div class="spa-integration-card-head">
+				<div class="spa-integration-card-title">
+					<span class="spa-platform-icon spa-platform-icon--slack">S</span>
+					<?php esc_html_e( 'Slack', 'sportspress-announcer' ); ?>
+					<span class="spa-pro-badge"><?php esc_html_e( 'Pro', 'sportspress-announcer' ); ?></span>
+				</div>
+			</div>
+			<div class="spa-integration-card-body">
+				<?php $this->render_registered_section_callback( $page, 'spa_section_slack' ); ?>
+			</div>
+			<div class="spa-integration-card-body spa-section-alt">
+				<div class="spa-section-label"><?php esc_html_e( 'Announcements', 'sportspress-announcer' ); ?></div>
+				<?php $this->render_registered_field( $page, 'spa_section_slack', self::OPTION_SLACK_ENABLED ); ?>
+			</div>
+			<div class="spa-integration-card-body spa-section-alt">
+				<div class="spa-section-label"><?php esc_html_e( 'Webhook URL', 'sportspress-announcer' ); ?></div>
+				<?php $this->render_registered_field( $page, 'spa_section_slack', self::OPTION_SLACK_WEBHOOK ); ?>
+			</div>
+			<div class="spa-integration-card-body">
+				<div class="spa-section-label"><?php esc_html_e( 'Channel Routing', 'sportspress-announcer' ); ?></div>
+				<?php $this->render_registered_field( $page, 'spa_section_slack', self::OPTION_SLACK_CHANNEL_MAP ); ?>
+			</div>
+
+			<?php $this->render_unhandled_registered_fields( $page, 'spa_section_slack', $slack_fields ); ?>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Channels tab: locked Facebook (Pro) upsell card.
+	 *
+	 * @return void
+	 */
+	private function render_facebook_card(): void {
+		?>
+		<div class="spa-integration-card spa-integration-card--locked">
+			<div class="spa-integration-card-head">
+				<div class="spa-integration-card-title">
+					<span class="spa-platform-icon spa-platform-icon--facebook">f</span>
+					<?php esc_html_e( 'Facebook', 'sportspress-announcer' ); ?>
+					<span class="spa-pro-badge"><?php esc_html_e( 'Pro', 'sportspress-announcer' ); ?></span>
+				</div>
+				<a href="https://sportspress-announcer.com/pro" target="_blank" rel="noopener" style="font-size:11px;color:#2271b1;">
+					<?php esc_html_e( 'Upgrade to unlock →', 'sportspress-announcer' ); ?>
+				</a>
+			</div>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Help sidebar with the Quick Start checklist.
+	 *
+	 * @param array $qs {
+	 *     Checklist completion flags.
+	 *
+	 *     @type bool $connected Channel connected.
+	 *     @type bool $templated Result template customized.
+	 *     @type bool $tested    Test announcement sent.
+	 *     @type bool $published First result published.
+	 * }
+	 * @return void
+	 */
+	private function render_help_sidebar( array $qs ): void {
+		?>
+		<div class="spa-help-sidebar">
+			<h3><?php esc_html_e( 'Quick Start', 'sportspress-announcer' ); ?></h3>
+			<ul class="spa-checklist">
+				<li>
+					<span class="spa-check-done">✓</span>
+					<span><?php esc_html_e( 'Activate plugin', 'sportspress-announcer' ); ?></span>
+				</li>
+				<li class="spa-qs-item<?php echo $qs['connected'] ? ' is-done' : ''; ?>" data-item="connected" title="<?php esc_attr_e( 'Click to mark done', 'sportspress-announcer' ); ?>">
+					<span class="spa-qs-icon"><?php echo $qs['connected'] ? '✓' : '○'; ?></span>
+					<span><?php esc_html_e( 'Connect a channel', 'sportspress-announcer' ); ?></span>
+				</li>
+				<li class="spa-qs-item<?php echo $qs['templated'] ? ' is-done' : ''; ?>" data-item="templated" title="<?php esc_attr_e( 'Click to mark done', 'sportspress-announcer' ); ?>">
+					<span class="spa-qs-icon"><?php echo $qs['templated'] ? '✓' : '○'; ?></span>
+					<span><?php esc_html_e( 'Customize result template', 'sportspress-announcer' ); ?></span>
+				</li>
+				<li class="spa-qs-item<?php echo $qs['tested'] ? ' is-done' : ''; ?>" data-item="tested" title="<?php esc_attr_e( 'Click to mark done', 'sportspress-announcer' ); ?>">
+					<span class="spa-qs-icon"><?php echo $qs['tested'] ? '✓' : '○'; ?></span>
+					<span><?php esc_html_e( 'Send a test announcement', 'sportspress-announcer' ); ?></span>
+				</li>
+				<li class="spa-qs-item<?php echo $qs['published'] ? ' is-done' : ''; ?>" data-item="published" title="<?php esc_attr_e( 'Click to mark done', 'sportspress-announcer' ); ?>">
+					<span class="spa-qs-icon"><?php echo $qs['published'] ? '✓' : '○'; ?></span>
+					<span><?php esc_html_e( 'Publish your first result', 'sportspress-announcer' ); ?></span>
+				</li>
+			</ul>
+
+			<div class="spa-help-divider"></div>
+
+			<h4 id="spa-help-tab-title"><?php esc_html_e( 'On this tab', 'sportspress-announcer' ); ?></h4>
+			<p class="spa-help-tip" id="spa-help-tab-tip">
+				<?php esc_html_e( 'Your score column key must match the result column slug set up in SportsPress → Result Columns.', 'sportspress-announcer' ); ?>
+			</p>
+
+			<div class="spa-help-links">
+				<a href="https://support.discord.com/hc/en-us/articles/228383668" target="_blank" rel="noopener">📖 <?php esc_html_e( 'How to create a webhook', 'sportspress-announcer' ); ?></a>
+				<a href="https://sportspress-announcer.com/docs" target="_blank" rel="noopener">? <?php esc_html_e( 'Full docs →', 'sportspress-announcer' ); ?></a>
+			</div>
+		</div><!-- .spa-help-sidebar -->
+		<?php
+	}
+
+	/**
+	 * Inline script for tab switching and the Quick Start checklist.
+	 *
+	 * @param string $active_tab Currently active tab slug.
+	 * @return void
+	 */
+	private function render_tab_switch_script( string $active_tab ): void {
+		?>
 		<script>
 		document.addEventListener( 'DOMContentLoaded', function () {
-			// ── Tab switching ──
 			var tabs   = document.querySelectorAll( '.spa-tab' );
 			var panels = document.querySelectorAll( '.spa-panel' );
 
@@ -2703,79 +3191,23 @@ class SPA_Settings {
 					if ( tipEl && tips[ target ] ) { tipEl.textContent = tips[ target ]; }
 				} );
 			} );
-
-			// ── Quick Start checklist ──
-			var qsNonce = '<?php echo esc_js( wp_create_nonce( 'spa_qs_dismiss_nonce' ) ); ?>';
-
-			function spaQsSetUI( li, done ) {
-				var icon = li.querySelector( '.spa-qs-icon' );
-				if ( done ) {
-					li.classList.add( 'is-done' );
-					if ( icon ) { icon.textContent = '✓'; }
-				} else {
-					li.classList.remove( 'is-done' );
-					if ( icon ) { icon.textContent = '○'; }
-				}
-			}
-
-			function spaQsMark( item, done ) {
-				var li = document.querySelector( '.spa-qs-item[data-item="' + item + '"]' );
-				if ( ! li ) { return; }
-				spaQsSetUI( li, done );
-				var fd = new FormData();
-				fd.append( 'action', 'spa_qs_dismiss' );
-				fd.append( 'nonce', qsNonce );
-				fd.append( 'item', item );
-				fd.append( 'checked', done ? '1' : '0' );
-				fetch( ajaxurl, { method: 'POST', body: fd } )
-					.then( function ( r ) { return r.json(); } )
-					.then( function ( json ) {
-						if ( ! json.success ) {
-							// Revert optimistic UI and log.
-							spaQsSetUI( li, ! done );
-							window.console && console.warn( 'SPA QS save failed', json );
-						}
-					} )
-					.catch( function ( err ) {
-						spaQsSetUI( li, ! done );
-						window.console && console.warn( 'SPA QS request failed', err );
-					} );
-			}
-
-			// Click to toggle any unchecked (or checked) item.
-			document.querySelectorAll( '.spa-qs-item' ).forEach( function ( li ) {
-				li.addEventListener( 'click', function () {
-					var isDone = li.classList.contains( 'is-done' );
-					spaQsMark( li.dataset.item, ! isDone );
-				} );
-			} );
-
-			// Auto-check "tested" when a Discord or Slack test message succeeds.
-			function observeTestSuccess( resultElId ) {
-				var el = document.getElementById( resultElId );
-				if ( ! el ) { return; }
-				var obs = new MutationObserver( function () {
-					if ( el.style.color === 'rgb(70, 180, 80)' || el.style.color === '#46b450' ) {
-						spaQsMark( 'tested', true );
-					}
-				} );
-				obs.observe( el, { attributes: true, childList: true, subtree: true } );
-			}
-			observeTestSuccess( 'spa-test-result' );
-			observeTestSuccess( 'spa-test-slack-result' );
-
-			// Auto-check "published" when the digest publish succeeds.
-			var publishResult = document.getElementById( 'spa-publish-result' );
-			if ( publishResult ) {
-				new MutationObserver( function () {
-					if ( publishResult.style.color === 'rgb(70, 180, 80)' || publishResult.style.color === '#46b450' ) {
-						spaQsMark( 'published', true );
-					}
-				} ).observe( publishResult, { attributes: true, childList: true, subtree: true } );
-			}
 		} );
 		</script>
 		<?php
+	}
+
+	/**
+	 * Render the settings-page inline scripts.
+	 *
+	 * The Quick Start checklist behavior lives in the enqueued
+	 * assets/js/spa-quickstart.js; only the tab switcher is inlined here
+	 * because its tab-tip strings are translated per-request.
+	 *
+	 * @param string $active_tab Currently active tab slug.
+	 * @return void
+	 */
+	private function render_page_script( string $active_tab ): void {
+		$this->render_tab_switch_script( $active_tab );
 	}
 
 	// -------------------------------------------------------------------------
@@ -2806,6 +3238,15 @@ class SPA_Settings {
 			);
 		}
 
+		$this->register_weekly_digest_schedule_and_scope();
+	}
+
+	/**
+	 * Register the weekly-digest day, time, leagues, and stat-key options.
+	 *
+	 * @return void
+	 */
+	private function register_weekly_digest_schedule_and_scope(): void {
 		register_setting(
 			'spa_settings_group',
 			'spa_weekly_digest_day',
@@ -2899,140 +3340,256 @@ class SPA_Settings {
 			</div>
 			<?php endif; ?>
 
-			<table class="form-table" role="presentation">
-				<tr>
-					<th scope="row"><?php esc_html_e( 'Enable', 'sportspress-announcer' ); ?></th>
-					<td>
-						<label>
-							<input type="checkbox" name="spa_weekly_digest_enabled" value="1"
-								<?php checked( get_option( 'spa_weekly_digest_enabled' ) ); ?><?php echo $dis; // phpcs:ignore ?>>
-							<?php esc_html_e( 'Send an automatic weekly recap to configured channels', 'sportspress-announcer' ); ?>
-						</label>
-					</td>
-				</tr>
-				<tr>
-					<th scope="row"><?php esc_html_e( 'Send day', 'sportspress-announcer' ); ?></th>
-					<td>
-						<select name="spa_weekly_digest_day"<?php echo $dis; // phpcs:ignore ?>>
-							<?php
-							$current_day = get_option( 'spa_weekly_digest_day', 'monday' );
-							foreach ( $this->weekday_choices() as $value => $label ) {
-								printf(
-									'<option value="%s"%s>%s</option>',
-									esc_attr( $value ),
-									selected( $current_day, $value, false ),
-									esc_html( $label )
-								);
-							}
-							?>
-						</select>
-					</td>
-				</tr>
-				<tr>
-					<th scope="row"><?php esc_html_e( 'Send time', 'sportspress-announcer' ); ?></th>
-					<td>
-						<input type="time" name="spa_weekly_digest_time"
-							value="<?php echo esc_attr( get_option( 'spa_weekly_digest_time', '09:00' ) ); ?>"<?php echo $dis; // phpcs:ignore ?>>
-						<p class="description">
-							<?php
-							printf(
-								/* translators: %s: site timezone string */
-								esc_html__( 'Uses your site timezone (%s). On low-traffic sites, set up a real server cron hitting wp-cron.php for reliable delivery.', 'sportspress-announcer' ),
-								esc_html( wp_timezone_string() )
-							);
-							if ( defined( 'DISABLE_WP_CRON' ) && DISABLE_WP_CRON ) {
-								echo ' <strong>' . esc_html__( 'DISABLE_WP_CRON is active — a real cron job is required.', 'sportspress-announcer' ) . '</strong>';
-							}
-							?>
-						</p>
-					</td>
-				</tr>
-
-				<?php if ( ! empty( $leagues ) ) : ?>
-				<tr>
-					<th scope="row"><?php esc_html_e( 'Leagues', 'sportspress-announcer' ); ?></th>
-					<td>
-						<?php foreach ( $leagues as $league ) : ?>
-						<label style="display:block;margin-bottom:4px">
-							<input type="checkbox" name="spa_weekly_digest_leagues[]"
-								value="<?php echo esc_attr( $league->term_id ); ?>"
-								<?php checked( in_array( (string) $league->term_id, $selected_lg, true ) ); ?><?php echo $dis; // phpcs:ignore ?>>
-							<?php echo esc_html( $league->name ); ?>
-						</label>
-						<?php endforeach; ?>
-						<p class="description"><?php esc_html_e( 'One digest is posted per selected league.', 'sportspress-announcer' ); ?></p>
-					</td>
-				</tr>
-				<?php endif; ?>
-
-				<tr>
-					<th scope="row"><?php esc_html_e( 'Content', 'sportspress-announcer' ); ?></th>
-					<td>
-						<?php
-						$toggles     = array(
-							'spa_weekly_digest_include_results'   => __( 'Results', 'sportspress-announcer' ),
-							'spa_weekly_digest_include_standings' => __( 'Standings & movement', 'sportspress-announcer' ),
-							'spa_weekly_digest_include_leaders'   => __( 'Stat leaders', 'sportspress-announcer' ),
-							'spa_weekly_digest_include_upcoming'  => __( 'Upcoming games', 'sportspress-announcer' ),
-							'spa_weekly_digest_publish_as_post'   => __( 'Also publish as a site post', 'sportspress-announcer' ),
-						);
-						$defaults_on = array( 'spa_weekly_digest_include_results', 'spa_weekly_digest_include_standings', 'spa_weekly_digest_include_leaders' );
-						foreach ( $toggles as $option => $label ) :
-							$default = in_array( $option, $defaults_on, true );
-							?>
-						<label style="display:block;margin-bottom:4px">
-							<input type="checkbox" name="<?php echo esc_attr( $option ); ?>" value="1"
-								<?php checked( get_option( $option, $default ) ); ?><?php echo $dis; // phpcs:ignore ?>>
-							<?php echo esc_html( $label ); ?>
-						</label>
-						<?php endforeach; ?>
-					</td>
-				</tr>
-
-				<?php if ( ! empty( $available_stats ) ) : ?>
-				<tr>
-					<th scope="row"><?php esc_html_e( 'Stat leaders (up to 3)', 'sportspress-announcer' ); ?></th>
-					<td>
-						<?php foreach ( $available_stats as $stat_key => $stat_label ) : ?>
-						<label style="display:block;margin-bottom:4px">
-							<input type="checkbox" name="spa_weekly_digest_stat_keys[]"
-								value="<?php echo esc_attr( $stat_key ); ?>"
-								<?php checked( in_array( $stat_key, $selected_stats, true ) ); ?><?php echo $dis; // phpcs:ignore ?>>
-							<?php echo esc_html( $stat_label ); ?>
-						</label>
-						<?php endforeach; ?>
-					</td>
-				</tr>
-				<?php endif; ?>
-			</table>
+			<?php $this->render_weekly_digest_table( $dis, $leagues, $selected_lg, $available_stats, $selected_stats ); ?>
 
 			<hr>
 
-			<h4><?php esc_html_e( 'Preview', 'sportspress-announcer' ); ?></h4>
-			<p class="description">
-				<?php esc_html_e( 'Generate a preview using your real SportsPress data. Available on the free plan.', 'sportspress-announcer' ); ?>
-			</p>
+			<?php $this->render_weekly_digest_preview( $leagues ); ?>
+		</div>
+		<?php
+		$this->render_weekly_digest_preview_script();
+	}
+
+	/**
+	 * Weekly-digest settings table (schedule, leagues, content, stat leaders).
+	 *
+	 * @param string    $dis             ' disabled' when locked, else ''.
+	 * @param WP_Term[] $leagues         Available league terms.
+	 * @param string[]  $selected_lg     Selected league ids (as strings).
+	 * @param array     $available_stats stat_key => label.
+	 * @param array     $selected_stats  Selected stat keys.
+	 * @return void
+	 */
+	private function render_weekly_digest_table( string $dis, array $leagues, array $selected_lg, array $available_stats, array $selected_stats ): void {
+		?>
+		<table class="form-table" role="presentation">
+			<?php $this->render_weekly_digest_schedule_rows( $dis ); ?>
 
 			<?php if ( ! empty( $leagues ) ) : ?>
-			<p>
-				<label for="spa-weekly-preview-league"><?php esc_html_e( 'League:', 'sportspress-announcer' ); ?></label>
-				<select id="spa-weekly-preview-league">
-					<?php foreach ( $leagues as $league ) : ?>
-					<option value="<?php echo esc_attr( $league->term_id ); ?>"><?php echo esc_html( $league->name ); ?></option>
-					<?php endforeach; ?>
-				</select>
-			</p>
+			<tr>
+				<th scope="row"><?php esc_html_e( 'Leagues', 'sportspress-announcer' ); ?></th>
+				<td>
+					<?php $this->render_digest_league_checkboxes( $leagues, $selected_lg, $dis ); ?>
+					<p class="description"><?php esc_html_e( 'One digest is posted per selected league.', 'sportspress-announcer' ); ?></p>
+				</td>
+			</tr>
 			<?php endif; ?>
 
-			<button type="button" id="spa-weekly-preview-btn" class="button button-secondary"
-				data-nonce="<?php echo esc_attr( wp_create_nonce( 'spa_generate_digest_preview_nonce' ) ); ?>">
-				<?php esc_html_e( 'Generate Preview', 'sportspress-announcer' ); ?>
-			</button>
-			<span id="spa-weekly-preview-spinner" class="spinner" style="float:none;vertical-align:middle;display:none;"></span>
+			<tr>
+				<th scope="row"><?php esc_html_e( 'Content', 'sportspress-announcer' ); ?></th>
+				<td>
+					<?php $this->render_weekly_digest_content_toggles( $dis ); ?>
+				</td>
+			</tr>
 
-			<div id="spa-weekly-preview-output" style="margin-top:16px;display:none;"></div>
-		</div>
+			<?php if ( ! empty( $available_stats ) ) : ?>
+			<tr>
+				<th scope="row"><?php esc_html_e( 'Stat leaders (up to 3)', 'sportspress-announcer' ); ?></th>
+				<td>
+					<?php $this->render_digest_stat_checkboxes( $available_stats, $selected_stats, $dis ); ?>
+				</td>
+			</tr>
+			<?php endif; ?>
+		</table>
+		<?php
+	}
 
+	/**
+	 * Render a league checkbox per available league term.
+	 *
+	 * @param WP_Term[] $leagues     Available league terms.
+	 * @param string[]  $selected_lg Selected league ids (as strings).
+	 * @param string    $dis         ' disabled' when locked, else ''.
+	 * @return void
+	 */
+	private function render_digest_league_checkboxes( array $leagues, array $selected_lg, string $dis ): void {
+		foreach ( $leagues as $league ) {
+			$this->render_digest_checkbox(
+				'spa_weekly_digest_leagues[]',
+				(string) $league->term_id,
+				$league->name,
+				in_array( (string) $league->term_id, $selected_lg, true ),
+				$dis
+			);
+		}
+	}
+
+	/**
+	 * Render a stat checkbox per available stat key.
+	 *
+	 * @param array  $available_stats stat_key => label.
+	 * @param array  $selected_stats  Selected stat keys.
+	 * @param string $dis             ' disabled' when locked, else ''.
+	 * @return void
+	 */
+	private function render_digest_stat_checkboxes( array $available_stats, array $selected_stats, string $dis ): void {
+		foreach ( $available_stats as $stat_key => $stat_label ) {
+			$this->render_digest_checkbox(
+				'spa_weekly_digest_stat_keys[]',
+				$stat_key,
+				$stat_label,
+				in_array( $stat_key, $selected_stats, true ),
+				$dis
+			);
+		}
+	}
+
+	/**
+	 * Weekly-digest schedule rows: enable, send day, and send time.
+	 *
+	 * @param string $dis ' disabled' when locked, else ''.
+	 * @return void
+	 */
+	private function render_weekly_digest_schedule_rows( string $dis ): void {
+		$current_day = get_option( 'spa_weekly_digest_day', 'monday' );
+		?>
+		<tr>
+			<th scope="row"><?php esc_html_e( 'Enable', 'sportspress-announcer' ); ?></th>
+			<td>
+				<label>
+					<input type="checkbox" name="spa_weekly_digest_enabled" value="1"
+						<?php checked( get_option( 'spa_weekly_digest_enabled' ) ); ?><?php echo $dis; // phpcs:ignore ?>>
+					<?php esc_html_e( 'Send an automatic weekly recap to configured channels', 'sportspress-announcer' ); ?>
+				</label>
+			</td>
+		</tr>
+		<tr>
+			<th scope="row"><?php esc_html_e( 'Send day', 'sportspress-announcer' ); ?></th>
+			<td>
+				<select name="spa_weekly_digest_day"<?php echo $dis; // phpcs:ignore ?>>
+					<?php $this->render_weekday_options( $current_day ); ?>
+				</select>
+			</td>
+		</tr>
+		<tr>
+			<th scope="row"><?php esc_html_e( 'Send time', 'sportspress-announcer' ); ?></th>
+			<td>
+				<input type="time" name="spa_weekly_digest_time"
+					value="<?php echo esc_attr( get_option( 'spa_weekly_digest_time', '09:00' ) ); ?>"<?php echo $dis; // phpcs:ignore ?>>
+				<p class="description">
+					<?php $this->render_weekly_digest_timezone_hint(); ?>
+				</p>
+			</td>
+		</tr>
+		<?php
+	}
+
+	/**
+	 * Render <option> elements for the weekday <select>.
+	 *
+	 * @param string $current_day Currently selected weekday value.
+	 * @return void
+	 */
+	private function render_weekday_options( string $current_day ): void {
+		foreach ( $this->weekday_choices() as $value => $label ) {
+			printf(
+				'<option value="%s"%s>%s</option>',
+				esc_attr( $value ),
+				selected( $current_day, $value, false ),
+				esc_html( $label )
+			);
+		}
+	}
+
+	/**
+	 * Timezone / wp-cron reliability hint under the send-time field.
+	 *
+	 * @return void
+	 */
+	private function render_weekly_digest_timezone_hint(): void {
+		printf(
+			/* translators: %s: site timezone string */
+			esc_html__( 'Uses your site timezone (%s). On low-traffic sites, set up a real server cron hitting wp-cron.php for reliable delivery.', 'sportspress-announcer' ),
+			esc_html( wp_timezone_string() )
+		);
+		if ( defined( 'DISABLE_WP_CRON' ) && DISABLE_WP_CRON ) {
+			echo ' <strong>' . esc_html__( 'DISABLE_WP_CRON is active — a real cron job is required.', 'sportspress-announcer' ) . '</strong>';
+		}
+	}
+
+	/**
+	 * Render the weekly-digest "Content" section checkboxes.
+	 *
+	 * @param string $dis ' disabled' when locked, else ''.
+	 * @return void
+	 */
+	private function render_weekly_digest_content_toggles( string $dis ): void {
+		$toggles     = array(
+			'spa_weekly_digest_include_results'   => __( 'Results', 'sportspress-announcer' ),
+			'spa_weekly_digest_include_standings' => __( 'Standings & movement', 'sportspress-announcer' ),
+			'spa_weekly_digest_include_leaders'   => __( 'Stat leaders', 'sportspress-announcer' ),
+			'spa_weekly_digest_include_upcoming'  => __( 'Upcoming games', 'sportspress-announcer' ),
+			'spa_weekly_digest_publish_as_post'   => __( 'Also publish as a site post', 'sportspress-announcer' ),
+		);
+		$defaults_on = array( 'spa_weekly_digest_include_results', 'spa_weekly_digest_include_standings', 'spa_weekly_digest_include_leaders' );
+
+		foreach ( $toggles as $option => $label ) {
+			$default = in_array( $option, $defaults_on, true );
+			$this->render_digest_checkbox( $option, '1', $label, (bool) get_option( $option, $default ), $dis );
+		}
+	}
+
+	/**
+	 * Render one labeled checkbox used across the weekly-digest form.
+	 *
+	 * @param string $name    Input name attribute.
+	 * @param string $value   Input value attribute.
+	 * @param string $label   Visible label.
+	 * @param bool   $checked Whether the box is checked.
+	 * @param string $dis     ' disabled' when locked, else ''.
+	 * @return void
+	 */
+	private function render_digest_checkbox( string $name, string $value, string $label, bool $checked, string $dis ): void {
+		?>
+		<label style="display:block;margin-bottom:4px">
+			<input type="checkbox" name="<?php echo esc_attr( $name ); ?>" value="<?php echo esc_attr( $value ); ?>"
+				<?php checked( $checked ); ?><?php echo $dis; // phpcs:ignore ?>>
+			<?php echo esc_html( $label ); ?>
+		</label>
+		<?php
+	}
+
+	/**
+	 * Weekly-digest preview UI (league picker + generate button).
+	 *
+	 * @param WP_Term[] $leagues Available league terms.
+	 * @return void
+	 */
+	private function render_weekly_digest_preview( array $leagues ): void {
+		?>
+		<h4><?php esc_html_e( 'Preview', 'sportspress-announcer' ); ?></h4>
+		<p class="description">
+			<?php esc_html_e( 'Generate a preview using your real SportsPress data. Available on the free plan.', 'sportspress-announcer' ); ?>
+		</p>
+
+		<?php if ( ! empty( $leagues ) ) : ?>
+		<p>
+			<label for="spa-weekly-preview-league"><?php esc_html_e( 'League:', 'sportspress-announcer' ); ?></label>
+			<select id="spa-weekly-preview-league">
+				<?php foreach ( $leagues as $league ) : ?>
+				<option value="<?php echo esc_attr( $league->term_id ); ?>"><?php echo esc_html( $league->name ); ?></option>
+				<?php endforeach; ?>
+			</select>
+		</p>
+		<?php endif; ?>
+
+		<button type="button" id="spa-weekly-preview-btn" class="button button-secondary"
+			data-nonce="<?php echo esc_attr( wp_create_nonce( 'spa_generate_digest_preview_nonce' ) ); ?>">
+			<?php esc_html_e( 'Generate Preview', 'sportspress-announcer' ); ?>
+		</button>
+		<span id="spa-weekly-preview-spinner" class="spinner" style="float:none;vertical-align:middle;display:none;"></span>
+
+		<div id="spa-weekly-preview-output" style="margin-top:16px;display:none;"></div>
+		<?php
+	}
+
+	/**
+	 * Inline script for the weekly-digest preview generator.
+	 *
+	 * @return void
+	 */
+	private function render_weekly_digest_preview_script(): void {
+		?>
 		<script>
 		( function() {
 			var btn = document.getElementById( 'spa-weekly-preview-btn' );

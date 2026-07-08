@@ -14,16 +14,6 @@ const MAX_METHOD_LINES = 60;
 const MAX_PARAMS       = 5;
 const MAX_NESTING      = 4;
 
-/**
- * Known-debt files exempt from the high-severity gate. Their smells are
- * reported as warnings, not commit blockers. Keep this list shrinking:
- * admin/class-spa-settings.php is a large, untested admin class slated for a
- * dedicated refactor — see the code-smells skill.
- */
-const EXEMPT = [
-	'admin/class-spa-settings.php',
-];
-
 function staged_php_files(): array {
 	exec("git diff --cached --name-only --diff-filter=ACM -- '*.php'", $out);
 	return array_values(array_filter($out, fn($f) => is_file($f)
@@ -91,26 +81,11 @@ foreach ($files as $file) {
 	}
 }
 
-// Downgrade findings in known-debt files to warnings so they don't block the
-// commit gate, while still surfacing them.
-$is_exempt = static function (string $finding): bool {
-	foreach (EXEMPT as $path) {
-		if (str_starts_with($finding, $path . ':')) {
-			return true;
-		}
-	}
-	return false;
-};
-
-$blocking = array_values(array_filter($high, static fn($h) => ! $is_exempt($h)));
-$deferred = array_values(array_filter($high, $is_exempt));
-
 foreach ($warn as $w) { fwrite(STDERR, "warn: $w\n"); }
-foreach ($deferred as $d) { fwrite(STDERR, "warn (known debt): $d\n"); }
 
-if ($blocking) {
-	foreach ($blocking as $h) { fwrite(STDERR, "SMELL $h\n"); }
-	fwrite(STDERR, "\n" . count($blocking) . " high-severity smell(s) found.\n");
+if ($high) {
+	foreach ($high as $h) { fwrite(STDERR, "SMELL $h\n"); }
+	fwrite(STDERR, "\n" . count($high) . " high-severity smell(s) found.\n");
 	exit(1);
 }
 
