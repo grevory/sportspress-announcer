@@ -49,53 +49,12 @@ class SPA_Facebook_Notice {
 			self::ACTION_DISMISS
 		);
 
-		$by_date = array();
-		foreach ( $events as $e ) {
-			$by_date[ $e['date'] ][] = $e;
-		}
-		ksort( $by_date );
-
-		$digest_parts = array();
-		foreach ( $by_date as $date => $group ) {
-			$digest_parts[] = $date;
-			foreach ( $group as $e ) {
-				$line = $e['label'];
-				if ( $e['time'] ) {
-					$line .= ' (' . $e['time'] . ')';
-				}
-				if ( $e['venue'] ) {
-					$line .= ' @ ' . $e['venue'];
-				}
-				$digest_parts[] = $line;
-			}
-		}
-		$digest_text = implode( "\n", $digest_parts );
+		$by_date     = $this->group_by_date( $events );
+		$digest_text = $this->build_digest_text( $by_date );
 		?>
 		<div class="notice notice-info is-dismissible spa-facebook-notice">
 			<p><strong><?php esc_html_e( 'SportsPress Announcer - Recent Results', 'sportspress-announcer' ); ?></strong></p>
-			<?php
-			$by_date_display = array();
-			foreach ( $events as $e ) {
-				$by_date_display[ $e['date'] ][] = $e;
-			}
-			ksort( $by_date_display );
-			foreach ( $by_date_display as $date => $group ) :
-				?>
-				<p style="margin: 4px 0 2px; font-weight:600;"><?php echo esc_html( $date ); ?></p>
-				<ul style="margin: 0 0 8px 0; padding-left: 1.5em; list-style: disc;">
-					<?php foreach ( $group as $event ) : ?>
-						<li>
-							<?php echo esc_html( $event['label'] ); ?>
-							<?php if ( $event['time'] ) : ?>
-								<span style="color:#666;">(<?php echo esc_html( $event['time'] ); ?>)</span>
-							<?php endif; ?>
-							<?php if ( $event['venue'] ) : ?>
-								<span style="color:#666;">@ <?php echo esc_html( $event['venue'] ); ?></span>
-							<?php endif; ?>
-						</li>
-					<?php endforeach; ?>
-				</ul>
-			<?php endforeach; ?>
+			<?php $this->render_event_list( $by_date ); ?>
 			<p style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
 				<button
 					type="button"
@@ -112,6 +71,93 @@ class SPA_Facebook_Notice {
 				<span class="spa-copy-feedback" style="display:none; color:#3c763d;"><?php esc_html_e( 'Copied!', 'sportspress-announcer' ); ?></span>
 			</p>
 		</div>
+		<?php
+		$this->render_inline_script();
+	}
+
+	/**
+	 * Group events by their display date, sorted ascending.
+	 *
+	 * @param array[] $events Events from get_events_since_last_dismiss().
+	 * @return array<string, array[]>
+	 */
+	private function group_by_date( array $events ): array {
+		$by_date = array();
+		foreach ( $events as $e ) {
+			$by_date[ $e['date'] ][] = $e;
+		}
+		ksort( $by_date );
+		return $by_date;
+	}
+
+	/**
+	 * Build the plain-text digest used by the "Copy results" button.
+	 *
+	 * @param array<string, array[]> $by_date Events grouped by date.
+	 * @return string
+	 */
+	private function build_digest_text( array $by_date ): string {
+		$parts = array();
+		foreach ( $by_date as $date => $group ) {
+			$parts[] = $date;
+			foreach ( $group as $e ) {
+				$line = $e['label'];
+				if ( $e['time'] ) {
+					$line .= ' (' . $e['time'] . ')';
+				}
+				if ( $e['venue'] ) {
+					$line .= ' @ ' . $e['venue'];
+				}
+				$parts[] = $line;
+			}
+		}
+		return implode( "\n", $parts );
+	}
+
+	/**
+	 * Render the grouped list of events inside the notice.
+	 *
+	 * @param array<string, array[]> $by_date Events grouped by date.
+	 * @return void
+	 */
+	private function render_event_list( array $by_date ): void {
+		foreach ( $by_date as $date => $group ) {
+			printf(
+				'<p style="margin: 4px 0 2px; font-weight:600;">%s</p>',
+				esc_html( $date )
+			);
+			echo '<ul style="margin: 0 0 8px 0; padding-left: 1.5em; list-style: disc;">';
+			foreach ( $group as $event ) {
+				$this->render_event_item( $event );
+			}
+			echo '</ul>';
+		}
+	}
+
+	/**
+	 * Render a single event as a list item.
+	 *
+	 * @param array $event One event row.
+	 * @return void
+	 */
+	private function render_event_item( array $event ): void {
+		echo '<li>' . esc_html( $event['label'] );
+		if ( $event['time'] ) {
+			echo ' <span style="color:#666;">(' . esc_html( $event['time'] ) . ')</span>';
+		}
+		if ( $event['venue'] ) {
+			echo ' <span style="color:#666;">@ ' . esc_html( $event['venue'] ) . '</span>';
+		}
+		echo '</li>';
+	}
+
+	/**
+	 * Output the copy-to-clipboard / auto-dismiss inline script.
+	 *
+	 * @return void
+	 */
+	private function render_inline_script(): void {
+		?>
 		<script>
 		( function () {
 			document.querySelectorAll( '[data-spa-copy]' ).forEach( function ( btn ) {

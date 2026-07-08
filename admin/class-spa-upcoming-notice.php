@@ -51,15 +51,44 @@ class SPA_Upcoming_Notice {
 			self::ACTION_DISMISS
 		);
 
+		$by_date   = $this->group_by_date( $games );
+		$copy_text = $this->build_copy_text( $by_date );
+		?>
+		<div class="notice notice-info is-dismissible spa-upcoming-notice">
+			<p><strong><?php esc_html_e( 'SportsPress Announcer - Upcoming Games', 'sportspress-announcer' ); ?></strong></p>
+			<?php $this->render_event_list( $by_date ); ?>
+			<?php $this->render_action_buttons( $copy_text, $dismiss_url ); ?>
+			<?php $this->render_upsell(); ?>
+		</div>
+		<?php
+		$this->render_inline_script();
+	}
+
+	/**
+	 * Group games by their display date, sorted ascending.
+	 *
+	 * @param array[] $games Games from get_upcoming_games().
+	 * @return array<string, array[]>
+	 */
+	private function group_by_date( array $games ): array {
 		$by_date = array();
 		foreach ( $games as $g ) {
 			$by_date[ $g['date'] ][] = $g;
 		}
 		ksort( $by_date );
+		return $by_date;
+	}
 
-		$copy_parts = array();
+	/**
+	 * Build the plain-text schedule used by the "Copy schedule" button.
+	 *
+	 * @param array<string, array[]> $by_date Games grouped by date.
+	 * @return string
+	 */
+	private function build_copy_text( array $by_date ): string {
+		$parts = array();
 		foreach ( $by_date as $date => $group ) {
-			$copy_parts[] = $date;
+			$parts[] = $date;
 			foreach ( $group as $g ) {
 				$line = $g['label'];
 				if ( $g['time'] ) {
@@ -68,74 +97,137 @@ class SPA_Upcoming_Notice {
 				if ( $g['venue'] ) {
 					$line .= ' @ ' . $g['venue'];
 				}
-				$copy_parts[] = $line;
+				$parts[] = $line;
 			}
 		}
-		$copy_text = implode( "\n", $copy_parts );
+		return implode( "\n", $parts );
+	}
+
+	/**
+	 * Render the copy / send / dismiss action buttons row.
+	 *
+	 * @param string $copy_text   Plain-text schedule for the copy button.
+	 * @param string $dismiss_url Nonce'd dismissal URL.
+	 * @return void
+	 */
+	private function render_action_buttons( string $copy_text, string $dismiss_url ): void {
 		?>
-		<div class="notice notice-info is-dismissible spa-upcoming-notice">
-			<p><strong><?php esc_html_e( 'SportsPress Announcer - Upcoming Games', 'sportspress-announcer' ); ?></strong></p>
-			<?php foreach ( $by_date as $date => $group ) : ?>
-				<p style="margin: 4px 0 2px; font-weight:600;"><?php echo esc_html( $date ); ?></p>
-				<ul style="margin: 0 0 8px 0; padding-left: 1.5em; list-style: disc;">
-					<?php foreach ( $group as $game ) : ?>
-						<li>
-							<?php echo esc_html( $game['label'] ); ?>
-							<?php if ( $game['time'] ) : ?>
-								<span style="color:#666;">(<?php echo esc_html( $game['time'] ); ?>)</span>
-							<?php endif; ?>
-							<?php if ( $game['venue'] ) : ?>
-								<span style="color:#666;">@ <?php echo esc_html( $game['venue'] ); ?></span>
-							<?php endif; ?>
-						</li>
-					<?php endforeach; ?>
-				</ul>
-			<?php endforeach; ?>
-			<p style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-				<button
-					type="button"
-					class="button"
-					data-spa-copy="<?php echo esc_attr( $copy_text ); ?>"
-				><?php esc_html_e( 'Copy schedule', 'sportspress-announcer' ); ?></button>
-				<?php if ( get_option( 'spa_discord_webhook_url', '' ) ) : ?>
-				<button
-					type="button"
-					class="button spa-send-upcoming-btn"
-					data-action="spa_send_upcoming"
-					data-nonce="<?php echo esc_attr( wp_create_nonce( 'spa_send_upcoming_nonce' ) ); ?>"
-				><?php esc_html_e( 'Send to Discord', 'sportspress-announcer' ); ?></button>
-				<?php endif; ?>
-				<?php if ( get_option( SPA_Settings::OPTION_SLACK_WEBHOOK, '' ) ) : ?>
-				<button
-					type="button"
-					class="button spa-send-upcoming-btn"
-					data-action="spa_send_upcoming_slack"
-					data-nonce="<?php echo esc_attr( wp_create_nonce( 'spa_send_upcoming_slack_nonce' ) ); ?>"
-				><?php esc_html_e( 'Send to Slack', 'sportspress-announcer' ); ?></button>
-				<?php endif; ?>
-				<a href="<?php echo esc_url( $dismiss_url ); ?>" class="button"><?php esc_html_e( 'Dismiss', 'sportspress-announcer' ); ?></a>
-				<span class="spa-send-feedback" style="display:none;"></span>
-				<span class="spa-copy-feedback" style="display:none; color:#3c763d;"><?php esc_html_e( 'Copied!', 'sportspress-announcer' ); ?></span>
-			</p>
-			<?php if ( ! get_option( SPA_Settings::OPTION_SLACK_WEBHOOK, '' ) ) : ?>
-			<p style="color:#666; font-size:13px; margin:0 0 8px;">
-				<?php
-				printf(
-					wp_kses(
-						/* translators: %s: settings page URL */
-						__( 'Want this sent automatically to Discord or Slack? <a href="%s">Upgrade to Pro →</a>', 'sportspress-announcer' ),
-						array(
-							'a' => array( 'href' => array() ),
-						)
-					),
-					esc_url( admin_url( 'options-general.php?page=sportspress-announcer' ) )
-				);
-				?>
-			</p>
+		<p style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+			<button
+				type="button"
+				class="button"
+				data-spa-copy="<?php echo esc_attr( $copy_text ); ?>"
+			><?php esc_html_e( 'Copy schedule', 'sportspress-announcer' ); ?></button>
+			<?php if ( get_option( 'spa_discord_webhook_url', '' ) ) : ?>
+			<button
+				type="button"
+				class="button spa-send-upcoming-btn"
+				data-action="spa_send_upcoming"
+				data-nonce="<?php echo esc_attr( wp_create_nonce( 'spa_send_upcoming_nonce' ) ); ?>"
+			><?php esc_html_e( 'Send to Discord', 'sportspress-announcer' ); ?></button>
 			<?php endif; ?>
-		</div>
+			<?php if ( get_option( SPA_Settings::OPTION_SLACK_WEBHOOK, '' ) ) : ?>
+			<button
+				type="button"
+				class="button spa-send-upcoming-btn"
+				data-action="spa_send_upcoming_slack"
+				data-nonce="<?php echo esc_attr( wp_create_nonce( 'spa_send_upcoming_slack_nonce' ) ); ?>"
+			><?php esc_html_e( 'Send to Slack', 'sportspress-announcer' ); ?></button>
+			<?php endif; ?>
+			<a href="<?php echo esc_url( $dismiss_url ); ?>" class="button"><?php esc_html_e( 'Dismiss', 'sportspress-announcer' ); ?></a>
+			<span class="spa-send-feedback" style="display:none;"></span>
+			<span class="spa-copy-feedback" style="display:none; color:#3c763d;"><?php esc_html_e( 'Copied!', 'sportspress-announcer' ); ?></span>
+		</p>
+		<?php
+	}
+
+	/**
+	 * Render the "Upgrade to Pro" upsell when Slack isn't configured.
+	 *
+	 * @return void
+	 */
+	private function render_upsell(): void {
+		if ( get_option( SPA_Settings::OPTION_SLACK_WEBHOOK, '' ) ) {
+			return;
+		}
+		?>
+		<p style="color:#666; font-size:13px; margin:0 0 8px;">
+			<?php
+			printf(
+				wp_kses(
+					/* translators: %s: settings page URL */
+					__( 'Want this sent automatically to Discord or Slack? <a href="%s">Upgrade to Pro →</a>', 'sportspress-announcer' ),
+					array(
+						'a' => array( 'href' => array() ),
+					)
+				),
+				esc_url( admin_url( 'options-general.php?page=sportspress-announcer' ) )
+			);
+			?>
+		</p>
+		<?php
+	}
+
+	/**
+	 * Render the grouped list of games inside the notice.
+	 *
+	 * @param array<string, array[]> $by_date Games grouped by date.
+	 * @return void
+	 */
+	private function render_event_list( array $by_date ): void {
+		foreach ( $by_date as $date => $group ) {
+			printf(
+				'<p style="margin: 4px 0 2px; font-weight:600;">%s</p>',
+				esc_html( $date )
+			);
+			echo '<ul style="margin: 0 0 8px 0; padding-left: 1.5em; list-style: disc;">';
+			foreach ( $group as $game ) {
+				$this->render_event_item( $game );
+			}
+			echo '</ul>';
+		}
+	}
+
+	/**
+	 * Render a single game as a list item.
+	 *
+	 * @param array $game One game row.
+	 * @return void
+	 */
+	private function render_event_item( array $game ): void {
+		echo '<li>' . esc_html( $game['label'] );
+		if ( $game['time'] ) {
+			echo ' <span style="color:#666;">(' . esc_html( $game['time'] ) . ')</span>';
+		}
+		if ( $game['venue'] ) {
+			echo ' <span style="color:#666;">@ ' . esc_html( $game['venue'] ) . '</span>';
+		}
+		echo '</li>';
+	}
+
+	/**
+	 * Output the copy / send-to-channel inline script for the notice.
+	 *
+	 * @return void
+	 */
+	private function render_inline_script(): void {
+		?>
 		<script>
 		( function () {
+			<?php $this->copy_button_js(); ?>
+			<?php $this->send_button_js(); ?>
+		} )();
+		</script>
+		<?php
+	}
+
+	/**
+	 * JS wiring for the copy-to-clipboard button.
+	 *
+	 * @return void
+	 */
+	private function copy_button_js(): void {
+		?>
 			document.querySelectorAll( '[data-spa-copy]' ).forEach( function ( btn ) {
 				btn.addEventListener( 'click', function () {
 					var text     = btn.getAttribute( 'data-spa-copy' );
@@ -151,7 +243,16 @@ class SPA_Upcoming_Notice {
 					} );
 				} );
 			} );
+		<?php
+	}
 
+	/**
+	 * JS wiring for the send-to-Discord/Slack buttons.
+	 *
+	 * @return void
+	 */
+	private function send_button_js(): void {
+		?>
 			document.querySelectorAll( '.spa-send-upcoming-btn' ).forEach( function ( btn ) {
 				btn.addEventListener( 'click', function () {
 					var feedback = btn.parentElement.querySelector( '.spa-send-feedback' );
@@ -197,8 +298,6 @@ class SPA_Upcoming_Notice {
 						} );
 				} );
 			} );
-		} )();
-		</script>
 		<?php
 	}
 

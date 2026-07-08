@@ -175,32 +175,7 @@ class SPA_Weekly_Digest_Scheduler {
 		$league_name = ( $league_term && ! is_wp_error( $league_term ) ) ? $league_term->name : (string) $league_id;
 
 		// Send to Discord if configured.
-		$discord_url = get_option( 'spa_discord_webhook_url', '' );
-		if ( $discord_url && get_option( 'spa_discord_enabled' ) ) {
-			$webhook = new SPA_Webhook_Discord( $discord_url );
-			$result  = $webhook->send( $formatter->to_discord_embed() );
-			$status  = is_wp_error( $result ) ? 'failed' : 'sent';
-
-			SPA_Log::write(
-				array(
-					'uid'      => uniqid( 'spa', true ),
-					'type'     => 'digest',
-					'label'    => sprintf(
-					/* translators: %s: league name */
-						__( 'Weekly Digest — %s', 'sportspress-announcer' ),
-						$league_name
-					),
-					'channel'  => $league_name,
-					'platform' => 'discord',
-					'sent_at'  => time(),
-					'status'   => $status,
-				)
-			);
-
-			if ( 'sent' === $status ) {
-				$sent = true;
-			}
-		}
+		$sent = $this->send_to_discord( $formatter, $league_name ) || $sent;
 
 		// Publish as post if enabled.
 		if ( get_option( 'spa_weekly_digest_publish_as_post' ) ) {
@@ -214,6 +189,42 @@ class SPA_Weekly_Digest_Scheduler {
 			// so next week's movement arrows diff against what we actually sent.
 			$builder->commit_standings_snapshot();
 		}
+	}
+
+	/**
+	 * Dispatch the digest to Discord if enabled, logging the outcome.
+	 *
+	 * @param SPA_Digest_Formatter $formatter   Formatter for the digest data.
+	 * @param string               $league_name Human-readable league label.
+	 * @return bool True if a message was sent successfully.
+	 */
+	private function send_to_discord( SPA_Digest_Formatter $formatter, string $league_name ): bool {
+		$discord_url = get_option( 'spa_discord_webhook_url', '' );
+		if ( ! $discord_url || ! get_option( 'spa_discord_enabled' ) ) {
+			return false;
+		}
+
+		$webhook = new SPA_Webhook_Discord( $discord_url );
+		$result  = $webhook->send( $formatter->to_discord_embed() );
+		$status  = is_wp_error( $result ) ? 'failed' : 'sent';
+
+		SPA_Log::write(
+			array(
+				'uid'      => uniqid( 'spa', true ),
+				'type'     => 'digest',
+				'label'    => sprintf(
+				/* translators: %s: league name */
+					__( 'Weekly Digest — %s', 'sportspress-announcer' ),
+					$league_name
+				),
+				'channel'  => $league_name,
+				'platform' => 'discord',
+				'sent_at'  => time(),
+				'status'   => $status,
+			)
+		);
+
+		return 'sent' === $status;
 	}
 
 	/**

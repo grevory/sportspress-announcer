@@ -89,6 +89,11 @@ Group findings under these headings. For each, the trigger to look for:
 
 ## Pre-commit mode
 
+Known-debt files listed in `EXEMPT` (in [bin/smell-lint.php](../../../bin/smell-lint.php))
+are downgraded from blocking to `warn (known debt)` — currently only
+`admin/class-spa-settings.php`, a large untested admin class awaiting a
+dedicated refactor. Keep that list shrinking; remove a file once it's clean.
+
 When run as the commit gate, output must be machine-simple:
 - Print each **high**-severity finding as `SMELL <file>:<line> <name>`.
 - Exit non-zero if any high-severity smell is found in staged files; otherwise

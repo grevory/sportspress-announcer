@@ -135,118 +135,121 @@ class SPA_Event_Handler {
 		$posted_this_request[ $post_id ] = true;
 
 		$formatter = new SPA_Message_Formatter();
-		$announced = false;
 
-		// -- Discord
-		$discord_enabled = get_option( SPA_Settings::OPTION_DISCORD_ENABLED, true );
-
-		if ( $discord_enabled ) {
-			$channel_map = (array) get_option( SPA_Settings::OPTION_DISCORD_CHANNEL_MAP, array() );
-			$competition = $event['competition'];
-			$discord_url = ( $competition && ! empty( $channel_map[ $competition ] ) )
-				? $channel_map[ $competition ]
-				: get_option( 'spa_discord_webhook_url', '' );
-
-			if ( ! empty( $discord_url ) ) {
-				$payload = $formatter->format_embed( $event );
-				$discord = new SPA_Webhook_Discord( $discord_url );
-				$result  = $discord->send( $payload );
-
-				if ( is_wp_error( $result ) ) {
-					/**
-					 * Fires when a Discord result announcement fails.
-					 *
-					 * @param \WP_Error $result  Webhook error.
-					 * @param int       $post_id Event post ID.
-					 */
-					do_action( 'spa_discord_webhook_error', $result, $post_id );
-					SPA_Log::write(
-						array(
-							'id'          => $post_id,
-							'type'        => 'result',
-							'label'       => $formatter->format_result( $event ),
-							'channel'     => $event['competition'] ? $event['competition'] : '',
-							'competition' => $event['competition'],
-							'platform'    => 'discord',
-							'status'      => 'failed',
-						)
-					);
-				} else {
-					$announced = true;
-					SPA_Log::write(
-						array(
-							'id'          => $post_id,
-							'type'        => 'result',
-							'label'       => $formatter->format_result( $event ),
-							'channel'     => $event['competition'] ? $event['competition'] : '',
-							'competition' => $event['competition'],
-							'platform'    => 'discord',
-							'status'      => 'sent',
-						)
-					);
-				}
-			}
-		}
-
-		// -- Slack (Pro)
-		$slack_enabled = get_option( SPA_Settings::OPTION_SLACK_ENABLED, false );
-
-		if ( $slack_enabled ) {
-			$slack_channel_map = (array) get_option( SPA_Settings::OPTION_SLACK_CHANNEL_MAP, array() );
-			$competition       = $event['competition'];
-			$slack_url         = ( $competition && ! empty( $slack_channel_map[ $competition ] ) )
-				? $slack_channel_map[ $competition ]
-				: get_option( SPA_Settings::OPTION_SLACK_WEBHOOK, '' );
-
-			if ( ! empty( $slack_url ) ) {
-				$payload = $formatter->format_slack( $event );
-				$slack   = new SPA_Webhook_Slack( $slack_url );
-				$result  = $slack->send( $payload );
-
-				if ( is_wp_error( $result ) ) {
-					/**
-					 * Fires when a Slack result announcement fails.
-					 *
-					 * @param \WP_Error $result  Webhook error.
-					 * @param int       $post_id Event post ID.
-					 */
-					do_action( 'spa_slack_webhook_error', $result, $post_id );
-					SPA_Log::write(
-						array(
-							'id'          => $post_id,
-							'type'        => 'result',
-							'label'       => $formatter->format_result( $event ),
-							'channel'     => $event['competition'] ? $event['competition'] : '',
-							'competition' => $event['competition'],
-							'platform'    => 'slack',
-							'status'      => 'failed',
-						)
-					);
-				} else {
-					$announced = true;
-					SPA_Log::write(
-						array(
-							'id'          => $post_id,
-							'type'        => 'result',
-							'label'       => $formatter->format_result( $event ),
-							'channel'     => $event['competition'] ? $event['competition'] : '',
-							'competition' => $event['competition'],
-							'platform'    => 'slack',
-							'status'      => 'sent',
-						)
-					);
-				}
-			}
-		}
+		$announced  = $this->announce_discord( $event, $formatter, $post_id );
+		$announced  = $this->announce_slack( $event, $formatter, $post_id ) || $announced;
 
 		if ( $announced ) {
 			update_post_meta( $post_id, '_spa_last_score_hash', $score_hash );
+			$this->maybe_flag_weekly_upsell();
+		}
+	}
 
-			// Free-tier upsell: flag a one-time Weekly Digest hint for the next
-			// admin page load. Only for free users who haven't dismissed it.
-			if ( ! SPA_License::is_pro() && ! get_user_meta( get_current_user_id(), 'spa_weekly_upsell_dismissed', true ) ) {
-				set_transient( 'spa_show_weekly_upsell', 1, 5 * MINUTE_IN_SECONDS );
-			}
+	/**
+	 * Announce a result to Discord if enabled and configured.
+	 *
+	 * @param array                 $event     Extracted event data.
+	 * @param SPA_Message_Formatter $formatter Message formatter.
+	 * @param int                   $post_id   Event post ID.
+	 * @return bool True on a successful send.
+	 */
+	private function announce_discord( array $event, SPA_Message_Formatter $formatter, int $post_id ): bool {
+		if ( ! get_option( SPA_Settings::OPTION_DISCORD_ENABLED, true ) ) {
+			return false;
+		}
+
+		$channel_map = (array) get_option( SPA_Settings::OPTION_DISCORD_CHANNEL_MAP, array() );
+		$competition = $event['competition'];
+		$discord_url = ( $competition && ! empty( $channel_map[ $competition ] ) )
+			? $channel_map[ $competition ]
+			: get_option( 'spa_discord_webhook_url', '' );
+
+		if ( empty( $discord_url ) ) {
+			return false;
+		}
+
+		$webhook = new SPA_Webhook_Discord( $discord_url );
+		$result  = $webhook->send( $formatter->format_embed( $event ) );
+
+		return $this->handle_send_result( $result, $event, $formatter, $post_id, 'discord' );
+	}
+
+	/**
+	 * Announce a result to Slack (Pro) if enabled and configured.
+	 *
+	 * @param array                 $event     Extracted event data.
+	 * @param SPA_Message_Formatter $formatter Message formatter.
+	 * @param int                   $post_id   Event post ID.
+	 * @return bool True on a successful send.
+	 */
+	private function announce_slack( array $event, SPA_Message_Formatter $formatter, int $post_id ): bool {
+		if ( ! get_option( SPA_Settings::OPTION_SLACK_ENABLED, false ) ) {
+			return false;
+		}
+
+		$channel_map = (array) get_option( SPA_Settings::OPTION_SLACK_CHANNEL_MAP, array() );
+		$competition = $event['competition'];
+		$slack_url   = ( $competition && ! empty( $channel_map[ $competition ] ) )
+			? $channel_map[ $competition ]
+			: get_option( SPA_Settings::OPTION_SLACK_WEBHOOK, '' );
+
+		if ( empty( $slack_url ) ) {
+			return false;
+		}
+
+		$webhook = new SPA_Webhook_Slack( $slack_url );
+		$result  = $webhook->send( $formatter->format_slack( $event ) );
+
+		return $this->handle_send_result( $result, $event, $formatter, $post_id, 'slack' );
+	}
+
+	/**
+	 * Log a webhook send outcome, firing an error action on failure.
+	 *
+	 * @param mixed                 $result    Webhook return value (WP_Error on failure).
+	 * @param array                 $event     Extracted event data.
+	 * @param SPA_Message_Formatter $formatter Message formatter.
+	 * @param int                   $post_id   Event post ID.
+	 * @param string                $platform  'discord' or 'slack'.
+	 * @return bool True when the send succeeded.
+	 */
+	private function handle_send_result( $result, array $event, SPA_Message_Formatter $formatter, int $post_id, string $platform ): bool {
+		$failed = is_wp_error( $result );
+
+		if ( $failed ) {
+			/**
+			 * Fires when a result announcement fails.
+			 *
+			 * @param \WP_Error $result  Webhook error.
+			 * @param int       $post_id Event post ID.
+			 */
+			do_action( "spa_{$platform}_webhook_error", $result, $post_id );
+		}
+
+		SPA_Log::write(
+			array(
+				'id'          => $post_id,
+				'type'        => 'result',
+				'label'       => $formatter->format_result( $event ),
+				'channel'     => $event['competition'] ? $event['competition'] : '',
+				'competition' => $event['competition'],
+				'platform'    => $platform,
+				'status'      => $failed ? 'failed' : 'sent',
+			)
+		);
+
+		return ! $failed;
+	}
+
+	/**
+	 * Free-tier upsell: flag a one-time Weekly Digest hint for the next admin
+	 * page load, for free users who haven't dismissed it.
+	 *
+	 * @return void
+	 */
+	private function maybe_flag_weekly_upsell(): void {
+		if ( ! SPA_License::is_pro() && ! get_user_meta( get_current_user_id(), 'spa_weekly_upsell_dismissed', true ) ) {
+			set_transient( 'spa_show_weekly_upsell', 1, 5 * MINUTE_IN_SECONDS );
 		}
 	}
 

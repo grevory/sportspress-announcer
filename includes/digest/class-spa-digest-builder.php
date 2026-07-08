@@ -187,13 +187,7 @@ class SPA_Digest_Builder {
 						'inclusive' => true,
 					),
 				),
-				'tax_query'      => array(
-					array(
-						'taxonomy' => 'sp_league',
-						'field'    => 'term_id',
-						'terms'    => $this->league_id,
-					),
-				),
+				'tax_query'      => array( $this->league_tax_query() ),
 				'no_found_rows'  => true,
 			)
 		);
@@ -202,39 +196,66 @@ class SPA_Digest_Builder {
 		$results      = array();
 
 		foreach ( $query->posts as $post ) {
-			$team_ids = get_post_meta( $post->ID, 'sp_team', false );
-			$raw      = get_post_meta( $post->ID, 'sp_results', true );
-
-			if ( empty( $team_ids ) || empty( $raw ) || ! is_array( $raw ) ) {
-				continue;
+			$row = $this->shape_result_row( $post, $score_column );
+			if ( null !== $row ) {
+				$results[] = $row;
 			}
-
-			$home_id    = $team_ids[0] ?? 0;
-			$away_id    = $team_ids[1] ?? 0;
-			$home_score = $raw[ $home_id ][ $score_column ] ?? null;
-			$away_score = $raw[ $away_id ][ $score_column ] ?? null;
-
-			if ( null === $home_score || null === $away_score ) {
-				continue;
-			}
-
-			$competition_terms = get_the_terms( $post->ID, 'sp_league' );
-			$competition       = ( $competition_terms && ! is_wp_error( $competition_terms ) )
-				? $competition_terms[0]->name
-				: '';
-
-			$results[] = array(
-				'home'        => wp_specialchars_decode( get_the_title( $home_id ), ENT_QUOTES ),
-				'away'        => wp_specialchars_decode( get_the_title( $away_id ), ENT_QUOTES ),
-				'home_score'  => $home_score,
-				'away_score'  => $away_score,
-				'competition' => $competition,
-				'event_url'   => get_permalink( $post->ID ),
-				'date'        => get_the_date( 'Y-m-d', $post ),
-			);
 		}
 
 		return $results;
+	}
+
+	/**
+	 * Shape a single sp_event post into a result row, or null if unscored.
+	 *
+	 * @param WP_Post $post         The event post.
+	 * @param string  $score_column Meta key holding each team's score.
+	 * @return array|null
+	 */
+	private function shape_result_row( $post, string $score_column ): ?array {
+		$team_ids = get_post_meta( $post->ID, 'sp_team', false );
+		$raw      = get_post_meta( $post->ID, 'sp_results', true );
+
+		if ( empty( $team_ids ) || empty( $raw ) || ! is_array( $raw ) ) {
+			return null;
+		}
+
+		$home_id    = $team_ids[0] ?? 0;
+		$away_id    = $team_ids[1] ?? 0;
+		$home_score = $raw[ $home_id ][ $score_column ] ?? null;
+		$away_score = $raw[ $away_id ][ $score_column ] ?? null;
+
+		if ( null === $home_score || null === $away_score ) {
+			return null;
+		}
+
+		$competition_terms = get_the_terms( $post->ID, 'sp_league' );
+		$competition       = ( $competition_terms && ! is_wp_error( $competition_terms ) )
+			? $competition_terms[0]->name
+			: '';
+
+		return array(
+			'home'        => wp_specialchars_decode( get_the_title( $home_id ), ENT_QUOTES ),
+			'away'        => wp_specialchars_decode( get_the_title( $away_id ), ENT_QUOTES ),
+			'home_score'  => $home_score,
+			'away_score'  => $away_score,
+			'competition' => $competition,
+			'event_url'   => get_permalink( $post->ID ),
+			'date'        => get_the_date( 'Y-m-d', $post ),
+		);
+	}
+
+	/**
+	 * The tax_query clause limiting a query to this builder's league.
+	 *
+	 * @return array
+	 */
+	private function league_tax_query(): array {
+		return array(
+			'taxonomy' => 'sp_league',
+			'field'    => 'term_id',
+			'terms'    => $this->league_id,
+		);
 	}
 
 	// -------------------------------------------------------------------------
@@ -264,15 +285,7 @@ class SPA_Digest_Builder {
 		// the column-label row — drop it. Rows are already sorted by position.
 		unset( $data[0] );
 
-		$snapshot_key  = "spa_digest_standings_snapshot_{$this->league_id}";
-		$prev_snapshot = get_option( $snapshot_key, array() );
-
-		$prev_ranks = array();
-		foreach ( $prev_snapshot as $prev_row ) {
-			if ( isset( $prev_row['name'], $prev_row['rank'] ) ) {
-				$prev_ranks[ $prev_row['name'] ] = (int) $prev_row['rank'];
-			}
-		}
+		$prev_ranks = $this->previous_ranks();
 
 		$current  = array();
 		$new_snap = array();
@@ -288,18 +301,9 @@ class SPA_Digest_Builder {
 				continue;
 			}
 
-			$played = $row['p'] ?? ( $row['eventsplayed'] ?? 0 );
-			$points = $row['pts'] ?? 0;
-
-			if ( ! isset( $prev_ranks[ $name ] ) ) {
-				$movement = 'new';
-			} elseif ( $rank < $prev_ranks[ $name ] ) {
-				$movement = 'up';
-			} elseif ( $rank > $prev_ranks[ $name ] ) {
-				$movement = 'down';
-			} else {
-				$movement = 'same';
-			}
+			$played   = $row['p'] ?? ( $row['eventsplayed'] ?? 0 );
+			$points   = $row['pts'] ?? 0;
+			$movement = $this->rank_movement( $rank, $prev_ranks[ $name ] ?? null );
 
 			$current[]  = compact( 'rank', 'name', 'played', 'points', 'movement' );
 			$new_snap[] = array(
@@ -316,6 +320,43 @@ class SPA_Digest_Builder {
 		$this->pending_snapshot = $new_snap;
 
 		return $current;
+	}
+
+	/**
+	 * Map of team name → rank from the last committed standings snapshot.
+	 *
+	 * @return array<string,int>
+	 */
+	private function previous_ranks(): array {
+		$prev_snapshot = get_option( "spa_digest_standings_snapshot_{$this->league_id}", array() );
+
+		$prev_ranks = array();
+		foreach ( $prev_snapshot as $prev_row ) {
+			if ( isset( $prev_row['name'], $prev_row['rank'] ) ) {
+				$prev_ranks[ $prev_row['name'] ] = (int) $prev_row['rank'];
+			}
+		}
+		return $prev_ranks;
+	}
+
+	/**
+	 * Classify a team's rank change against its previous rank.
+	 *
+	 * @param int      $rank      Current rank.
+	 * @param int|null $prev_rank Previous rank, or null if the team is new.
+	 * @return string One of new|up|down|same.
+	 */
+	private function rank_movement( int $rank, ?int $prev_rank ): string {
+		if ( null === $prev_rank ) {
+			return 'new';
+		}
+		if ( $rank < $prev_rank ) {
+			return 'up';
+		}
+		if ( $rank > $prev_rank ) {
+			return 'down';
+		}
+		return 'same';
 	}
 
 	/**
@@ -349,25 +390,37 @@ class SPA_Digest_Builder {
 			return array();
 		}
 
+		$player_data = $this->collect_player_data();
+		if ( empty( $player_data ) ) {
+			return array();
+		}
+
+		$leaders = array();
+		foreach ( $this->stat_keys as $stat_key ) {
+			$leaderboard = $this->stat_leaderboard( $player_data, $stat_key );
+			if ( null !== $leaderboard ) {
+				$leaders[] = $leaderboard;
+			}
+		}
+
+		return $leaders;
+	}
+
+	/**
+	 * Load this league's players with their team and statistics.
+	 *
+	 * @return array[]
+	 */
+	private function collect_player_data(): array {
 		$players = get_posts(
 			array(
 				'post_type'      => 'sp_player',
 				'post_status'    => 'publish',
 				'posts_per_page' => -1,
-				'tax_query'      => array(
-					array(
-						'taxonomy' => 'sp_league',
-						'field'    => 'term_id',
-						'terms'    => $this->league_id,
-					),
-				),
+				'tax_query'      => array( $this->league_tax_query() ),
 				'no_found_rows'  => true,
 			)
 		);
-
-		if ( empty( $players ) ) {
-			return array();
-		}
 
 		$player_data = array();
 		foreach ( $players as $player ) {
@@ -384,35 +437,40 @@ class SPA_Digest_Builder {
 			);
 		}
 
-		$leaders = array();
+		return $player_data;
+	}
 
-		foreach ( $this->stat_keys as $stat_key ) {
-			$scored = array();
-			foreach ( $player_data as $p ) {
-				$value = $this->extract_stat_value( $p['stats'], $stat_key );
-				if ( null !== $value ) {
-					$scored[] = array(
-						'name'  => $p['name'],
-						'team'  => $p['team'],
-						'value' => $value,
-					);
-				}
+	/**
+	 * Build the top-3 leaderboard for one stat, or null if nobody scored it.
+	 *
+	 * @param array[] $player_data Players from collect_player_data().
+	 * @param string  $stat_key    Statistic to rank by.
+	 * @return array|null
+	 */
+	private function stat_leaderboard( array $player_data, string $stat_key ): ?array {
+		$scored = array();
+		foreach ( $player_data as $p ) {
+			$value = $this->extract_stat_value( $p['stats'], $stat_key );
+			if ( null !== $value ) {
+				$scored[] = array(
+					'name'  => $p['name'],
+					'team'  => $p['team'],
+					'value' => $value,
+				);
 			}
-
-			if ( empty( $scored ) ) {
-				continue;
-			}
-
-			usort( $scored, static fn( $a, $b ) => $b['value'] <=> $a['value'] );
-
-			$leaders[] = array(
-				'stat'    => $stat_key,
-				'label'   => ucwords( str_replace( '_', ' ', $stat_key ) ),
-				'players' => array_slice( $scored, 0, 3 ),
-			);
 		}
 
-		return $leaders;
+		if ( empty( $scored ) ) {
+			return null;
+		}
+
+		usort( $scored, static fn( $a, $b ) => $b['value'] <=> $a['value'] );
+
+		return array(
+			'stat'    => $stat_key,
+			'label'   => ucwords( str_replace( '_', ' ', $stat_key ) ),
+			'players' => array_slice( $scored, 0, 3 ),
+		);
 	}
 
 	/**

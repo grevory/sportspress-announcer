@@ -153,18 +153,24 @@ class SPA_Log {
 	 * @return array[]
 	 */
 	private static function filter( array $entries, array $filters ): array {
-		return array_values(
-			array_filter(
-				$entries,
-				static function ( array $entry ) use ( $filters ): bool {
-					foreach ( $filters as $key => $value ) {
-						if ( ( $entry[ $key ] ?? null ) !== $value ) {
-							return false;
-						}
-					}
-					return true;
-				}
-			)
-		);
+		$matches = static fn( array $entry ): bool => self::entry_matches( $entry, $filters );
+		return array_values( array_filter( $entries, $matches ) );
+	}
+
+	/**
+	 * Whether a log entry matches every filter field exactly.
+	 *
+	 * @param array $entry   A single log entry.
+	 * @param array $filters Field => value pairs.
+	 *
+	 * @return bool
+	 */
+	private static function entry_matches( array $entry, array $filters ): bool {
+		foreach ( $filters as $key => $value ) {
+			if ( ( $entry[ $key ] ?? null ) !== $value ) {
+				return false;
+			}
+		}
+		return true;
 	}
 }

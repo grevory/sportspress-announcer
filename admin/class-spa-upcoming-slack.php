@@ -65,9 +65,22 @@ class SPA_Upcoming_Slack {
 			return false;
 		}
 
-		$mrkdwn = $this->build_mrkdwn( $games );
+		$slack  = new SPA_Webhook_Slack( $webhook_url );
+		$result = $slack->send( $this->build_payload( $games ) );
 
-		$payload = array(
+		$this->log_outcome( is_wp_error( $result ) ? 'failed' : 'sent' );
+
+		return is_wp_error( $result ) ? $result : true;
+	}
+
+	/**
+	 * Assemble the Slack message payload for the upcoming games.
+	 *
+	 * @param array $games Upcoming games.
+	 * @return array
+	 */
+	private function build_payload( array $games ): array {
+		return array(
 			'text'   => __( 'Upcoming Games', 'sportspress-announcer' ),
 			'blocks' => array(
 				array(
@@ -82,37 +95,28 @@ class SPA_Upcoming_Slack {
 					'type' => 'section',
 					'text' => array(
 						'type' => 'mrkdwn',
-						'text' => $mrkdwn,
+						'text' => $this->build_mrkdwn( $games ),
 					),
 				),
 			),
 		);
+	}
 
-		$slack  = new SPA_Webhook_Slack( $webhook_url );
-		$result = $slack->send( $payload );
-
-		if ( is_wp_error( $result ) ) {
-			SPA_Log::write(
-				array(
-					'type'     => 'digest',
-					'label'    => __( 'Fixtures digest', 'sportspress-announcer' ),
-					'platform' => 'slack',
-					'status'   => 'failed',
-				)
-			);
-			return $result;
-		}
-
+	/**
+	 * Record the digest send outcome in the activity log.
+	 *
+	 * @param string $status 'sent' or 'failed'.
+	 * @return void
+	 */
+	private function log_outcome( string $status ): void {
 		SPA_Log::write(
 			array(
 				'type'     => 'digest',
 				'label'    => __( 'Fixtures digest', 'sportspress-announcer' ),
 				'platform' => 'slack',
-				'status'   => 'sent',
+				'status'   => $status,
 			)
 		);
-
-		return true;
 	}
 
 	/**
