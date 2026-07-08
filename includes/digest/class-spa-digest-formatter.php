@@ -30,6 +30,17 @@ class SPA_Digest_Formatter {
 	/** Discord total embed character limit. */
 	private const EMBED_LIMIT = 6000;
 
+	/** Slack section-block text character limit. */
+	private const SLACK_BLOCK_LIMIT = 3000;
+
+	/** Standings movement arrows, keyed by movement direction. */
+	private const MOVEMENT_ARROWS = array(
+		'up'   => '↑',
+		'down' => '↓',
+		'same' => '→',
+		'new'  => '✦',
+	);
+
 	/**
 	 * Constructor.
 	 *
@@ -247,6 +258,72 @@ class SPA_Digest_Formatter {
 	}
 
 	// -------------------------------------------------------------------------
+	// Slack (Block Kit)
+	// -------------------------------------------------------------------------
+
+	/**
+	 * Build a Slack Block Kit payload for the digest.
+	 *
+	 * Mirrors the Discord embed: a header plus one mrkdwn section per non-empty
+	 * area (Results, Standings, Leaders, Upcoming).
+	 *
+	 * @return array Ready to JSON-encode and POST to a Slack Incoming Webhook.
+	 */
+	public function to_slack_blocks(): array {
+		$period = sprintf(
+			/* translators: 1: start date, 2: end date */
+			__( '%1$s – %2$s', 'sportspress-announcer' ),
+			$this->data['period']['start'],
+			$this->data['period']['end']
+		);
+
+		$title = sprintf(
+			/* translators: 1: league name, 2: date range */
+			__( 'Weekly Digest — %1$s (%2$s)', 'sportspress-announcer' ),
+			$this->league_name(),
+			$period
+		);
+
+		$blocks = array(
+			array(
+				'type' => 'header',
+				'text' => array(
+					'type'  => 'plain_text',
+					'text'  => $title,
+					'emoji' => true,
+				),
+			),
+		);
+
+		$sections = array(
+			__( '📋 Results', 'sportspress-announcer' )   => $this->results_lines( '*' ),
+			__( '📊 Standings', 'sportspress-announcer' ) => $this->standings_lines( '*' ),
+			__( '🏆 Leaders', 'sportspress-announcer' )   => $this->leaders_lines( '*' ),
+			__( '📅 Upcoming', 'sportspress-announcer' )  => $this->upcoming_lines(),
+		);
+
+		foreach ( $sections as $heading => $lines ) {
+			if ( empty( $lines ) ) {
+				continue;
+			}
+			$prefix   = '*' . $heading . '*' . "\n";
+			$body     = $this->truncate_lines( $lines, home_url(), self::SLACK_BLOCK_LIMIT - mb_strlen( $prefix ) );
+			$blocks[] = array(
+				'type' => 'section',
+				'text' => array(
+					'type' => 'mrkdwn',
+					'text' => $prefix . $body,
+				),
+			);
+		}
+
+		return array(
+			'text'   => $title,
+			'blocks' => $blocks,
+		);
+	}
+
+	// -------------------------------------------------------------------------
 	// Discord field renderers
 	// -------------------------------------------------------------------------
 
@@ -256,24 +333,8 @@ class SPA_Digest_Formatter {
 	 * @return string Empty string when there are no results.
 	 */
 	private function format_results_discord(): string {
-		if ( empty( $this->data['results'] ) ) {
-			return '';
-		}
-
-		$lines    = array();
-		$site_url = home_url();
-
-		foreach ( $this->data['results'] as $r ) {
-			$lines[] = sprintf(
-				'**%s %s – %s %s**',
-				$r['home'],
-				$r['home_score'],
-				$r['away_score'],
-				$r['away']
-			);
-		}
-
-		return $this->truncate_lines( $lines, $site_url );
+		$lines = $this->results_lines( '**' );
+		return $lines ? $this->truncate_lines( $lines, home_url(), self::FIELD_LIMIT ) : '';
 	}
 
 	/**
@@ -282,24 +343,8 @@ class SPA_Digest_Formatter {
 	 * @return string Empty string when there are no standings.
 	 */
 	private function format_standings_discord(): string {
-		if ( empty( $this->data['standings'] ) ) {
-			return '';
-		}
-
-		$arrow_map = array(
-			'up'   => '↑',
-			'down' => '↓',
-			'same' => '→',
-			'new'  => '✦',
-		);
-
-		$lines = array();
-		foreach ( $this->data['standings'] as $s ) {
-			$arrow   = $arrow_map[ $s['movement'] ] ?? '→';
-			$lines[] = sprintf( '%d. %s **%s** (%spts)', $s['rank'], $arrow, $s['name'], $s['points'] );
-		}
-
-		return $this->truncate_lines( $lines, home_url() );
+		$lines = $this->standings_lines( '**' );
+		return $lines ? $this->truncate_lines( $lines, home_url(), self::FIELD_LIMIT ) : '';
 	}
 
 	/**
@@ -308,20 +353,8 @@ class SPA_Digest_Formatter {
 	 * @return string Empty string when there are no stat leaders.
 	 */
 	private function format_leaders_discord(): string {
-		if ( empty( $this->data['stat_leaders'] ) ) {
-			return '';
-		}
-
-		$lines = array();
-		foreach ( $this->data['stat_leaders'] as $stat ) {
-			$entries = array();
-			foreach ( $stat['players'] as $i => $p ) {
-				$entries[] = ( $i + 1 ) . '. ' . $p['name'] . ' (' . $p['team'] . ') ' . $p['value'];
-			}
-			$lines[] = '**' . $stat['label'] . ':** ' . implode( '  ', $entries );
-		}
-
-		return $this->truncate_lines( $lines, home_url() );
+		$lines = $this->leaders_lines( '**' );
+		return $lines ? $this->truncate_lines( $lines, home_url(), self::FIELD_LIMIT ) : '';
 	}
 
 	/**
@@ -330,18 +363,81 @@ class SPA_Digest_Formatter {
 	 * @return string Empty string when there are no upcoming games.
 	 */
 	private function format_upcoming_discord(): string {
-		if ( empty( $this->data['upcoming'] ) ) {
-			return '';
-		}
+		$lines = $this->upcoming_lines();
+		return $lines ? $this->truncate_lines( $lines, home_url(), self::FIELD_LIMIT ) : '';
+	}
 
+	// -------------------------------------------------------------------------
+	// Shared line builders (platform-agnostic; $em is the bold marker)
+	// -------------------------------------------------------------------------
+
+	/**
+	 * Build the Results lines. Discord passes '**', Slack passes '*'.
+	 *
+	 * @param string $em Bold emphasis marker for the target platform.
+	 * @return string[] Empty when there are no results.
+	 */
+	private function results_lines( string $em ): array {
+		$lines = array();
+		foreach ( $this->data['results'] as $r ) {
+			$lines[] = sprintf(
+				'%1$s%2$s %3$s – %4$s %5$s%1$s',
+				$em,
+				$r['home'],
+				$r['home_score'],
+				$r['away_score'],
+				$r['away']
+			);
+		}
+		return $lines;
+	}
+
+	/**
+	 * Build the Standings lines with movement arrows.
+	 *
+	 * @param string $em Bold emphasis marker for the target platform.
+	 * @return string[] Empty when there are no standings.
+	 */
+	private function standings_lines( string $em ): array {
+		$lines = array();
+		foreach ( $this->data['standings'] as $s ) {
+			$arrow   = self::MOVEMENT_ARROWS[ $s['movement'] ] ?? '→';
+			$lines[] = sprintf( '%d. %s %s%s%s (%spts)', $s['rank'], $arrow, $em, $s['name'], $em, $s['points'] );
+		}
+		return $lines;
+	}
+
+	/**
+	 * Build the Leaders lines.
+	 *
+	 * @param string $em Bold emphasis marker for the target platform.
+	 * @return string[] Empty when there are no stat leaders.
+	 */
+	private function leaders_lines( string $em ): array {
+		$lines = array();
+		foreach ( $this->data['stat_leaders'] as $stat ) {
+			$entries = array();
+			foreach ( $stat['players'] as $i => $p ) {
+				$entries[] = ( $i + 1 ) . '. ' . $p['name'] . ' (' . $p['team'] . ') ' . $p['value'];
+			}
+			$lines[] = $em . $stat['label'] . ':' . $em . ' ' . implode( '  ', $entries );
+		}
+		return $lines;
+	}
+
+	/**
+	 * Build the Upcoming lines.
+	 *
+	 * @return string[] Empty when there are no upcoming games.
+	 */
+	private function upcoming_lines(): array {
 		$lines = array();
 		foreach ( $this->data['upcoming'] as $g ) {
 			$label   = $g['label'] ?? '';
 			$date    = $g['date'] ?? '';
 			$lines[] = '• ' . $label . ( $date ? ' — ' . $date : '' );
 		}
-
-		return $this->truncate_lines( $lines, home_url() );
+		return $lines;
 	}
 
 	// -------------------------------------------------------------------------
@@ -349,15 +445,15 @@ class SPA_Digest_Formatter {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Join lines; if over FIELD_LIMIT, truncate with "…and N more" link.
+	 * Join lines; if over the limit, truncate with an "…and N more" link.
 	 *
 	 * @param string[] $lines    Pre-formatted lines.
 	 * @param string   $more_url URL appended to the truncation notice.
+	 * @param int      $limit    Maximum character length for the joined output.
 	 * @return string
 	 */
-	private function truncate_lines( array $lines, string $more_url ): string {
+	private function truncate_lines( array $lines, string $more_url, int $limit ): string {
 		$output = implode( "\n", $lines );
-		$limit  = self::FIELD_LIMIT;
 
 		if ( mb_strlen( $output ) <= $limit ) {
 			return $output;

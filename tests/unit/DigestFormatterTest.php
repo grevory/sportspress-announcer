@@ -122,6 +122,54 @@ class DigestFormatterTest extends TestCase {
 		$this->assertStringContainsString( '12', $value );
 	}
 
+	// -- Slack Block Kit ---------------------------------------------------
+
+	public function test_slack_header_only_when_all_sections_empty(): void {
+		$payload = ( new SPA_Digest_Formatter( $this->data() ) )->to_slack_blocks();
+		$this->assertSame( 'header', $payload['blocks'][0]['type'] );
+		$this->assertCount( 1, $payload['blocks'], 'Only the header block when no sections have content' );
+	}
+
+	public function test_slack_one_section_block_per_populated_area(): void {
+		$data = $this->data( [
+			'results'   => [ $this->result( 'Sharks', 3, 1, 'Eels' ) ],
+			'standings' => [ [ 'rank' => 1, 'name' => 'Sharks', 'played' => 5, 'points' => 15, 'movement' => 'up' ] ],
+			'upcoming'  => [ [ 'label' => 'Sharks vs Cod', 'date' => '2026-01-10' ] ],
+		] );
+		$blocks = ( new SPA_Digest_Formatter( $data ) )->to_slack_blocks()['blocks'];
+
+		// header + results + standings + upcoming = 4.
+		$this->assertCount( 4, $blocks );
+		$sections = array_filter( $blocks, static fn( $b ) => 'section' === $b['type'] );
+		$this->assertCount( 3, $sections );
+	}
+
+	public function test_slack_uses_single_asterisk_bold_and_arrows(): void {
+		$data = $this->data( [
+			'results'   => [ $this->result( 'Sharks', 3, 1, 'Eels' ) ],
+			'standings' => [ [ 'rank' => 1, 'name' => 'Eels', 'played' => 5, 'points' => 12, 'movement' => 'down' ] ],
+		] );
+		$blocks = ( new SPA_Digest_Formatter( $data ) )->to_slack_blocks()['blocks'];
+		$text   = implode( "\n", array_column( array_column( $blocks, 'text' ), 'text' ) );
+
+		$this->assertStringContainsString( '*Sharks 3 – 1 Eels*', $text );
+		$this->assertStringNotContainsString( '**', $text, 'Slack uses single-asterisk bold' );
+		$this->assertStringContainsString( '↓', $text );
+	}
+
+	public function test_slack_truncates_under_block_limit_with_more_link(): void {
+		$results = [];
+		for ( $i = 0; $i < 200; $i++ ) {
+			$results[] = $this->result( "Home Team Number {$i}", $i, 0, "Away Team Number {$i}" );
+		}
+		$blocks  = ( new SPA_Digest_Formatter( $this->data( [ 'results' => $results ] ) ) )->to_slack_blocks()['blocks'];
+		$section = $blocks[1]['text']['text'];
+
+		$this->assertLessThanOrEqual( 3000, mb_strlen( $section ), 'Slack section limit respected' );
+		$this->assertStringContainsString( 'more', $section );
+		$this->assertStringContainsString( 'https://example.test', $section );
+	}
+
 	// -- HTML preview ------------------------------------------------------
 
 	public function test_html_preview_escapes_and_includes_sections(): void {

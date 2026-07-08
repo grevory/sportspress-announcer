@@ -177,6 +177,9 @@ class SPA_Weekly_Digest_Scheduler {
 		// Send to Discord if configured.
 		$sent = $this->send_to_discord( $formatter, $league_name ) || $sent;
 
+		// Send to Slack if configured.
+		$sent = $this->send_to_slack( $formatter, $league_name ) || $sent;
+
 		// Publish as post if enabled.
 		if ( get_option( 'spa_weekly_digest_publish_as_post' ) ) {
 			$this->publish_as_post( $data, $formatter );
@@ -206,7 +209,39 @@ class SPA_Weekly_Digest_Scheduler {
 
 		$webhook = new SPA_Webhook_Discord( $discord_url );
 		$result  = $webhook->send( $formatter->to_discord_embed() );
-		$status  = is_wp_error( $result ) ? 'failed' : 'sent';
+
+		return $this->log_dispatch( $result, $league_name, 'discord' );
+	}
+
+	/**
+	 * Dispatch the digest to Slack if enabled, logging the outcome.
+	 *
+	 * @param SPA_Digest_Formatter $formatter   Formatter for the digest data.
+	 * @param string               $league_name Human-readable league label.
+	 * @return bool True if a message was sent successfully.
+	 */
+	private function send_to_slack( SPA_Digest_Formatter $formatter, string $league_name ): bool {
+		$slack_url = get_option( 'spa_slack_webhook_url', '' );
+		if ( ! $slack_url || ! get_option( 'spa_slack_enabled' ) ) {
+			return false;
+		}
+
+		$webhook = new SPA_Webhook_Slack( $slack_url );
+		$result  = $webhook->send( $formatter->to_slack_blocks() );
+
+		return $this->log_dispatch( $result, $league_name, 'slack' );
+	}
+
+	/**
+	 * Record a digest send outcome in the activity log.
+	 *
+	 * @param true|\WP_Error $result      Webhook send result.
+	 * @param string         $league_name Human-readable league label.
+	 * @param string         $platform    'discord' or 'slack'.
+	 * @return bool True if the message was sent successfully.
+	 */
+	private function log_dispatch( $result, string $league_name, string $platform ): bool {
+		$status = is_wp_error( $result ) ? 'failed' : 'sent';
 
 		SPA_Log::write(
 			array(
@@ -218,7 +253,7 @@ class SPA_Weekly_Digest_Scheduler {
 					$league_name
 				),
 				'channel'  => $league_name,
-				'platform' => 'discord',
+				'platform' => $platform,
 				'sent_at'  => time(),
 				'status'   => $status,
 			)
