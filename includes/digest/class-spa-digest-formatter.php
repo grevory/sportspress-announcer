@@ -221,7 +221,7 @@ class SPA_Digest_Formatter {
 			return '';
 		}
 
-		$html = '<div class="spa-digest-section">';
+		$html  = '<div class="spa-digest-section">';
 		$html .= '<h3>' . esc_html__( 'Leaders', 'sportspress-announcer' ) . '</h3>';
 		foreach ( $this->data['stat_leaders'] as $stat ) {
 			$html   .= '<p><strong>' . esc_html( $stat['label'] ) . ':</strong> ';

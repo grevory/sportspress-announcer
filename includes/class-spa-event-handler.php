@@ -136,8 +136,8 @@ class SPA_Event_Handler {
 
 		$formatter = new SPA_Message_Formatter();
 
-		$announced  = $this->announce_discord( $event, $formatter, $post_id );
-		$announced  = $this->announce_slack( $event, $formatter, $post_id ) || $announced;
+		$announced = $this->announce_discord( $event, $formatter, $post_id );
+		$announced = $this->announce_slack( $event, $formatter, $post_id ) || $announced;
 
 		if ( $announced ) {
 			update_post_meta( $post_id, '_spa_last_score_hash', $score_hash );

@@ -54,6 +54,9 @@ class SPA_Settings {
 	 */
 	private const QS_USER_META = 'spa_qs_dismissed';
 
+	/**
+	 * Register the admin menu, settings, and AJAX handlers.
+	 */
 	public function __construct() {
 		add_action( 'admin_menu', array( $this, 'add_menu' ) );
 		add_action( 'admin_init', array( $this, 'register_settings' ) );
@@ -3626,7 +3629,11 @@ class SPA_Settings {
 		<?php
 	}
 
-	/** @return WP_Term[] */
+	/**
+	 * League taxonomy terms, or an empty array on failure.
+	 *
+	 * @return WP_Term[]
+	 */
 	private function get_league_terms(): array {
 		$terms = get_terms(
 			array(
@@ -3637,7 +3644,11 @@ class SPA_Settings {
 		return ( $terms && ! is_wp_error( $terms ) ) ? $terms : array();
 	}
 
-	/** @return array<string,string> weekday slug => label */
+	/**
+	 * Weekday choices for the schedule selector.
+	 *
+	 * @return array<string,string> weekday slug => label
+	 */
 	private function weekday_choices(): array {
 		return array(
 			'monday'    => __( 'Monday', 'sportspress-announcer' ),
@@ -3669,6 +3680,11 @@ class SPA_Settings {
 		);
 	}
 
+	/**
+	 * Upgrade URL for the Weekly Digest Pro feature, with UTM tagging.
+	 *
+	 * @return string
+	 */
 	private function weekly_digest_upgrade_url(): string {
 		return add_query_arg( 'utm_source', 'plugin-weekly-digest', 'https://example.com/sportspress-announcer-pro' );
 	}
