@@ -28,6 +28,8 @@ require_once SPA_PLUGIN_DIR . 'includes/class-spa-message-formatter.php';
 require_once SPA_PLUGIN_DIR . 'includes/class-spa-webhook-discord.php';
 require_once SPA_PLUGIN_DIR . 'includes/class-spa-webhook-slack.php';
 require_once SPA_PLUGIN_DIR . 'includes/class-spa-event-handler.php';
+require_once SPA_PLUGIN_DIR . 'includes/class-spa-shortcode.php';
+require_once SPA_PLUGIN_DIR . 'includes/class-spa-announcement-block.php';
 require_once SPA_PLUGIN_DIR . 'includes/licensing/class-spa-license.php';
 require_once SPA_PLUGIN_DIR . 'includes/digest/class-spa-digest-builder.php';
 require_once SPA_PLUGIN_DIR . 'includes/digest/class-spa-digest-formatter.php';
@@ -55,6 +57,8 @@ function spa_init(): void {
 		new SPA_Team_Color();
 	}
 	new SPA_Event_Handler();
+	new SPA_Shortcode();
+	new SPA_Announcement_Block();
 	new SPA_Daily_Digest_Scheduler();
 	new SPA_Weekly_Digest_Scheduler();
 }
