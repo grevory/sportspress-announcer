@@ -121,6 +121,11 @@ class WeeklyDigestSchedulerTest extends TestCase {
 	private function invokeSendForLeague( int $league_id, bool $force ) {
 		$s      = $this->scheduler();
 		$method = new ReflectionMethod( $s, 'send_for_league' );
+		// Required to invoke private methods on PHP < 8.1; a no-op (and
+		// deprecated) from 8.5 onward, so only call it where it has effect.
+		if ( PHP_VERSION_ID < 80100 ) {
+			$method->setAccessible( true );
+		}
 		return $method->invoke( $s, $league_id, $force );
 	}
 }
