@@ -20,8 +20,19 @@
 
 	<rule ref="WordPress.WP.I18n">
 		<properties>
-			<property name="text_domain" type="array" value="sportspress-announcer"/>
+			<property name="text_domain" type="array">
+				<element value="sportspress-announcer"/>
+			</property>
 		</properties>
+	</rule>
+
+	<!-- bin/ holds standalone CLI tooling, not WordPress runtime code, so
+	     native PHP system/file functions are appropriate there. -->
+	<rule ref="WordPress.PHP.DiscouragedPHPFunctions.system_calls_exec">
+		<exclude-pattern>bin/</exclude-pattern>
+	</rule>
+	<rule ref="WordPress.WP.AlternativeFunctions">
+		<exclude-pattern>bin/</exclude-pattern>
 	</rule>
 
 	<!-- PHP compatibility: target 7.4 and 8.x -->

@@ -2333,8 +2333,8 @@ class SPA_Settings {
 	 * combined success / partial / failure result. Shared by the dashboard card
 	 * and the Digest-tab publish button so both reach the same platforms.
 	 *
-	 * @param string $button_id  DOM id of the trigger button.
-	 * @param string $result_id  DOM id of the result/status element.
+	 * @param string                                                 $button_id  DOM id of the trigger button.
+	 * @param string                                                 $result_id  DOM id of the result/status element.
 	 * @param array<string,array{action:string,nonce_action:string}> $platforms Active platforms.
 	 * @return void
 	 */
