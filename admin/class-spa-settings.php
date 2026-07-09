@@ -1542,13 +1542,13 @@ class SPA_Settings {
 		<?php else : ?>
 		<p class="description" style="margin-bottom:8px;"><?php esc_html_e( 'No upcoming games in the next 7 days.', 'sportspress-announcer' ); ?></p>
 		<?php endif; ?>
-		<p>
+		<div style="display:flex;align-items:center;gap:8px;">
 			<button type="button" id="spa-publish-upcoming" class="button button-primary"<?php echo empty( $games ) ? ' disabled' : ''; ?>>
 				<?php esc_html_e( 'Send now', 'sportspress-announcer' ); ?>
 			</button>
-			<span style="font-size:11px;color:#646970;margin-left:6px;"><?php echo esc_html( $this->upcoming_send_platforms_label( $platforms ) ); ?></span>
+			<span style="font-size:11px;color:#646970;"><?php echo esc_html( $this->upcoming_send_platforms_label( $platforms ) ); ?></span>
 			<span id="spa-publish-result" class="spa-send-result"></span>
-		</p>
+		</div>
 		<?php
 		$this->render_upcoming_send_script( 'spa-publish-upcoming', 'spa-publish-result', $platforms );
 	}
