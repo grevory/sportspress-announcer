@@ -55,6 +55,15 @@ class SPA_Settings {
 	private const QS_USER_META = 'spa_qs_dismissed';
 
 	/**
+	 * Whether the shared confirm-before-send modal script has already been
+	 * printed on this request. Prevents emitting the helper twice when more
+	 * than one send button renders on the same page.
+	 *
+	 * @var bool
+	 */
+	private $confirm_modal_printed = false;
+
+	/**
 	 * Register the admin menu, settings, and AJAX handlers.
 	 */
 	public function __construct() {
@@ -1550,7 +1559,7 @@ class SPA_Settings {
 			<span id="spa-publish-result" class="spa-send-result"></span>
 		</div>
 		<?php
-		$this->render_upcoming_send_script( 'spa-publish-upcoming', 'spa-publish-result', $platforms );
+		$this->render_upcoming_send_script( 'spa-publish-upcoming', 'spa-publish-result', $platforms, '#spa-preview-box' );
 	}
 
 	/**
@@ -2271,7 +2280,7 @@ class SPA_Settings {
 			<?php $this->render_digest_card_foot( $last_digest_ts, $log_url ); ?>
 		</div>
 		<?php
-		$this->render_upcoming_send_script( 'spa-send-digest-btn', 'spa-send-digest-result', $platforms );
+		$this->render_upcoming_send_script( 'spa-send-digest-btn', 'spa-send-digest-result', $platforms, '.spa-discord-preview' );
 	}
 
 	/**
@@ -2327,21 +2336,160 @@ class SPA_Settings {
 	}
 
 	/**
+	 * Print the shared confirm-before-send modal helper, once per request.
+	 *
+	 * Exposes a single global `window.spaConfirmSend( opts )` that resolves a
+	 * Promise to `true` (confirmed) or `false` (cancelled). Because broadcasting
+	 * a digest is immediate and cannot be undone, every "Send now" button routes
+	 * its click through this so the admin sees a preview of exactly what will go
+	 * out — and to which platforms — before committing.
+	 *
+	 * `opts`: { title, previewHtml, platformsLabel, confirmLabel, cancelLabel }.
+	 * `previewHtml` is markup already present in the page (server-rendered or an
+	 * already-fetched preview), so no additional request is made here.
+	 *
+	 * @return void
+	 */
+	private function render_confirm_modal_script(): void {
+		if ( $this->confirm_modal_printed ) {
+			return;
+		}
+		$this->confirm_modal_printed = true;
+
+		$labels = wp_json_encode(
+			array(
+				'title'       => __( 'Send this now?', 'sportspress-announcer' ),
+				'warn'        => __( 'This is sent immediately and cannot be undone.', 'sportspress-announcer' ),
+				'broadcastTo' => __( 'Broadcasts to: ', 'sportspress-announcer' ),
+				'cancel'      => __( 'Cancel', 'sportspress-announcer' ),
+				'confirm'     => __( 'Send now', 'sportspress-announcer' ),
+			)
+		);
+		?>
+		<script>
+		( function () {
+			if ( window.spaConfirmSend ) { return; }
+			var L = <?php echo $labels; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- wp_json_encode is safe for script context. ?>;
+			var els = {}, resolveFn = null, lastFocus = null;
+
+			function close( result ) {
+				if ( ! els.overlay ) { return; }
+				els.overlay.style.display = 'none';
+				document.removeEventListener( 'keydown', onKeydown );
+				var fn = resolveFn;
+				resolveFn = null;
+				if ( lastFocus && lastFocus.focus ) { lastFocus.focus(); }
+				if ( fn ) { fn( result ); }
+			}
+
+			function onKeydown( e ) {
+				if ( e.key === 'Escape' ) { close( false ); }
+			}
+			<?php $this->render_confirm_modal_builder_js(); ?>
+			<?php $this->render_confirm_modal_open_js(); ?>
+		} )();
+		</script>
+		<?php
+	}
+
+	/**
+	 * JS for lazily constructing the modal DOM. Emitted inside the modal IIFE,
+	 * where `els`, `close`, and `onKeydown` are already in scope.
+	 *
+	 * @return void
+	 */
+	private function render_confirm_modal_builder_js(): void {
+		?>
+		function el( tag, cls ) {
+			var node = document.createElement( tag );
+			if ( cls ) { node.className = cls; }
+			return node;
+		}
+
+		function build() {
+			els.overlay = el( 'div', 'spa-modal-overlay' );
+			els.overlay.style.display = 'none';
+
+			var dialog = el( 'div', 'spa-modal' );
+			dialog.setAttribute( 'role', 'dialog' );
+			dialog.setAttribute( 'aria-modal', 'true' );
+
+			els.title    = el( 'h2', 'spa-modal-title' );
+			els.preview  = el( 'div', 'spa-modal-preview' );
+			els.warning  = el( 'p', 'spa-modal-warning' );
+			els.cancel   = el( 'button', 'button button-secondary' );
+			els.confirm  = el( 'button', 'button button-primary' );
+			els.cancel.type = 'button';
+			els.confirm.type = 'button';
+
+			var actions = el( 'div', 'spa-modal-actions' );
+			actions.appendChild( els.cancel );
+			actions.appendChild( els.confirm );
+			dialog.appendChild( els.title );
+			dialog.appendChild( els.preview );
+			dialog.appendChild( els.warning );
+			dialog.appendChild( actions );
+			els.overlay.appendChild( dialog );
+			document.body.appendChild( els.overlay );
+
+			els.cancel.addEventListener( 'click', function () { close( false ); } );
+			els.confirm.addEventListener( 'click', function () { close( true ); } );
+			els.overlay.addEventListener( 'click', function ( e ) {
+				if ( e.target === els.overlay ) { close( false ); }
+			} );
+		}
+		<?php
+	}
+
+	/**
+	 * JS defining `window.spaConfirmSend`. Emitted inside the modal IIFE, where
+	 * `els`, `L`, `build`, `onKeydown`, `resolveFn`, and `lastFocus` are in scope.
+	 *
+	 * @return void
+	 */
+	private function render_confirm_modal_open_js(): void {
+		?>
+		window.spaConfirmSend = function ( opts ) {
+			opts = opts || {};
+			if ( ! els.overlay ) { build(); }
+
+			els.title.textContent   = opts.title || L.title;
+			els.preview.innerHTML   = opts.previewHtml || '';
+			els.warning.textContent = opts.platformsLabel
+				? ( L.broadcastTo + opts.platformsLabel + '. ' + L.warn )
+				: L.warn;
+			els.cancel.textContent  = opts.cancelLabel || L.cancel;
+			els.confirm.textContent = opts.confirmLabel || L.confirm;
+
+			lastFocus = document.activeElement;
+			els.overlay.style.display = 'flex';
+			document.addEventListener( 'keydown', onKeydown );
+			els.confirm.focus();
+
+			return new Promise( function ( resolve ) { resolveFn = resolve; } );
+		};
+		<?php
+	}
+
+	/**
 	 * Emit a self-contained fan-out send script for an upcoming-fixtures button.
 	 *
 	 * Fires one AJAX request per active platform in parallel and reports a
 	 * combined success / partial / failure result. Shared by the dashboard card
 	 * and the Digest-tab publish button so both reach the same platforms.
 	 *
-	 * @param string                                                 $button_id  DOM id of the trigger button.
-	 * @param string                                                 $result_id  DOM id of the result/status element.
-	 * @param array<string,array{action:string,nonce_action:string}> $platforms Active platforms.
+	 * @param string                                                 $button_id        DOM id of the trigger button.
+	 * @param string                                                 $result_id        DOM id of the result/status element.
+	 * @param array<string,array{action:string,nonce_action:string}> $platforms       Active platforms.
+	 * @param string                                                 $preview_selector CSS selector for the element whose markup previews what will be sent. Empty for no preview.
 	 * @return void
 	 */
-	private function render_upcoming_send_script( string $button_id, string $result_id, array $platforms ): void {
+	private function render_upcoming_send_script( string $button_id, string $result_id, array $platforms, string $preview_selector = '' ): void {
 		if ( empty( $platforms ) ) {
 			return;
 		}
+
+		$this->render_confirm_modal_script();
 
 		$requests = array();
 		foreach ( $platforms as $p ) {
@@ -2357,41 +2505,69 @@ class SPA_Settings {
 			var result = document.getElementById( <?php echo wp_json_encode( $result_id ); ?> );
 			if ( ! btn ) { return; }
 			var specs = <?php echo wp_json_encode( $requests ); ?>;
+			var platformsLabel = <?php echo wp_json_encode( $this->upcoming_send_platforms_label( $platforms ) ); ?>;
 			var idle  = btn.textContent;
+
+			var previewSelector = <?php echo wp_json_encode( $preview_selector ); ?>;
+			function previewHtml() {
+				if ( ! previewSelector ) { return ''; }
+				var el = document.querySelector( previewSelector );
+				return el ? el.innerHTML : '';
+			}
+			<?php $this->render_upcoming_fanout_js(); ?>
 			btn.addEventListener( 'click', function () {
-				btn.disabled = true;
-				btn.textContent = <?php echo wp_json_encode( __( 'Sending…', 'sportspress-announcer' ) ); ?>;
-				if ( result ) { result.textContent = ''; }
-				var reqs = specs.map( function ( s ) {
-					var fd = new FormData();
-					fd.append( 'action', s.action );
-					fd.append( 'nonce', s.nonce );
-					return fetch( ajaxurl, { method: 'POST', body: fd } ).then( function ( r ) { return r.json(); } );
-				} );
-				Promise.allSettled( reqs ).then( function ( results ) {
-					var errors = [];
-					results.forEach( function ( r ) {
-						if ( r.status === 'rejected' || ( r.value && ! r.value.success ) ) {
-							errors.push( r.value ? ( r.value.data || <?php echo wp_json_encode( __( 'Unknown error', 'sportspress-announcer' ) ); ?> ) : <?php echo wp_json_encode( __( 'Request failed', 'sportspress-announcer' ) ); ?> );
-						}
-					} );
-					btn.disabled = false;
-					btn.textContent = idle;
-					if ( ! result ) { return; }
-					if ( errors.length === 0 ) {
-						result.textContent = <?php echo wp_json_encode( __( '✓ Sent', 'sportspress-announcer' ) ); ?>;
-						result.style.color = '#00a32a';
-					} else if ( errors.length === results.length ) {
-						result.textContent = <?php echo wp_json_encode( __( '✗ ', 'sportspress-announcer' ) ); ?> + errors.join( '; ' );
-						result.style.color = '#d63638';
-					} else {
-						result.textContent = <?php echo wp_json_encode( __( '⚠ Partial: ', 'sportspress-announcer' ) ); ?> + errors.join( '; ' );
-						result.style.color = '#ffb900';
-					}
+				window.spaConfirmSend( {
+					previewHtml: previewHtml(),
+					platformsLabel: platformsLabel
+				} ).then( function ( ok ) {
+					if ( ok ) { send(); }
 				} );
 			} );
 		} )();
 		</script>
+		<?php
+	}
+
+	/**
+	 * JS defining the parallel `send()` fan-out. Emitted inside the upcoming-send
+	 * IIFE, where `btn`, `result`, `specs`, and `idle` are already in scope.
+	 *
+	 * @return void
+	 */
+	private function render_upcoming_fanout_js(): void {
+		?>
+		function send() {
+			btn.disabled = true;
+			btn.textContent = <?php echo wp_json_encode( __( 'Sending…', 'sportspress-announcer' ) ); ?>;
+			if ( result ) { result.textContent = ''; }
+			var reqs = specs.map( function ( s ) {
+				var fd = new FormData();
+				fd.append( 'action', s.action );
+				fd.append( 'nonce', s.nonce );
+				return fetch( ajaxurl, { method: 'POST', body: fd } ).then( function ( r ) { return r.json(); } );
+			} );
+			Promise.allSettled( reqs ).then( function ( results ) {
+				var errors = [];
+				results.forEach( function ( r ) {
+					if ( r.status === 'rejected' || ( r.value && ! r.value.success ) ) {
+						errors.push( r.value ? ( r.value.data || <?php echo wp_json_encode( __( 'Unknown error', 'sportspress-announcer' ) ); ?> ) : <?php echo wp_json_encode( __( 'Request failed', 'sportspress-announcer' ) ); ?> );
+					}
+				} );
+				btn.disabled = false;
+				btn.textContent = idle;
+				if ( ! result ) { return; }
+				if ( errors.length === 0 ) {
+					result.textContent = <?php echo wp_json_encode( __( '✓ Sent', 'sportspress-announcer' ) ); ?>;
+					result.style.color = '#00a32a';
+				} else if ( errors.length === results.length ) {
+					result.textContent = <?php echo wp_json_encode( __( '✗ ', 'sportspress-announcer' ) ); ?> + errors.join( '; ' );
+					result.style.color = '#d63638';
+				} else {
+					result.textContent = <?php echo wp_json_encode( __( '⚠ Partial: ', 'sportspress-announcer' ) ); ?> + errors.join( '; ' );
+					result.style.color = '#ffb900';
+				}
+			} );
+		}
 		<?php
 	}
 
@@ -3617,6 +3793,7 @@ class SPA_Settings {
 	 * @return void
 	 */
 	private function render_weekly_digest_preview_script(): void {
+		$this->render_confirm_modal_script();
 		?>
 		<script>
 		( function() {
@@ -3673,7 +3850,7 @@ class SPA_Settings {
 	private function render_weekly_send_button_js(): void {
 		?>
 		if ( sendBtn ) {
-			sendBtn.addEventListener( 'click', function() {
+			function sendWeekly() {
 				sendBtn.disabled  = true;
 				var idle          = sendBtn.textContent;
 				sendBtn.textContent = <?php echo wp_json_encode( __( 'Sending…', 'sportspress-announcer' ) ); ?>;
@@ -3703,6 +3880,15 @@ class SPA_Settings {
 							sendResult.style.color = '#d63638';
 						}
 					} );
+			}
+
+			sendBtn.addEventListener( 'click', function() {
+				window.spaConfirmSend( {
+					title: <?php echo wp_json_encode( __( 'Send the weekly digest now?', 'sportspress-announcer' ) ); ?>,
+					previewHtml: output ? output.innerHTML : ''
+				} ).then( function( ok ) {
+					if ( ok ) { sendWeekly(); }
+				} );
 			} );
 		}
 		<?php
