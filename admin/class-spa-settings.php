@@ -3594,16 +3594,18 @@ class SPA_Settings {
 		</p>
 		<?php endif; ?>
 
-		<button type="button" id="spa-weekly-preview-btn" class="button button-secondary"
-			data-nonce="<?php echo esc_attr( wp_create_nonce( 'spa_generate_digest_preview_nonce' ) ); ?>">
-			<?php esc_html_e( 'Regenerate preview', 'sportspress-announcer' ); ?>
-		</button>
-		<button type="button" id="spa-weekly-send-btn" class="button button-primary"
-			data-nonce="<?php echo esc_attr( wp_create_nonce( 'spa_send_weekly_digest_now_nonce' ) ); ?>">
-			<?php esc_html_e( 'Send now', 'sportspress-announcer' ); ?>
-		</button>
-		<span id="spa-weekly-preview-spinner" class="spinner" style="float:none;vertical-align:middle;display:none;"></span>
-		<span id="spa-weekly-send-result" class="spa-send-result"></span>
+		<div style="display:flex;align-items:center;gap:8px;">
+			<button type="button" id="spa-weekly-preview-btn" class="button button-secondary"
+				data-nonce="<?php echo esc_attr( wp_create_nonce( 'spa_generate_digest_preview_nonce' ) ); ?>">
+				<?php esc_html_e( 'Regenerate preview', 'sportspress-announcer' ); ?>
+			</button>
+			<button type="button" id="spa-weekly-send-btn" class="button button-primary"
+				data-nonce="<?php echo esc_attr( wp_create_nonce( 'spa_send_weekly_digest_now_nonce' ) ); ?>">
+				<?php esc_html_e( 'Send now', 'sportspress-announcer' ); ?>
+			</button>
+			<span id="spa-weekly-preview-spinner" class="spinner" style="float:none;vertical-align:middle;display:none;"></span>
+			<span id="spa-weekly-send-result" class="spa-send-result"></span>
+		</div>
 
 		<div id="spa-weekly-preview-output" style="margin-top:16px;display:none;"></div>
 		<?php
