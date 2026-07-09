@@ -141,22 +141,41 @@ class SPA_Weekly_Digest_Scheduler {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Build, format, and dispatch the digest for a single league.
+	 * Send the digest for one league on demand, bypassing the idempotency guard.
+	 *
+	 * Used by the "Send now" button. Skips the 23h double-send guard (the user
+	 * asked for it explicitly) but still commits the standings snapshot so next
+	 * week's movement arrows diff against what was just sent.
 	 *
 	 * @param int $league_id League term ID.
-	 * @return void
+	 * @return true|\WP_Error True on send, WP_Error with a code of 'empty' when
+	 *                        there is nothing to send or 'unsent' when no channel
+	 *                        is configured.
 	 */
-	private function send_for_league( int $league_id ): void {
-		// Idempotency guard: never double-send within 23 hours.
+	public function send_now( int $league_id ) {
+		return $this->send_for_league( $league_id, true );
+	}
+
+	/**
+	 * Build, format, and dispatch the digest for a single league.
+	 *
+	 * @param int  $league_id League term ID.
+	 * @param bool $force     When true, bypass the 23h idempotency guard.
+	 * @return true|\WP_Error True when a channel sent; WP_Error otherwise
+	 *                        ('guard', 'unavailable', 'empty', or 'unsent').
+	 */
+	private function send_for_league( int $league_id, bool $force = false ) {
+		// Idempotency guard: never double-send within 23 hours (skipped on a
+		// deliberate manual send).
 		$last_sent_key = "spa_digest_last_sent_{$league_id}";
 		$last_sent     = (int) get_option( $last_sent_key, 0 );
 
-		if ( $last_sent > 0 && ( time() - $last_sent ) < 23 * HOUR_IN_SECONDS ) {
-			return;
+		if ( ! $force && $last_sent > 0 && ( time() - $last_sent ) < 23 * HOUR_IN_SECONDS ) {
+			return new \WP_Error( 'guard', __( 'Digest already sent in the last 23 hours.', 'sportspress-announcer' ) );
 		}
 
 		if ( ! class_exists( 'SPA_Digest_Builder' ) || ! class_exists( 'SPA_Digest_Formatter' ) ) {
-			return;
+			return new \WP_Error( 'unavailable', __( 'Digest builder unavailable.', 'sportspress-announcer' ) );
 		}
 
 		$builder = new SPA_Digest_Builder( $league_id, SPA_Digest_Builder::options_from_settings() );
@@ -165,7 +184,7 @@ class SPA_Weekly_Digest_Scheduler {
 
 		// Skip if no content.
 		if ( $data['is_empty'] ) {
-			return;
+			return new \WP_Error( 'empty', __( 'No results, standings, or fixtures for this period.', 'sportspress-announcer' ) );
 		}
 
 		$formatter = new SPA_Digest_Formatter( $data );
@@ -191,7 +210,10 @@ class SPA_Weekly_Digest_Scheduler {
 			// Persist the standings baseline only now that the digest went out,
 			// so next week's movement arrows diff against what we actually sent.
 			$builder->commit_standings_snapshot();
+			return true;
 		}
+
+		return new \WP_Error( 'unsent', __( 'No channel is configured to receive the digest.', 'sportspress-announcer' ) );
 	}
 
 	/**
@@ -249,7 +271,7 @@ class SPA_Weekly_Digest_Scheduler {
 				'type'     => 'digest',
 				'label'    => sprintf(
 				/* translators: %s: league name */
-					__( 'Weekly Digest — %s', 'sportspress-announcer' ),
+					__( 'Weekly Recap — %s', 'sportspress-announcer' ),
 					$league_name
 				),
 				'channel'  => $league_name,
@@ -274,13 +296,13 @@ class SPA_Weekly_Digest_Scheduler {
 		$title       = $league_term && ! is_wp_error( $league_term )
 			? sprintf(
 				/* translators: 1: league name, 2: date */
-				__( 'Weekly Digest — %1$s (%2$s)', 'sportspress-announcer' ),
+				__( 'Weekly Recap — %1$s (%2$s)', 'sportspress-announcer' ),
 				$league_term->name,
 				$data['period']['end']
 			)
 			: sprintf(
 				/* translators: %s: date */
-				__( 'Weekly Digest (%s)', 'sportspress-announcer' ),
+				__( 'Weekly Recap (%s)', 'sportspress-announcer' ),
 				$data['period']['end']
 			);
 

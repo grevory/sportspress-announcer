@@ -55,7 +55,7 @@ class SPA_Event_Handler {
 			<p>
 				<?php esc_html_e( 'Result announced! 🏆', 'sportspress-announcer' ); ?>
 				<?php esc_html_e( 'Turn one-off scores into a weekly rhythm —', 'sportspress-announcer' ); ?>
-				<a href="<?php echo esc_url( $digest_url ); ?>"><?php esc_html_e( 'set up the Weekly Digest →', 'sportspress-announcer' ); ?></a>
+				<a href="<?php echo esc_url( $digest_url ); ?>"><?php esc_html_e( 'set up the Weekly Recap →', 'sportspress-announcer' ); ?></a>
 			</p>
 		</div>
 		<script>

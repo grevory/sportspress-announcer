@@ -78,7 +78,7 @@ class SPA_Digest_Formatter {
 				array(
 					'title'     => sprintf(
 						/* translators: 1: league name, 2: date range */
-						__( 'Weekly Digest — %1$s (%2$s)', 'sportspress-announcer' ),
+						__( 'Weekly Recap — %1$s (%2$s)', 'sportspress-announcer' ),
 						$this->league_name(),
 						$period
 					),
@@ -146,7 +146,7 @@ class SPA_Digest_Formatter {
 		$html .= '<h2 class="spa-digest-title">';
 		$html .= sprintf(
 			/* translators: 1: league name, 2: date range */
-			esc_html__( 'Weekly Digest — %1$s (%2$s)', 'sportspress-announcer' ),
+			esc_html__( 'Weekly Recap — %1$s (%2$s)', 'sportspress-announcer' ),
 			$this->league_name(),
 			$period
 		);
@@ -279,7 +279,7 @@ class SPA_Digest_Formatter {
 
 		$title = sprintf(
 			/* translators: 1: league name, 2: date range */
-			__( 'Weekly Digest — %1$s (%2$s)', 'sportspress-announcer' ),
+			__( 'Weekly Recap — %1$s (%2$s)', 'sportspress-announcer' ),
 			$this->league_name(),
 			$period
 		);

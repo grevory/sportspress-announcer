@@ -11,6 +11,37 @@ if ( ! defined( 'ABSPATH' ) ) {
 	define( 'ABSPATH', '/' );
 }
 
+// WordPress time constants used by scheduler/idempotency logic.
+if ( ! defined( 'HOUR_IN_SECONDS' ) ) {
+	define( 'HOUR_IN_SECONDS', 3600 );
+}
+
+// Minimal WP_Error stand-in for code paths that return one.
+if ( ! class_exists( 'WP_Error' ) ) {
+	class WP_Error {
+		/** @var string */
+		private $code;
+		/** @var string */
+		private $message;
+		/**
+		 * @param string $code    Error code.
+		 * @param string $message Error message.
+		 */
+		public function __construct( $code = '', $message = '' ) {
+			$this->code    = $code;
+			$this->message = $message;
+		}
+		/** @return string */
+		public function get_error_code() {
+			return $this->code;
+		}
+		/** @return string */
+		public function get_error_message() {
+			return $this->message;
+		}
+	}
+}
+
 // Load the classes under test.
 require_once dirname( __DIR__ ) . '/includes/licensing/class-spa-license.php';
 require_once dirname( __DIR__ ) . '/admin/class-spa-settings.php';

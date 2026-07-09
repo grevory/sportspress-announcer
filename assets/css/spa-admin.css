@@ -515,3 +515,14 @@
 .spa-arrow-down { color: #dc3545; }
 .spa-arrow-same { color: #888; }
 .spa-arrow-new { color: #007cba; }
+
+/* Inline status text shown next to a "Send now" button. Middle-aligns with
+   the button so the message never sits above the baseline. */
+.spa-send-result {
+	display: inline-flex;
+	align-items: center;
+	min-height: 30px;
+	margin-left: 8px;
+	font-size: 12px;
+	vertical-align: middle;
+}

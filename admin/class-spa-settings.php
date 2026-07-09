@@ -65,8 +65,8 @@ class SPA_Settings {
 		add_action( 'wp_ajax_spa_test_slack_webhook', array( $this, 'ajax_test_slack_webhook' ) );
 		add_action( 'wp_ajax_spa_qs_dismiss', array( $this, 'ajax_qs_dismiss' ) );
 		add_action( 'wp_ajax_spa_retry_announcement', array( $this, 'ajax_retry_announcement' ) );
-		add_action( 'wp_ajax_spa_send_digest', array( $this, 'ajax_send_digest' ) );
 		add_action( 'wp_ajax_spa_generate_digest_preview', array( $this, 'ajax_generate_digest_preview' ) );
+		add_action( 'wp_ajax_spa_send_weekly_digest_now', array( $this, 'ajax_send_weekly_digest_now' ) );
 	}
 
 	/**
@@ -291,25 +291,29 @@ class SPA_Settings {
 	}
 
 	/**
-	 * Send the upcoming fixtures digest to Discord now.
+	 * Send the Weekly Recap for one league on demand.
+	 *
+	 * Mirrors the cron dispatch but for a single, user-chosen league, bypassing
+	 * the 23h idempotency guard because the send is deliberate.
 	 *
 	 * @return void
 	 */
-	public function ajax_send_digest(): void {
-		check_ajax_referer( 'spa_send_digest_nonce', 'nonce' );
+	public function ajax_send_weekly_digest_now(): void {
+		check_ajax_referer( 'spa_send_weekly_digest_now_nonce', 'nonce' );
 
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_send_json_error( __( 'Permission denied.', 'sportspress-announcer' ) );
 		}
 
-		$sender = new SPA_Upcoming_Discord();
-		$result = $sender->send_digest();
+		$league_id = isset( $_POST['league_id'] ) ? intval( wp_unslash( $_POST['league_id'] ) ) : 0;
+		if ( $league_id <= 0 ) {
+			wp_send_json_error( __( 'Choose a league first.', 'sportspress-announcer' ) );
+		}
+
+		$result = ( new SPA_Weekly_Digest_Scheduler() )->send_now( $league_id );
 
 		if ( is_wp_error( $result ) ) {
 			wp_send_json_error( $result->get_error_message() );
-		}
-		if ( false === $result ) {
-			wp_send_json_error( __( 'No upcoming games found in the next 7 days.', 'sportspress-announcer' ) );
 		}
 
 		wp_send_json_success();
@@ -430,22 +434,17 @@ class SPA_Settings {
 
 		add_settings_section(
 			'spa_section_digest',
-			__( 'Digest', 'sportspress-announcer' ),
+			__( 'Fixtures Digest', 'sportspress-announcer' ),
 			array( $this, 'render_digest_section_intro' ),
 			self::MENU_SLUG
 		);
 
-		add_settings_field(
-			self::OPTION_UPCOMING_TEMPLATE,
-			__( 'Game Template', 'sportspress-announcer' ),
-			array( $this, 'render_upcoming_template_field' ),
-			self::MENU_SLUG,
-			'spa_section_digest'
-		);
+		// The Fixtures Template editor lives on the Templates tab (see
+		// register_announcements_settings) so all message copy is in one place.
 
 		add_settings_field(
 			'spa_upcoming_publish',
-			__( 'Send digest', 'sportspress-announcer' ),
+			__( 'Send now', 'sportspress-announcer' ),
 			array( $this, 'render_upcoming_publish_field' ),
 			self::MENU_SLUG,
 			'spa_section_digest'
@@ -538,6 +537,16 @@ class SPA_Settings {
 			self::OPTION_RESULT_TEMPLATE,
 			__( 'Result Template', 'sportspress-announcer' ),
 			array( $this, 'render_result_template_field' ),
+			self::MENU_SLUG,
+			'spa_section_announcements'
+		);
+
+		// Fixtures Template — relocated here from the Digest tab so every
+		// message template lives on the Templates tab.
+		add_settings_field(
+			self::OPTION_UPCOMING_TEMPLATE,
+			__( 'Fixtures Template', 'sportspress-announcer' ),
+			array( $this, 'render_upcoming_template_field' ),
 			self::MENU_SLUG,
 			'spa_section_announcements'
 		);
@@ -838,10 +847,24 @@ class SPA_Settings {
 					);
 				}
 				?>
-				<br><?php esc_html_e( 'Team names are auto-bolded per platform. Slack mentions (<!channel>, <!here>) and emoji work too.', 'sportspress-announcer' ); ?>
+				<br><?php esc_html_e( 'Team names are auto-bolded per platform.', 'sportspress-announcer' ); ?>
+				<?php if ( $this->slack_active() ) : ?>
+					<?php esc_html_e( 'Slack mentions (<!channel>, <!here>) and emoji work too.', 'sportspress-announcer' ); ?>
+				<?php else : ?>
+					<?php esc_html_e( 'Emoji work too.', 'sportspress-announcer' ); ?>
+				<?php endif; ?>
 			</p>
 		</div>
 		<?php
+	}
+
+	/**
+	 * Whether Slack is configured and enabled — gates Slack-only help text.
+	 *
+	 * @return bool
+	 */
+	private function slack_active(): bool {
+		return (bool) get_option( self::OPTION_SLACK_WEBHOOK, '' ) && (bool) get_option( self::OPTION_SLACK_ENABLED, false );
 	}
 
 	/**
@@ -1452,7 +1475,7 @@ class SPA_Settings {
 	 */
 	public function render_digest_section_intro(): void {
 		?>
-		<p class="description"><?php esc_html_e( 'Upcoming games for the next 7 days appear as an admin notice with a copy button. Use the button below to push the schedule to Discord on demand.', 'sportspress-announcer' ); ?></p>
+		<p class="description"><?php esc_html_e( 'Upcoming games for the next 7 days. Preview the schedule below and send it to your configured channels on demand, or auto-send on a schedule. Edit the message copy on the Templates tab.', 'sportspress-announcer' ); ?></p>
 		<?php
 	}
 
@@ -1484,7 +1507,11 @@ class SPA_Settings {
 					);
 				}
 				?>
-				<br><?php esc_html_e( 'Slack mentions (<!channel>, <!here>) and emoji work too.', 'sportspress-announcer' ); ?>
+				<?php if ( $this->slack_active() ) : ?>
+					<br><?php esc_html_e( 'Slack mentions (<!channel>, <!here>) and emoji work too.', 'sportspress-announcer' ); ?>
+				<?php else : ?>
+					<br><?php esc_html_e( 'Emoji work too.', 'sportspress-announcer' ); ?>
+				<?php endif; ?>
 			</p>
 		</div>
 		<?php
@@ -1496,12 +1523,9 @@ class SPA_Settings {
 	 * @return void
 	 */
 	public function render_upcoming_publish_field(): void {
-		$discord_url  = get_option( self::OPTION_WEBHOOK, '' );
-		$slack_url    = get_option( self::OPTION_SLACK_WEBHOOK, '' );
-		$send_discord = ! empty( $discord_url );
-		$send_slack   = ! empty( $slack_url );
+		$platforms = $this->upcoming_send_platforms();
 
-		if ( ! $send_discord && ! $send_slack ) {
+		if ( empty( $platforms ) ) {
 			?>
 			<p class="description"><?php esc_html_e( 'Configure a Discord or Slack webhook URL above to enable this.', 'sportspress-announcer' ); ?></p>
 			<?php
@@ -1513,23 +1537,20 @@ class SPA_Settings {
 		$preview_text = $this->build_upcoming_preview_text( $games );
 		?>
 		<?php if ( ! empty( $games ) ) : ?>
-		<p style="margin-bottom:6px;">
-			<a href="#" id="spa-preview-toggle" aria-expanded="false">
-				<?php esc_html_e( 'Preview digest ▸', 'sportspress-announcer' ); ?>
-			</a>
-		</p>
-		<pre id="spa-preview-box" style="display:none; white-space:pre-wrap; background:#f6f7f7; border:1px solid #dcdcde; padding:10px 12px; margin:0 0 12px; font-size:12px; line-height:1.6; max-width:600px;"><?php echo esc_html( $preview_text ); ?></pre>
+		<p style="margin:0 0 6px; font-weight:600;"><?php esc_html_e( 'Preview', 'sportspress-announcer' ); ?></p>
+		<pre id="spa-preview-box" style="white-space:pre-wrap; background:#f6f7f7; border:1px solid #dcdcde; padding:10px 12px; margin:0 0 12px; font-size:12px; line-height:1.6; max-width:600px;"><?php echo esc_html( $preview_text ); ?></pre>
 		<?php else : ?>
 		<p class="description" style="margin-bottom:8px;"><?php esc_html_e( 'No upcoming games in the next 7 days.', 'sportspress-announcer' ); ?></p>
 		<?php endif; ?>
 		<p>
 			<button type="button" id="spa-publish-upcoming" class="button button-primary"<?php echo empty( $games ) ? ' disabled' : ''; ?>>
-				<?php esc_html_e( 'Publish', 'sportspress-announcer' ); ?>
+				<?php esc_html_e( 'Send now', 'sportspress-announcer' ); ?>
 			</button>
-			<span id="spa-publish-result" style="display:inline-flex; align-items:center; min-height:30px; margin-left:8px; vertical-align:middle;"></span>
+			<span style="font-size:11px;color:#646970;margin-left:6px;"><?php echo esc_html( $this->upcoming_send_platforms_label( $platforms ) ); ?></span>
+			<span id="spa-publish-result" class="spa-send-result"></span>
 		</p>
 		<?php
-		$this->render_upcoming_publish_script( $send_discord, $send_slack );
+		$this->render_upcoming_send_script( 'spa-publish-upcoming', 'spa-publish-result', $platforms );
 	}
 
 	/**
@@ -1565,99 +1586,6 @@ class SPA_Settings {
 			}
 		}
 		return implode( "\n", $lines );
-	}
-
-	/**
-	 * Inline script for the digest preview toggle and publish button.
-	 *
-	 * @param bool $send_discord Whether a Discord webhook is configured.
-	 * @param bool $send_slack   Whether a Slack webhook is configured.
-	 * @return void
-	 */
-	private function render_upcoming_publish_script( bool $send_discord, bool $send_slack ): void {
-		$this->render_preview_toggle_script();
-		?>
-		<script>
-		document.addEventListener( 'DOMContentLoaded', function () {
-			var btn    = document.getElementById( 'spa-publish-upcoming' );
-			var result = document.getElementById( 'spa-publish-result' );
-			if ( ! btn || ! result ) return;
-			btn.addEventListener( 'click', function () {
-				result.textContent = '<?php echo esc_js( __( 'Sending…', 'sportspress-announcer' ) ); ?>';
-				result.style.color = '';
-				btn.disabled = true;
-
-				var requests = [];
-
-				<?php if ( $send_discord ) : ?>
-				var discordData = new FormData();
-				discordData.append( 'action', 'spa_send_upcoming' );
-				discordData.append( 'nonce', '<?php echo esc_js( wp_create_nonce( 'spa_send_upcoming_nonce' ) ); ?>' );
-				requests.push( fetch( ajaxurl, { method: 'POST', body: discordData } ).then( function ( r ) { return r.json(); } ) );
-				<?php endif; ?>
-
-				<?php if ( $send_slack ) : ?>
-				var slackData = new FormData();
-				slackData.append( 'action', 'spa_send_upcoming_slack' );
-				slackData.append( 'nonce', '<?php echo esc_js( wp_create_nonce( 'spa_send_upcoming_slack_nonce' ) ); ?>' );
-				requests.push( fetch( ajaxurl, { method: 'POST', body: slackData } ).then( function ( r ) { return r.json(); } ) );
-				<?php endif; ?>
-
-				Promise.allSettled( requests ).then( function ( results ) {
-					var errors = [];
-					results.forEach( function ( r ) {
-						if ( r.status === 'rejected' || ( r.value && ! r.value.success ) ) {
-							errors.push( r.value ? ( r.value.data || '<?php echo esc_js( __( 'Unknown error', 'sportspress-announcer' ) ); ?>' ) : '<?php echo esc_js( __( 'Request failed', 'sportspress-announcer' ) ); ?>' );
-						}
-					} );
-					if ( errors.length === 0 ) {
-						result.textContent = '<?php echo esc_js( __( '✓ Published!', 'sportspress-announcer' ) ); ?>';
-						result.style.color = '#46b450';
-						setTimeout( function () {
-							var notice = document.querySelector( '.spa-upcoming-notice' );
-							if ( notice ) { notice.style.display = 'none'; }
-							fetch( '<?php echo esc_js( wp_nonce_url( admin_url( 'admin-post.php?action=spa_dismiss_upcoming_notice' ), 'spa_dismiss_upcoming_notice' ) ); ?>', { method: 'GET', redirect: 'manual' } );
-						}, 1500 );
-					} else if ( errors.length === results.length ) {
-						result.textContent = '<?php echo esc_js( __( '✗ Error: ', 'sportspress-announcer' ) ); ?>' + errors.join( '; ' );
-						result.style.color = '#dc3232';
-						btn.disabled = false;
-					} else {
-						result.textContent = '<?php echo esc_js( __( '⚠ Partial: ', 'sportspress-announcer' ) ); ?>' + errors.join( '; ' );
-						result.style.color = '#ffb900';
-						btn.disabled = false;
-					}
-				} );
-			} );
-		} );
-		</script>
-		<?php
-	}
-
-	/**
-	 * Inline script toggling the upcoming-digest preview box.
-	 *
-	 * @return void
-	 */
-	private function render_preview_toggle_script(): void {
-		?>
-		<script>
-		document.addEventListener( 'DOMContentLoaded', function () {
-			var toggle  = document.getElementById( 'spa-preview-toggle' );
-			var preview = document.getElementById( 'spa-preview-box' );
-			if ( ! toggle || ! preview ) return;
-			toggle.addEventListener( 'click', function ( e ) {
-				e.preventDefault();
-				var open = preview.style.display !== 'none';
-				preview.style.display = open ? 'none' : 'block';
-				toggle.textContent    = open
-					? '<?php echo esc_js( __( 'Preview digest ▸', 'sportspress-announcer' ) ); ?>'
-					: '<?php echo esc_js( __( 'Preview digest ▾', 'sportspress-announcer' ) ); ?>';
-				toggle.setAttribute( 'aria-expanded', open ? 'false' : 'true' );
-			} );
-		} );
-		</script>
-		<?php
 	}
 
 	/**
@@ -1718,7 +1646,7 @@ class SPA_Settings {
 				value="1"
 				<?php checked( $enabled ); ?>
 			/>
-			<?php esc_html_e( 'Automatically send upcoming games digest to Discord', 'sportspress-announcer' ); ?>
+			<?php esc_html_e( 'Automatically send the fixtures digest to your configured channels', 'sportspress-announcer' ); ?>
 		</label>
 
 		<div style="margin-top:10px; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
@@ -2291,8 +2219,6 @@ class SPA_Settings {
 	 * @return void
 	 */
 	private function render_dashboard_digest_card( int $last_digest_ts, string $log_url ): void {
-		$send_digest_nonce = wp_create_nonce( 'spa_send_digest_nonce' );
-
 		$notice          = new SPA_Upcoming_Notice();
 		$upcoming_games  = $notice->get_upcoming_games();
 		$next_date_label = '';
@@ -2301,10 +2227,12 @@ class SPA_Settings {
 			sort( $dates );
 			$next_date_label = $dates[0];
 		}
+
+		$platforms = $this->upcoming_send_platforms();
 		?>
 		<div class="spa-dashboard-card">
 			<div class="spa-dashboard-card-head">
-				<span class="spa-dashboard-card-title">&#128197; <?php esc_html_e( 'Upcoming Digest', 'sportspress-announcer' ); ?></span>
+				<span class="spa-dashboard-card-title">&#128197; <?php esc_html_e( 'Fixtures Digest', 'sportspress-announcer' ); ?></span>
 				<?php if ( $next_date_label ) : ?>
 					<span style="font-size:11px;color:#646970">
 						<?php
@@ -2328,10 +2256,11 @@ class SPA_Settings {
 				<?php endif; ?>
 
 				<div style="display:flex;align-items:center;gap:10px;margin-top:10px">
-					<button type="button" id="spa-send-digest-btn" class="button button-primary" data-nonce="<?php echo esc_attr( $send_digest_nonce ); ?>" <?php echo empty( $upcoming_games ) ? 'disabled' : ''; ?>>
-						<?php esc_html_e( 'Send to Discord now', 'sportspress-announcer' ); ?>
+					<button type="button" id="spa-send-digest-btn" class="button button-primary" <?php echo ( empty( $upcoming_games ) || empty( $platforms ) ) ? 'disabled' : ''; ?>>
+						<?php esc_html_e( 'Send now', 'sportspress-announcer' ); ?>
 					</button>
-					<span id="spa-send-digest-result" style="font-size:12px"></span>
+					<span id="spa-send-digest-result" class="spa-send-result"></span>
+					<?php $this->render_dashboard_platform_hint( $platforms ); ?>
 					<div class="spa-pro-lock-inline">
 						&#128274; <?php esc_html_e( 'Auto-schedule weekly', 'sportspress-announcer' ); ?>
 						<span class="spa-pro-badge"><?php esc_html_e( 'Pro', 'sportspress-announcer' ); ?></span>
@@ -2341,6 +2270,128 @@ class SPA_Settings {
 
 			<?php $this->render_digest_card_foot( $last_digest_ts, $log_url ); ?>
 		</div>
+		<?php
+		$this->render_upcoming_send_script( 'spa-send-digest-btn', 'spa-send-digest-result', $platforms );
+	}
+
+	/**
+	 * Active platforms for an on-demand upcoming-fixtures send, keyed by slug.
+	 *
+	 * @return array<string,array{action:string,nonce_action:string,label:string}>
+	 *         Empty when no webhook is configured.
+	 */
+	private function upcoming_send_platforms(): array {
+		$platforms = array();
+
+		if ( get_option( self::OPTION_WEBHOOK, '' ) ) {
+			$platforms['discord'] = array(
+				'action'       => 'spa_send_upcoming',
+				'nonce_action' => 'spa_send_upcoming_nonce',
+				'label'        => __( 'Discord', 'sportspress-announcer' ),
+			);
+		}
+
+		if ( get_option( self::OPTION_SLACK_WEBHOOK, '' ) ) {
+			$platforms['slack'] = array(
+				'action'       => 'spa_send_upcoming_slack',
+				'nonce_action' => 'spa_send_upcoming_slack_nonce',
+				'label'        => __( 'Slack', 'sportspress-announcer' ),
+			);
+		}
+
+		return $platforms;
+	}
+
+	/**
+	 * Human-readable list of the active send platforms (e.g. "Discord + Slack").
+	 *
+	 * @param array<string,array{label:string}> $platforms Platform config.
+	 * @return string
+	 */
+	private function upcoming_send_platforms_label( array $platforms ): string {
+		return implode( ' + ', wp_list_pluck( $platforms, 'label' ) );
+	}
+
+	/**
+	 * Render the small "Discord + Slack" / "No webhook configured" hint span.
+	 *
+	 * @param array<string,array{label:string}> $platforms Active platforms.
+	 * @return void
+	 */
+	private function render_dashboard_platform_hint( array $platforms ): void {
+		if ( empty( $platforms ) ) {
+			echo '<span style="font-size:11px;color:#8c8f94">' . esc_html__( 'No webhook configured', 'sportspress-announcer' ) . '</span>';
+			return;
+		}
+		echo '<span style="font-size:11px;color:#646970">' . esc_html( $this->upcoming_send_platforms_label( $platforms ) ) . '</span>';
+	}
+
+	/**
+	 * Emit a self-contained fan-out send script for an upcoming-fixtures button.
+	 *
+	 * Fires one AJAX request per active platform in parallel and reports a
+	 * combined success / partial / failure result. Shared by the dashboard card
+	 * and the Digest-tab publish button so both reach the same platforms.
+	 *
+	 * @param string $button_id  DOM id of the trigger button.
+	 * @param string $result_id  DOM id of the result/status element.
+	 * @param array<string,array{action:string,nonce_action:string}> $platforms Active platforms.
+	 * @return void
+	 */
+	private function render_upcoming_send_script( string $button_id, string $result_id, array $platforms ): void {
+		if ( empty( $platforms ) ) {
+			return;
+		}
+
+		$requests = array();
+		foreach ( $platforms as $p ) {
+			$requests[] = array(
+				'action' => $p['action'],
+				'nonce'  => wp_create_nonce( $p['nonce_action'] ),
+			);
+		}
+		?>
+		<script>
+		( function () {
+			var btn    = document.getElementById( <?php echo wp_json_encode( $button_id ); ?> );
+			var result = document.getElementById( <?php echo wp_json_encode( $result_id ); ?> );
+			if ( ! btn ) { return; }
+			var specs = <?php echo wp_json_encode( $requests ); ?>;
+			var idle  = btn.textContent;
+			btn.addEventListener( 'click', function () {
+				btn.disabled = true;
+				btn.textContent = <?php echo wp_json_encode( __( 'Sending…', 'sportspress-announcer' ) ); ?>;
+				if ( result ) { result.textContent = ''; }
+				var reqs = specs.map( function ( s ) {
+					var fd = new FormData();
+					fd.append( 'action', s.action );
+					fd.append( 'nonce', s.nonce );
+					return fetch( ajaxurl, { method: 'POST', body: fd } ).then( function ( r ) { return r.json(); } );
+				} );
+				Promise.allSettled( reqs ).then( function ( results ) {
+					var errors = [];
+					results.forEach( function ( r ) {
+						if ( r.status === 'rejected' || ( r.value && ! r.value.success ) ) {
+							errors.push( r.value ? ( r.value.data || <?php echo wp_json_encode( __( 'Unknown error', 'sportspress-announcer' ) ); ?> ) : <?php echo wp_json_encode( __( 'Request failed', 'sportspress-announcer' ) ); ?> );
+						}
+					} );
+					btn.disabled = false;
+					btn.textContent = idle;
+					if ( ! result ) { return; }
+					if ( errors.length === 0 ) {
+						result.textContent = <?php echo wp_json_encode( __( '✓ Sent', 'sportspress-announcer' ) ); ?>;
+						result.style.color = '#00a32a';
+					} else if ( errors.length === results.length ) {
+						result.textContent = <?php echo wp_json_encode( __( '✗ ', 'sportspress-announcer' ) ); ?> + errors.join( '; ' );
+						result.style.color = '#d63638';
+					} else {
+						result.textContent = <?php echo wp_json_encode( __( '⚠ Partial: ', 'sportspress-announcer' ) ); ?> + errors.join( '; ' );
+						result.style.color = '#ffb900';
+					}
+				} );
+			} );
+		} )();
+		</script>
 		<?php
 	}
 
@@ -2463,42 +2514,9 @@ class SPA_Settings {
 	 * @return void
 	 */
 	private function render_dashboard_script(): void {
+		// The fixtures-digest send button wires itself via
+		// render_upcoming_send_script() inside render_dashboard_digest_card().
 		$this->render_retry_button_script();
-		?>
-		<script>
-		document.addEventListener( 'DOMContentLoaded', function () {
-			// Send digest button.
-			var digestBtn    = document.getElementById( 'spa-send-digest-btn' );
-			var digestResult = document.getElementById( 'spa-send-digest-result' );
-			if ( digestBtn ) {
-				digestBtn.addEventListener( 'click', function () {
-					digestBtn.disabled = true;
-					digestBtn.textContent = '<?php echo esc_js( __( 'Sending…', 'sportspress-announcer' ) ); ?>';
-					if ( digestResult ) { digestResult.textContent = ''; }
-					var fd = new FormData();
-					fd.append( 'action', 'spa_send_digest' );
-					fd.append( 'nonce', digestBtn.dataset.nonce );
-					fetch( ajaxurl, { method: 'POST', body: fd } )
-						.then( function ( r ) { return r.json(); } )
-						.then( function ( json ) {
-							digestBtn.disabled = false;
-							digestBtn.textContent = '<?php echo esc_js( __( 'Send to Discord now', 'sportspress-announcer' ) ); ?>';
-							if ( digestResult ) {
-								digestResult.textContent = json.success
-									? '<?php echo esc_js( __( '✓ Digest sent', 'sportspress-announcer' ) ); ?>'
-									: ( json.data || '<?php echo esc_js( __( '✗ Failed', 'sportspress-announcer' ) ); ?>' );
-								digestResult.style.color = json.success ? '#00a32a' : '#d63638';
-							}
-						} )
-						.catch( function () {
-							digestBtn.disabled = false;
-							digestBtn.textContent = '<?php echo esc_js( __( 'Send to Discord now', 'sportspress-announcer' ) ); ?>';
-						} );
-				} );
-			}
-		} );
-		</script>
-		<?php
 	}
 
 	/**
@@ -3328,7 +3346,7 @@ class SPA_Settings {
 		?>
 		<div class="spa-weekly-digest<?php echo $locked ? ' spa-pro-locked' : ''; ?>">
 
-			<h3><?php esc_html_e( 'Weekly Digest — Results Recap', 'sportspress-announcer' ); ?></h3>
+			<h3><?php esc_html_e( 'Weekly Recap', 'sportspress-announcer' ); ?></h3>
 			<p class="description">
 				<?php esc_html_e( 'A weekly rhythm: results, standings movement, and stat leaders, posted automatically to your channels.', 'sportspress-announcer' ); ?>
 			</p>
@@ -3578,9 +3596,14 @@ class SPA_Settings {
 
 		<button type="button" id="spa-weekly-preview-btn" class="button button-secondary"
 			data-nonce="<?php echo esc_attr( wp_create_nonce( 'spa_generate_digest_preview_nonce' ) ); ?>">
-			<?php esc_html_e( 'Generate Preview', 'sportspress-announcer' ); ?>
+			<?php esc_html_e( 'Regenerate preview', 'sportspress-announcer' ); ?>
+		</button>
+		<button type="button" id="spa-weekly-send-btn" class="button button-primary"
+			data-nonce="<?php echo esc_attr( wp_create_nonce( 'spa_send_weekly_digest_now_nonce' ) ); ?>">
+			<?php esc_html_e( 'Send now', 'sportspress-announcer' ); ?>
 		</button>
 		<span id="spa-weekly-preview-spinner" class="spinner" style="float:none;vertical-align:middle;display:none;"></span>
+		<span id="spa-weekly-send-result" class="spa-send-result"></span>
 
 		<div id="spa-weekly-preview-output" style="margin-top:16px;display:none;"></div>
 		<?php
@@ -3597,10 +3620,13 @@ class SPA_Settings {
 		( function() {
 			var btn = document.getElementById( 'spa-weekly-preview-btn' );
 			if ( ! btn ) { return; }
-			btn.addEventListener( 'click', function() {
-				var leagueSel = document.getElementById( 'spa-weekly-preview-league' );
-				var output    = document.getElementById( 'spa-weekly-preview-output' );
-				var spinner   = document.getElementById( 'spa-weekly-preview-spinner' );
+			var sendBtn   = document.getElementById( 'spa-weekly-send-btn' );
+			var leagueSel = document.getElementById( 'spa-weekly-preview-league' );
+			var output    = document.getElementById( 'spa-weekly-preview-output' );
+			var spinner   = document.getElementById( 'spa-weekly-preview-spinner' );
+			var sendResult = document.getElementById( 'spa-weekly-send-result' );
+
+			function generate() {
 				spinner.style.display = 'inline-block';
 				output.style.display  = 'none';
 
@@ -3609,7 +3635,7 @@ class SPA_Settings {
 				fd.append( 'nonce', btn.dataset.nonce );
 				fd.append( 'league_id', leagueSel ? leagueSel.value : 0 );
 
-				fetch( ajaxurl, { method: 'POST', body: fd, credentials: 'same-origin' } )
+				return fetch( ajaxurl, { method: 'POST', body: fd, credentials: 'same-origin' } )
 					.then( function( r ) { return r.json(); } )
 					.then( function( res ) {
 						spinner.style.display = 'none';
@@ -3623,9 +3649,60 @@ class SPA_Settings {
 						output.style.display  = 'block';
 						output.innerHTML = '<p style="color:#d63638"><?php echo esc_js( __( 'Request failed.', 'sportspress-announcer' ) ); ?></p>';
 					} );
-			} );
+			}
+
+			btn.addEventListener( 'click', generate );
+			if ( leagueSel ) { leagueSel.addEventListener( 'change', generate ); }
+
+			// Auto-generate a preview on first view so the recap is always visible.
+			generate();
+			<?php $this->render_weekly_send_button_js(); ?>
 		}() );
 		</script>
+		<?php
+	}
+
+	/**
+	 * JS wiring for the weekly "Send now" button (inside the preview IIFE,
+	 * where sendBtn/leagueSel/sendResult are already in scope).
+	 *
+	 * @return void
+	 */
+	private function render_weekly_send_button_js(): void {
+		?>
+		if ( sendBtn ) {
+			sendBtn.addEventListener( 'click', function() {
+				sendBtn.disabled  = true;
+				var idle          = sendBtn.textContent;
+				sendBtn.textContent = <?php echo wp_json_encode( __( 'Sending…', 'sportspress-announcer' ) ); ?>;
+				if ( sendResult ) { sendResult.textContent = ''; }
+
+				var fd = new FormData();
+				fd.append( 'action', 'spa_send_weekly_digest_now' );
+				fd.append( 'nonce', sendBtn.dataset.nonce );
+				fd.append( 'league_id', leagueSel ? leagueSel.value : 0 );
+
+				fetch( ajaxurl, { method: 'POST', body: fd, credentials: 'same-origin' } )
+					.then( function( r ) { return r.json(); } )
+					.then( function( res ) {
+						sendBtn.disabled = false;
+						sendBtn.textContent = idle;
+						if ( ! sendResult ) { return; }
+						sendResult.textContent = res.success
+							? <?php echo wp_json_encode( __( '✓ Sent', 'sportspress-announcer' ) ); ?>
+							: ( res.data || <?php echo wp_json_encode( __( '✗ Failed', 'sportspress-announcer' ) ); ?> );
+						sendResult.style.color = res.success ? '#00a32a' : '#d63638';
+					} )
+					.catch( function() {
+						sendBtn.disabled = false;
+						sendBtn.textContent = idle;
+						if ( sendResult ) {
+							sendResult.textContent = <?php echo wp_json_encode( __( '✗ Failed', 'sportspress-announcer' ) ); ?>;
+							sendResult.style.color = '#d63638';
+						}
+					} );
+			} );
+		}
 		<?php
 	}
 
