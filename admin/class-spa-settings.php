@@ -3376,11 +3376,11 @@ class SPA_Settings {
 				pro:       '<?php echo esc_js( __( 'A look at what Pro will add. Not for sale yet, but coming soon.', 'sportspress-announcer' ) ); ?>',
 			};
 
+			var tipEl = document.getElementById( 'spa-help-tab-tip' );
+
 			if ( tipEl && tips[ '<?php echo esc_js( $active_tab ); ?>' ] ) {
 				tipEl.textContent = tips[ '<?php echo esc_js( $active_tab ); ?>' ];
 			}
-
-			var tipEl = document.getElementById( 'spa-help-tab-tip' );
 
 			tabs.forEach( function ( tab ) {
 				tab.addEventListener( 'click', function () {

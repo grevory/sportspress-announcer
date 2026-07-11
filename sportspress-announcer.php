@@ -44,11 +44,31 @@ require_once SPA_PLUGIN_DIR . 'admin/class-spa-upcoming-slack.php';
 require_once SPA_PLUGIN_DIR . 'admin/class-spa-team-color.php';
 
 /**
+ * Render the admin notice shown when SportsPress is not active.
+ *
+ * @return void
+ */
+function spa_render_sportspress_missing_notice(): void {
+	if ( ! current_user_can( 'activate_plugins' ) ) {
+		return;
+	}
+	?>
+	<div class="notice notice-warning">
+		<p><?php esc_html_e( 'SportsPress Announcer requires the SportsPress plugin to be installed and active. Announcements are paused until it is.', 'sportspress-announcer' ); ?></p>
+	</div>
+	<?php
+}
+
+/**
  * Initialize the plugin services.
  *
  * @return void
  */
 function spa_init(): void {
+	if ( ! class_exists( 'SportsPress' ) ) {
+		add_action( 'admin_notices', 'spa_render_sportspress_missing_notice' );
+		return;
+	}
 	if ( is_admin() ) {
 		new SPA_Settings();
 		new SPA_Facebook_Notice();
