@@ -2971,7 +2971,7 @@ class SPA_Settings {
 		$discord_active = ! empty( get_option( self::OPTION_WEBHOOK, '' ) );
 
 		// Active tab — server-side, falls back to dashboard.
-		$allowed_tabs = array( 'dashboard', 'channels', 'digest', 'templates', 'general', 'log' );
+		$allowed_tabs = array( 'dashboard', 'channels', 'digest', 'templates', 'general', 'log', 'pro' );
 		$active_tab   = isset( $_GET['tab'] ) && in_array( $_GET['tab'], $allowed_tabs, true ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 			? sanitize_key( $_GET['tab'] ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 			: 'dashboard';
@@ -3075,6 +3075,9 @@ class SPA_Settings {
 			<button type="button" class="spa-tab<?php echo 'log' === $active_tab ? ' is-active' : ''; ?>" data-tab="log" role="tab" aria-selected="<?php echo 'log' === $active_tab ? 'true' : 'false'; ?>">
 				<?php esc_html_e( 'Log', 'sportspress-announcer' ); ?>
 			</button>
+			<button type="button" class="spa-tab<?php echo 'pro' === $active_tab ? ' is-active' : ''; ?>" data-tab="pro" role="tab" aria-selected="<?php echo 'pro' === $active_tab ? 'true' : 'false'; ?>">
+				<?php esc_html_e( 'Pro', 'sportspress-announcer' ); ?>
+			</button>
 		</nav>
 		<?php
 	}
@@ -3117,7 +3120,7 @@ class SPA_Settings {
 	}
 
 	/**
-	 * Render all six tab panels.
+	 * Render all tab panels.
 	 *
 	 * @param array $ctx Page context from page_context().
 	 * @return void
@@ -3166,6 +3169,11 @@ class SPA_Settings {
 		<!-- Log tab -->
 		<div id="spa-panel-log" class="spa-panel<?php echo 'log' === $active_tab ? ' is-active' : ''; ?>" role="tabpanel">
 			<?php $this->render_log_tab(); ?>
+		</div>
+
+		<!-- Pro tab -->
+		<div id="spa-panel-pro" class="spa-panel<?php echo 'pro' === $active_tab ? ' is-active' : ''; ?>" role="tabpanel">
+			<?php SPA_Pro_Tab::render(); ?>
 		</div>
 		<?php
 	}
@@ -3282,8 +3290,8 @@ class SPA_Settings {
 					<?php esc_html_e( 'Facebook', 'sportspress-announcer' ); ?>
 					<span class="spa-pro-badge"><?php esc_html_e( 'Pro', 'sportspress-announcer' ); ?></span>
 				</div>
-				<a href="https://sportspress-announcer.com/pro" target="_blank" rel="noopener" style="font-size:11px;color:#2271b1;">
-					<?php esc_html_e( 'Upgrade to unlock →', 'sportspress-announcer' ); ?>
+				<a href="<?php echo esc_url( SPA_License::upgrade_url( 'facebook-card' ) ); ?>" style="font-size:11px;color:#2271b1;">
+					<?php esc_html_e( 'Coming soon →', 'sportspress-announcer' ); ?>
 				</a>
 			</div>
 		</div>
@@ -3365,6 +3373,7 @@ class SPA_Settings {
 				templates: '<?php echo esc_js( __( 'Click any placeholder chip to insert it into the template. Team names are auto-bolded on each platform.', 'sportspress-announcer' ) ); ?>',
 				general:   '<?php echo esc_js( __( 'Your score column key must match the result column slug set up in SportsPress → Result Columns.', 'sportspress-announcer' ) ); ?>',
 				log:       '<?php echo esc_js( __( 'Full history of every announcement sent. Filter by type or search by event name.', 'sportspress-announcer' ) ); ?>',
+				pro:       '<?php echo esc_js( __( 'A look at what Pro will add. Not for sale yet, but coming soon.', 'sportspress-announcer' ) ); ?>',
 			};
 
 			if ( tipEl && tips[ '<?php echo esc_js( $active_tab ); ?>' ] ) {
@@ -3531,8 +3540,8 @@ class SPA_Settings {
 			<div class="spa-pro-strip">
 				<span class="dashicons dashicons-lock"></span>
 				<?php esc_html_e( 'Scheduling & automatic posting require Pro.', 'sportspress-announcer' ); ?>
-				<a href="<?php echo esc_url( $this->weekly_digest_upgrade_url() ); ?>" target="_blank" rel="noopener noreferrer">
-					<?php esc_html_e( 'Upgrade to Pro — $39/yr →', 'sportspress-announcer' ); ?>
+				<a href="<?php echo esc_url( $this->weekly_digest_upgrade_url() ); ?>">
+					<?php esc_html_e( 'Coming soon: see what Pro adds →', 'sportspress-announcer' ); ?>
 				</a>
 			</div>
 			<?php endif; ?>
@@ -3946,12 +3955,12 @@ class SPA_Settings {
 	}
 
 	/**
-	 * Upgrade URL for the Weekly Digest Pro feature, with UTM tagging.
+	 * Link target for the Weekly Digest Pro strip: the in-plugin Pro page.
 	 *
 	 * @return string
 	 */
 	private function weekly_digest_upgrade_url(): string {
-		return add_query_arg( 'utm_source', 'plugin-weekly-digest', 'https://example.com/sportspress-announcer-pro' );
+		return SPA_License::upgrade_url( 'weekly-digest' );
 	}
 
 	/**

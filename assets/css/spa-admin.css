@@ -579,3 +579,17 @@
 	gap: 8px;
 	justify-content: flex-end;
 }
+
+/* ── Pro tab ── */
+.spa-pro-page { max-width: 640px; }
+.spa-pro-page h2 {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+.spa-pro-feature-list {
+	margin: 16px 0 20px;
+	list-style: disc;
+	padding-left: 1.5em;
+}
+.spa-pro-feature-list li { margin-bottom: 12px; }

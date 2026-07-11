@@ -44,6 +44,7 @@ if ( ! class_exists( 'WP_Error' ) ) {
 
 // Load the classes under test.
 require_once dirname( __DIR__ ) . '/includes/licensing/class-spa-license.php';
+require_once dirname( __DIR__ ) . '/admin/class-spa-pro-tab.php';
 require_once dirname( __DIR__ ) . '/admin/class-spa-settings.php';
 require_once dirname( __DIR__ ) . '/includes/class-spa-message-formatter.php';
 require_once dirname( __DIR__ ) . '/includes/class-spa-event-handler.php';

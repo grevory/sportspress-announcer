@@ -35,6 +35,7 @@ require_once SPA_PLUGIN_DIR . 'includes/digest/class-spa-digest-builder.php';
 require_once SPA_PLUGIN_DIR . 'includes/digest/class-spa-digest-formatter.php';
 require_once SPA_PLUGIN_DIR . 'includes/digest/class-spa-daily-digest-scheduler.php';
 require_once SPA_PLUGIN_DIR . 'includes/digest/class-spa-weekly-digest-scheduler.php';
+require_once SPA_PLUGIN_DIR . 'admin/class-spa-pro-tab.php';
 require_once SPA_PLUGIN_DIR . 'admin/class-spa-settings.php';
 require_once SPA_PLUGIN_DIR . 'admin/class-spa-facebook-notice.php';
 require_once SPA_PLUGIN_DIR . 'admin/class-spa-upcoming-notice.php';
