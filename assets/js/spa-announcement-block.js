@@ -14,7 +14,7 @@
 	var ServerSideRender = serverSideRender; // wp.serverSideRender is the default export.
 
 	function leagueOptions() {
-		var opts = [ { value: 0, label: __( 'Select a league…', 'sportspress-announcer' ) } ];
+		var opts = [ { value: 0, label: __( 'Select a league…', 'announcer-for-sportspress' ) } ];
 		( cfg.leagues || [] ).forEach( function ( league ) {
 			opts.push( { value: league.value, label: league.label } );
 		} );
@@ -27,9 +27,9 @@
 			null,
 			el(
 				components.PanelBody,
-				{ title: __( 'Recap settings', 'sportspress-announcer' ), initialOpen: true },
+				{ title: __( 'Recap settings', 'announcer-for-sportspress' ), initialOpen: true },
 				el( components.SelectControl, {
-					label: __( 'League', 'sportspress-announcer' ),
+					label: __( 'League', 'announcer-for-sportspress' ),
 					value: attributes.leagueId,
 					options: leagueOptions(),
 					onChange: function ( value ) {
@@ -37,7 +37,7 @@
 					},
 				} ),
 				el( components.RangeControl, {
-					label: __( 'Days of history', 'sportspress-announcer' ),
+					label: __( 'Days of history', 'announcer-for-sportspress' ),
 					value: attributes.days,
 					min: 1,
 					max: 90,
@@ -55,8 +55,8 @@
 				components.Placeholder,
 				{
 					icon: 'megaphone',
-					label: __( 'SportsPress Announcement', 'sportspress-announcer' ),
-					instructions: __( 'Choose a league in the block settings to show its recap.', 'sportspress-announcer' ),
+					label: __( 'SportsPress Announcement', 'announcer-for-sportspress' ),
+					instructions: __( 'Choose a league in the block settings to show its recap.', 'announcer-for-sportspress' ),
 				}
 			);
 		}
@@ -68,8 +68,8 @@
 
 	blocks.registerBlockType( 'spa/announcement', {
 		apiVersion: 2,
-		title: __( 'SportsPress Announcement', 'sportspress-announcer' ),
-		description: __( 'Embed a league recap — results, standings, leaders and upcoming games.', 'sportspress-announcer' ),
+		title: __( 'SportsPress Announcement', 'announcer-for-sportspress' ),
+		description: __( 'Embed a league recap — results, standings, leaders and upcoming games.', 'announcer-for-sportspress' ),
 		icon: 'megaphone',
 		category: 'widgets',
 		attributes: {

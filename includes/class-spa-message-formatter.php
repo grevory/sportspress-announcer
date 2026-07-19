@@ -74,7 +74,7 @@ class SPA_Message_Formatter {
 		return array(
 			'embeds' => array(
 				array(
-					'title'       => __( 'Match Result', 'sportspress-announcer' ),
+					'title'       => __( 'Match Result', 'announcer-for-sportspress' ),
 					'description' => $description,
 					'color'       => $color,
 					'footer'      => array( 'text' => $footer_text ),

@@ -53,22 +53,22 @@ class SPA_Facebook_Notice {
 		$digest_text = $this->build_digest_text( $by_date );
 		?>
 		<div class="notice notice-info is-dismissible spa-facebook-notice">
-			<p><strong><?php esc_html_e( 'SportsPress Announcer - Recent Results', 'sportspress-announcer' ); ?></strong></p>
+			<p><strong><?php esc_html_e( 'Announcer for SportsPress - Recent Results', 'announcer-for-sportspress' ); ?></strong></p>
 			<?php $this->render_event_list( $by_date ); ?>
 			<p style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
 				<button
 					type="button"
 					class="button"
 					data-spa-copy="<?php echo esc_attr( $digest_text ); ?>"
-				><?php esc_html_e( 'Copy results', 'sportspress-announcer' ); ?></button>
+				><?php esc_html_e( 'Copy results', 'announcer-for-sportspress' ); ?></button>
 				<a
 					href="<?php echo esc_url( $this->facebook_share_url() ); ?>"
 					target="_blank"
 					rel="noopener noreferrer"
 					class="button button-primary"
-				><?php esc_html_e( 'Share to Facebook', 'sportspress-announcer' ); ?></a>
-				<a href="<?php echo esc_url( $dismiss_url ); ?>" class="button"><?php esc_html_e( 'Dismiss', 'sportspress-announcer' ); ?></a>
-				<span class="spa-copy-feedback" style="display:none; color:#3c763d;"><?php esc_html_e( 'Copied!', 'sportspress-announcer' ); ?></span>
+				><?php esc_html_e( 'Share to Facebook', 'announcer-for-sportspress' ); ?></a>
+				<a href="<?php echo esc_url( $dismiss_url ); ?>" class="button"><?php esc_html_e( 'Dismiss', 'announcer-for-sportspress' ); ?></a>
+				<span class="spa-copy-feedback" style="display:none; color:#3c763d;"><?php esc_html_e( 'Copied!', 'announcer-for-sportspress' ); ?></span>
 			</p>
 		</div>
 		<?php
@@ -198,7 +198,7 @@ class SPA_Facebook_Notice {
 		check_admin_referer( self::ACTION_DISMISS );
 
 		if ( ! current_user_can( 'edit_others_posts' ) ) {
-			wp_die( esc_html__( 'You do not have permission to do this.', 'sportspress-announcer' ) );
+			wp_die( esc_html__( 'You do not have permission to do this.', 'announcer-for-sportspress' ) );
 		}
 
 		update_user_meta( get_current_user_id(), self::USER_META_DISMISSED, time() );
@@ -278,8 +278,8 @@ class SPA_Facebook_Notice {
 		$away_id    = (int) $team_ids[1];
 		$home_title = get_the_title( $home_id );
 		$away_title = get_the_title( $away_id );
-		$home       = wp_specialchars_decode( $home_title ? $home_title : __( 'Home', 'sportspress-announcer' ), ENT_QUOTES );
-		$away       = wp_specialchars_decode( $away_title ? $away_title : __( 'Away', 'sportspress-announcer' ), ENT_QUOTES );
+		$home       = wp_specialchars_decode( $home_title ? $home_title : __( 'Home', 'announcer-for-sportspress' ), ENT_QUOTES );
+		$away       = wp_specialchars_decode( $away_title ? $away_title : __( 'Away', 'announcer-for-sportspress' ), ENT_QUOTES );
 
 		$results    = get_post_meta( $post_id, 'sp_results', true );
 		$home_score = '';

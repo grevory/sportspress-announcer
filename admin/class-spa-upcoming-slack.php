@@ -30,13 +30,13 @@ class SPA_Upcoming_Slack {
 		check_ajax_referer( 'spa_send_upcoming_slack_nonce', 'nonce' );
 
 		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_send_json_error( __( 'Permission denied.', 'sportspress-announcer' ) );
+			wp_send_json_error( __( 'Permission denied.', 'announcer-for-sportspress' ) );
 		}
 
 		$result = $this->send_digest();
 
 		if ( false === $result ) {
-			wp_send_json_error( __( 'No upcoming games found in the next 7 days.', 'sportspress-announcer' ) );
+			wp_send_json_error( __( 'No upcoming games found in the next 7 days.', 'announcer-for-sportspress' ) );
 		}
 
 		if ( is_wp_error( $result ) ) {
@@ -55,7 +55,7 @@ class SPA_Upcoming_Slack {
 	public function send_digest() {
 		$webhook_url = get_option( SPA_Settings::OPTION_SLACK_WEBHOOK, '' );
 		if ( empty( $webhook_url ) ) {
-			return new \WP_Error( 'no_webhook', __( 'No Slack webhook URL configured.', 'sportspress-announcer' ) );
+			return new \WP_Error( 'no_webhook', __( 'No Slack webhook URL configured.', 'announcer-for-sportspress' ) );
 		}
 
 		$notice = new SPA_Upcoming_Notice();
@@ -81,13 +81,13 @@ class SPA_Upcoming_Slack {
 	 */
 	private function build_payload( array $games ): array {
 		return array(
-			'text'   => __( 'Upcoming Games', 'sportspress-announcer' ),
+			'text'   => __( 'Upcoming Games', 'announcer-for-sportspress' ),
 			'blocks' => array(
 				array(
 					'type' => 'header',
 					'text' => array(
 						'type'  => 'plain_text',
-						'text'  => __( 'Upcoming Games', 'sportspress-announcer' ),
+						'text'  => __( 'Upcoming Games', 'announcer-for-sportspress' ),
 						'emoji' => true,
 					),
 				),
@@ -112,7 +112,7 @@ class SPA_Upcoming_Slack {
 		SPA_Log::write(
 			array(
 				'type'     => 'digest',
-				'label'    => __( 'Fixtures digest', 'sportspress-announcer' ),
+				'label'    => __( 'Fixtures digest', 'announcer-for-sportspress' ),
 				'platform' => 'slack',
 				'status'   => $status,
 			)

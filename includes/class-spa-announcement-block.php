@@ -47,7 +47,7 @@ class SPA_Announcement_Block {
 
 		wp_localize_script( 'spa-announcement-block', 'SPA_BLOCK', array( 'leagues' => $this->league_options() ) );
 
-		wp_set_script_translations( 'spa-announcement-block', 'sportspress-announcer' );
+		wp_set_script_translations( 'spa-announcement-block', 'announcer-for-sportspress' );
 
 		register_block_type(
 			self::BLOCK,
@@ -85,7 +85,7 @@ class SPA_Announcement_Block {
 			// Give editors a visible cue instead of an empty block; on the front
 			// end an empty recap should simply render nothing.
 			return $this->is_editor_request()
-				? '<div class="spa-announcement-empty">' . esc_html__( 'No recap to show yet — pick a league with recent games in the block settings.', 'sportspress-announcer' ) . '</div>'
+				? '<div class="spa-announcement-empty">' . esc_html__( 'No recap to show yet — pick a league with recent games in the block settings.', 'announcer-for-sportspress' ) . '</div>'
 				: '';
 		}
 

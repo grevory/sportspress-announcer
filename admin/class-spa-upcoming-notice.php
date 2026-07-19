@@ -55,7 +55,7 @@ class SPA_Upcoming_Notice {
 		$copy_text = $this->build_copy_text( $by_date );
 		?>
 		<div class="notice notice-info is-dismissible spa-upcoming-notice">
-			<p><strong><?php esc_html_e( 'SportsPress Announcer - Upcoming Games', 'sportspress-announcer' ); ?></strong></p>
+			<p><strong><?php esc_html_e( 'Announcer for SportsPress - Upcoming Games', 'announcer-for-sportspress' ); ?></strong></p>
 			<?php $this->render_event_list( $by_date ); ?>
 			<?php $this->render_action_buttons( $copy_text, $dismiss_url ); ?>
 			<?php $this->render_upsell(); ?>
@@ -117,14 +117,14 @@ class SPA_Upcoming_Notice {
 				type="button"
 				class="button"
 				data-spa-copy="<?php echo esc_attr( $copy_text ); ?>"
-			><?php esc_html_e( 'Copy schedule', 'sportspress-announcer' ); ?></button>
+			><?php esc_html_e( 'Copy schedule', 'announcer-for-sportspress' ); ?></button>
 			<?php if ( get_option( 'spa_discord_webhook_url', '' ) ) : ?>
 			<button
 				type="button"
 				class="button spa-send-upcoming-btn"
 				data-action="spa_send_upcoming"
 				data-nonce="<?php echo esc_attr( wp_create_nonce( 'spa_send_upcoming_nonce' ) ); ?>"
-			><?php esc_html_e( 'Send to Discord', 'sportspress-announcer' ); ?></button>
+			><?php esc_html_e( 'Send to Discord', 'announcer-for-sportspress' ); ?></button>
 			<?php endif; ?>
 			<?php if ( get_option( SPA_Settings::OPTION_SLACK_WEBHOOK, '' ) ) : ?>
 			<button
@@ -132,11 +132,11 @@ class SPA_Upcoming_Notice {
 				class="button spa-send-upcoming-btn"
 				data-action="spa_send_upcoming_slack"
 				data-nonce="<?php echo esc_attr( wp_create_nonce( 'spa_send_upcoming_slack_nonce' ) ); ?>"
-			><?php esc_html_e( 'Send to Slack', 'sportspress-announcer' ); ?></button>
+			><?php esc_html_e( 'Send to Slack', 'announcer-for-sportspress' ); ?></button>
 			<?php endif; ?>
-			<a href="<?php echo esc_url( $dismiss_url ); ?>" class="button"><?php esc_html_e( 'Dismiss', 'sportspress-announcer' ); ?></a>
+			<a href="<?php echo esc_url( $dismiss_url ); ?>" class="button"><?php esc_html_e( 'Dismiss', 'announcer-for-sportspress' ); ?></a>
 			<span class="spa-send-feedback" style="display:none;"></span>
-			<span class="spa-copy-feedback" style="display:none; color:#3c763d;"><?php esc_html_e( 'Copied!', 'sportspress-announcer' ); ?></span>
+			<span class="spa-copy-feedback" style="display:none; color:#3c763d;"><?php esc_html_e( 'Copied!', 'announcer-for-sportspress' ); ?></span>
 		</p>
 		<?php
 	}
@@ -156,12 +156,12 @@ class SPA_Upcoming_Notice {
 			printf(
 				wp_kses(
 					/* translators: %s: settings page URL */
-					__( 'Want this sent automatically to Discord or Slack? <a href="%s">Upgrade to Pro →</a>', 'sportspress-announcer' ),
+					__( 'Want this sent automatically to Discord or Slack? <a href="%s">Upgrade to Pro →</a>', 'announcer-for-sportspress' ),
 					array(
 						'a' => array( 'href' => array() ),
 					)
 				),
-				esc_url( admin_url( 'options-general.php?page=sportspress-announcer' ) )
+				esc_url( admin_url( 'options-general.php?page=announcer-for-sportspress' ) )
 			);
 			?>
 		</p>
@@ -260,7 +260,7 @@ class SPA_Upcoming_Notice {
 					if ( feedback ) {
 						feedback.style.display = 'inline';
 						feedback.style.color   = '';
-						feedback.textContent   = '<?php echo esc_js( __( 'Sending…', 'sportspress-announcer' ) ); ?>';
+						feedback.textContent   = '<?php echo esc_js( __( 'Sending…', 'announcer-for-sportspress' ) ); ?>';
 					}
 					var data = new FormData();
 					data.append( 'action', btn.getAttribute( 'data-action' ) );
@@ -270,7 +270,7 @@ class SPA_Upcoming_Notice {
 						.then( function ( json ) {
 							if ( json.success ) {
 								if ( feedback ) {
-									feedback.textContent = '<?php echo esc_js( __( '✓ Sent!', 'sportspress-announcer' ) ); ?>';
+									feedback.textContent = '<?php echo esc_js( __( '✓ Sent!', 'announcer-for-sportspress' ) ); ?>';
 									feedback.style.color = '#3c763d';
 									feedback.style.display = 'inline';
 								}
@@ -281,7 +281,7 @@ class SPA_Upcoming_Notice {
 								}, 1500 );
 							} else {
 								if ( feedback ) {
-									feedback.textContent = '✗ ' + ( json.data || '<?php echo esc_js( __( 'Error', 'sportspress-announcer' ) ); ?>' );
+									feedback.textContent = '✗ ' + ( json.data || '<?php echo esc_js( __( 'Error', 'announcer-for-sportspress' ) ); ?>' );
 									feedback.style.color = '#a94442';
 									feedback.style.display = 'inline';
 								}
@@ -290,7 +290,7 @@ class SPA_Upcoming_Notice {
 						} )
 						.catch( function () {
 							if ( feedback ) {
-								feedback.textContent = '<?php echo esc_js( __( '✗ Request failed.', 'sportspress-announcer' ) ); ?>';
+								feedback.textContent = '<?php echo esc_js( __( '✗ Request failed.', 'announcer-for-sportspress' ) ); ?>';
 								feedback.style.color = '#a94442';
 								feedback.style.display = 'inline';
 							}
@@ -310,7 +310,7 @@ class SPA_Upcoming_Notice {
 		check_admin_referer( self::ACTION_DISMISS );
 
 		if ( ! current_user_can( 'edit_others_posts' ) ) {
-			wp_die( esc_html__( 'You do not have permission to do this.', 'sportspress-announcer' ) );
+			wp_die( esc_html__( 'You do not have permission to do this.', 'announcer-for-sportspress' ) );
 		}
 
 		update_user_meta( get_current_user_id(), self::USER_META_DISMISSED, time() );
@@ -389,8 +389,8 @@ class SPA_Upcoming_Notice {
 		$away_id    = (int) $team_ids[1];
 		$home_title = get_the_title( $home_id );
 		$away_title = get_the_title( $away_id );
-		$home       = wp_specialchars_decode( $home_title ? $home_title : __( 'Home', 'sportspress-announcer' ), ENT_QUOTES );
-		$away       = wp_specialchars_decode( $away_title ? $away_title : __( 'Away', 'sportspress-announcer' ), ENT_QUOTES );
+		$home       = wp_specialchars_decode( $home_title ? $home_title : __( 'Home', 'announcer-for-sportspress' ), ENT_QUOTES );
+		$away       = wp_specialchars_decode( $away_title ? $away_title : __( 'Away', 'announcer-for-sportspress' ), ENT_QUOTES );
 
 		$leagues     = wp_get_post_terms( $post_id, 'sp_league', array( 'fields' => 'names' ) );
 		$competition = ( ! is_wp_error( $leagues ) && ! empty( $leagues ) ) ? $leagues[0] : '';

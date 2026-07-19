@@ -48,14 +48,14 @@ class SPA_Event_Handler {
 			return;
 		}
 
-		$digest_url = admin_url( 'options-general.php?page=sportspress-announcer&tab=digest' );
+		$digest_url = admin_url( 'options-general.php?page=announcer-for-sportspress&tab=digest' );
 		$nonce      = wp_create_nonce( 'spa_dismiss_weekly_upsell_nonce' );
 		?>
 		<div class="notice notice-info is-dismissible spa-weekly-upsell" data-nonce="<?php echo esc_attr( $nonce ); ?>">
 			<p>
-				<?php esc_html_e( 'Result announced! 🏆', 'sportspress-announcer' ); ?>
-				<?php esc_html_e( 'Turn one-off scores into a weekly rhythm —', 'sportspress-announcer' ); ?>
-				<a href="<?php echo esc_url( $digest_url ); ?>"><?php esc_html_e( 'set up the Weekly Recap →', 'sportspress-announcer' ); ?></a>
+				<?php esc_html_e( 'Result announced! 🏆', 'announcer-for-sportspress' ); ?>
+				<?php esc_html_e( 'Turn one-off scores into a weekly rhythm —', 'announcer-for-sportspress' ); ?>
+				<a href="<?php echo esc_url( $digest_url ); ?>"><?php esc_html_e( 'set up the Weekly Recap →', 'announcer-for-sportspress' ); ?></a>
 			</p>
 		</div>
 		<script>
@@ -295,8 +295,8 @@ class SPA_Event_Handler {
 		}
 
 		return array(
-			'home'        => $home ? $home : __( 'Home', 'sportspress-announcer' ),
-			'away'        => $away ? $away : __( 'Away', 'sportspress-announcer' ),
+			'home'        => $home ? $home : __( 'Home', 'announcer-for-sportspress' ),
+			'away'        => $away ? $away : __( 'Away', 'announcer-for-sportspress' ),
 			'home_score'  => $home_score,
 			'away_score'  => $away_score,
 			'competition' => $competition,

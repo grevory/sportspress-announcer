@@ -1,6 +1,6 @@
 <?php
 /**
- * Settings page: Settings → SportsPress Announcer.
+ * Settings page: Settings → Announcer for SportsPress.
  *
  * @package SportsPress_Announcer
  */
@@ -10,7 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Registers and renders the SportsPress Announcer settings page.
+ * Registers and renders the Announcer for SportsPress settings page.
  */
 class SPA_Settings {
 
@@ -47,7 +47,7 @@ class SPA_Settings {
 	// Digest schedule.
 	// (option keys delegated to SPA_Daily_Digest_Scheduler).
 
-	private const MENU_SLUG = 'sportspress-announcer';
+	private const MENU_SLUG = 'announcer-for-sportspress';
 
 	/**
 	 * Register settings-page callbacks.
@@ -118,17 +118,17 @@ class SPA_Settings {
 		check_ajax_referer( 'spa_retry_nonce', 'nonce' );
 
 		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_send_json_error( __( 'Permission denied.', 'sportspress-announcer' ) );
+			wp_send_json_error( __( 'Permission denied.', 'announcer-for-sportspress' ) );
 		}
 
 		$uid = sanitize_text_field( wp_unslash( $_POST['uid'] ?? '' ) );
 		if ( '' === $uid ) {
-			wp_send_json_error( __( 'Missing entry ID.', 'sportspress-announcer' ) );
+			wp_send_json_error( __( 'Missing entry ID.', 'announcer-for-sportspress' ) );
 		}
 
 		$entry = $this->find_log_entry( $uid );
 		if ( null === $entry ) {
-			wp_send_json_error( __( 'Log entry not found.', 'sportspress-announcer' ) );
+			wp_send_json_error( __( 'Log entry not found.', 'announcer-for-sportspress' ) );
 		}
 
 		if ( 'result' === $entry['type'] ) {
@@ -141,7 +141,7 @@ class SPA_Settings {
 			$this->retry_digest_announcement( $uid, $entry );
 		}
 
-		wp_send_json_error( __( 'Unknown entry type.', 'sportspress-announcer' ) );
+		wp_send_json_error( __( 'Unknown entry type.', 'announcer-for-sportspress' ) );
 	}
 
 	/**
@@ -173,7 +173,7 @@ class SPA_Settings {
 
 		$post = get_post( $post_id );
 		if ( ! $post || 'sp_event' !== $post->post_type ) {
-			wp_send_json_error( __( 'Event post not found.', 'sportspress-announcer' ) );
+			wp_send_json_error( __( 'Event post not found.', 'announcer-for-sportspress' ) );
 		}
 
 		$handler   = new SPA_Event_Handler();
@@ -181,7 +181,7 @@ class SPA_Settings {
 
 		$event = $handler->extract_event_data( $post_id );
 		if ( ! $event ) {
-			wp_send_json_error( __( 'Could not read event data.', 'sportspress-announcer' ) );
+			wp_send_json_error( __( 'Could not read event data.', 'announcer-for-sportspress' ) );
 		}
 
 		if ( 'discord' === $platform ) {
@@ -191,7 +191,7 @@ class SPA_Settings {
 				: get_option( self::OPTION_WEBHOOK, '' );
 
 			if ( empty( $webhook_url ) ) {
-				wp_send_json_error( __( 'No Discord webhook configured.', 'sportspress-announcer' ) );
+				wp_send_json_error( __( 'No Discord webhook configured.', 'announcer-for-sportspress' ) );
 			}
 
 			$result = ( new SPA_Webhook_Discord( $webhook_url ) )->send( $formatter->format_embed( $event ) );
@@ -202,7 +202,7 @@ class SPA_Settings {
 				: get_option( self::OPTION_SLACK_WEBHOOK, '' );
 
 			if ( empty( $webhook_url ) ) {
-				wp_send_json_error( __( 'No Slack webhook configured.', 'sportspress-announcer' ) );
+				wp_send_json_error( __( 'No Slack webhook configured.', 'announcer-for-sportspress' ) );
 			}
 
 			$result = ( new SPA_Webhook_Slack( $webhook_url ) )->send( $formatter->format_slack( $event ) );
@@ -225,19 +225,19 @@ class SPA_Settings {
 		$games  = $notice->get_upcoming_games();
 
 		if ( empty( $games ) ) {
-			wp_send_json_error( __( 'No upcoming games found.', 'sportspress-announcer' ) );
+			wp_send_json_error( __( 'No upcoming games found.', 'announcer-for-sportspress' ) );
 		}
 
 		if ( 'discord' === $platform ) {
 			$webhook_url = get_option( self::OPTION_WEBHOOK, '' );
 			if ( empty( $webhook_url ) ) {
-				wp_send_json_error( __( 'No Discord webhook configured.', 'sportspress-announcer' ) );
+				wp_send_json_error( __( 'No Discord webhook configured.', 'announcer-for-sportspress' ) );
 			}
 			$sender  = new SPA_Upcoming_Discord();
 			$payload = array(
 				'embeds' => array(
 					array(
-						'title'       => __( 'Upcoming Games', 'sportspress-announcer' ),
+						'title'       => __( 'Upcoming Games', 'announcer-for-sportspress' ),
 						'description' => $sender->build_description( $games ),
 						'color'       => 0x5865F2,
 					),
@@ -247,18 +247,18 @@ class SPA_Settings {
 		} else {
 			$webhook_url = get_option( self::OPTION_SLACK_WEBHOOK, '' );
 			if ( empty( $webhook_url ) ) {
-				wp_send_json_error( __( 'No Slack webhook configured.', 'sportspress-announcer' ) );
+				wp_send_json_error( __( 'No Slack webhook configured.', 'announcer-for-sportspress' ) );
 			}
 			$sender  = new SPA_Upcoming_Slack();
 			$mrkdwn  = $sender->build_mrkdwn( $games );
 			$payload = array(
-				'text'   => __( 'Upcoming Games', 'sportspress-announcer' ),
+				'text'   => __( 'Upcoming Games', 'announcer-for-sportspress' ),
 				'blocks' => array(
 					array(
 						'type' => 'header',
 						'text' => array(
 							'type'  => 'plain_text',
-							'text'  => __( 'Upcoming Games', 'sportspress-announcer' ),
+							'text'  => __( 'Upcoming Games', 'announcer-for-sportspress' ),
 							'emoji' => true,
 						),
 					),
@@ -311,12 +311,12 @@ class SPA_Settings {
 		check_ajax_referer( 'spa_send_weekly_digest_now_nonce', 'nonce' );
 
 		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_send_json_error( __( 'Permission denied.', 'sportspress-announcer' ) );
+			wp_send_json_error( __( 'Permission denied.', 'announcer-for-sportspress' ) );
 		}
 
 		$league_id = isset( $_POST['league_id'] ) ? intval( wp_unslash( $_POST['league_id'] ) ) : 0;
 		if ( $league_id <= 0 ) {
-			wp_send_json_error( __( 'Choose a league first.', 'sportspress-announcer' ) );
+			wp_send_json_error( __( 'Choose a league first.', 'announcer-for-sportspress' ) );
 		}
 
 		$result = ( new SPA_Weekly_Digest_Scheduler() )->send_now( $league_id );
@@ -335,8 +335,8 @@ class SPA_Settings {
 	 */
 	public function add_menu(): void {
 		add_options_page(
-			__( 'SportsPress Announcer', 'sportspress-announcer' ),
-			__( 'SportsPress Announcer', 'sportspress-announcer' ),
+			__( 'Announcer for SportsPress', 'announcer-for-sportspress' ),
+			__( 'Announcer for SportsPress', 'announcer-for-sportspress' ),
 			'manage_options',
 			self::MENU_SLUG,
 			array( $this, 'render_page' )
@@ -414,11 +414,11 @@ class SPA_Settings {
 			)
 		);
 
-		add_settings_section( 'spa_section_sportspress', __( 'SportsPress', 'sportspress-announcer' ), '__return_false', self::MENU_SLUG );
+		add_settings_section( 'spa_section_sportspress', __( 'SportsPress', 'announcer-for-sportspress' ), '__return_false', self::MENU_SLUG );
 
 		add_settings_field(
 			self::OPTION_SCORE_COLUMN,
-			__( 'Score Column', 'sportspress-announcer' ),
+			__( 'Score Column', 'announcer-for-sportspress' ),
 			array( $this, 'render_score_column_field' ),
 			self::MENU_SLUG,
 			'spa_section_sportspress'
@@ -443,7 +443,7 @@ class SPA_Settings {
 
 		add_settings_section(
 			'spa_section_digest',
-			__( 'Fixtures Digest', 'sportspress-announcer' ),
+			__( 'Fixtures Digest', 'announcer-for-sportspress' ),
 			array( $this, 'render_digest_section_intro' ),
 			self::MENU_SLUG
 		);
@@ -453,7 +453,7 @@ class SPA_Settings {
 
 		add_settings_field(
 			'spa_upcoming_publish',
-			__( 'Send now', 'sportspress-announcer' ),
+			__( 'Send now', 'announcer-for-sportspress' ),
 			array( $this, 'render_upcoming_publish_field' ),
 			self::MENU_SLUG,
 			'spa_section_digest'
@@ -463,7 +463,7 @@ class SPA_Settings {
 
 		add_settings_field(
 			'spa_digest_schedule',
-			__( 'Auto-send', 'sportspress-announcer' ),
+			__( 'Auto-send', 'announcer-for-sportspress' ),
 			array( $this, 'render_digest_schedule_field' ),
 			self::MENU_SLUG,
 			'spa_section_digest'
@@ -537,14 +537,14 @@ class SPA_Settings {
 
 		add_settings_section(
 			'spa_section_announcements',
-			__( 'Announcements', 'sportspress-announcer' ),
+			__( 'Announcements', 'announcer-for-sportspress' ),
 			array( $this, 'render_announcements_section_intro' ),
 			self::MENU_SLUG
 		);
 
 		add_settings_field(
 			self::OPTION_RESULT_TEMPLATE,
-			__( 'Result Template', 'sportspress-announcer' ),
+			__( 'Result Template', 'announcer-for-sportspress' ),
 			array( $this, 'render_result_template_field' ),
 			self::MENU_SLUG,
 			'spa_section_announcements'
@@ -554,7 +554,7 @@ class SPA_Settings {
 		// message template lives on the Templates tab.
 		add_settings_field(
 			self::OPTION_UPCOMING_TEMPLATE,
-			__( 'Fixtures Template', 'sportspress-announcer' ),
+			__( 'Fixtures Template', 'announcer-for-sportspress' ),
 			array( $this, 'render_upcoming_template_field' ),
 			self::MENU_SLUG,
 			'spa_section_announcements'
@@ -587,11 +587,11 @@ class SPA_Settings {
 			)
 		);
 
-		add_settings_section( 'spa_section_discord', __( 'Discord', 'sportspress-announcer' ), '__return_false', self::MENU_SLUG );
+		add_settings_section( 'spa_section_discord', __( 'Discord', 'announcer-for-sportspress' ), '__return_false', self::MENU_SLUG );
 
 		add_settings_field(
 			self::OPTION_DISCORD_ENABLED,
-			__( 'Announcements', 'sportspress-announcer' ),
+			__( 'Announcements', 'announcer-for-sportspress' ),
 			array( $this, 'render_discord_enabled_field' ),
 			self::MENU_SLUG,
 			'spa_section_discord'
@@ -599,7 +599,7 @@ class SPA_Settings {
 
 		add_settings_field(
 			self::OPTION_WEBHOOK,
-			__( 'Webhook URL', 'sportspress-announcer' ),
+			__( 'Webhook URL', 'announcer-for-sportspress' ),
 			array( $this, 'render_webhook_field' ),
 			self::MENU_SLUG,
 			'spa_section_discord'
@@ -617,7 +617,7 @@ class SPA_Settings {
 
 		add_settings_field(
 			self::OPTION_DISCORD_CHANNEL_MAP,
-			__( 'Channel Routing', 'sportspress-announcer' ),
+			__( 'Channel Routing', 'announcer-for-sportspress' ),
 			array( $this, 'render_channel_map_field' ),
 			self::MENU_SLUG,
 			'spa_section_discord'
@@ -652,14 +652,14 @@ class SPA_Settings {
 
 		add_settings_section(
 			'spa_section_slack',
-			__( 'Slack (Pro)', 'sportspress-announcer' ),
+			__( 'Slack (Pro)', 'announcer-for-sportspress' ),
 			array( $this, 'render_slack_section_intro' ),
 			self::MENU_SLUG
 		);
 
 		add_settings_field(
 			self::OPTION_SLACK_ENABLED,
-			__( 'Announcements', 'sportspress-announcer' ),
+			__( 'Announcements', 'announcer-for-sportspress' ),
 			array( $this, 'render_slack_enabled_field' ),
 			self::MENU_SLUG,
 			'spa_section_slack'
@@ -667,7 +667,7 @@ class SPA_Settings {
 
 		add_settings_field(
 			self::OPTION_SLACK_WEBHOOK,
-			__( 'Webhook URL', 'sportspress-announcer' ),
+			__( 'Webhook URL', 'announcer-for-sportspress' ),
 			array( $this, 'render_slack_webhook_field' ),
 			self::MENU_SLUG,
 			'spa_section_slack'
@@ -694,7 +694,7 @@ class SPA_Settings {
 
 		add_settings_field(
 			self::OPTION_SLACK_CHANNEL_MAP,
-			__( 'Channel Routing', 'sportspress-announcer' ),
+			__( 'Channel Routing', 'announcer-for-sportspress' ),
 			array( $this, 'render_slack_channel_map_field' ),
 			self::MENU_SLUG,
 			'spa_section_slack'
@@ -727,11 +727,11 @@ class SPA_Settings {
 			)
 		);
 
-		add_settings_section( 'spa_section_facebook', __( 'Facebook', 'sportspress-announcer' ), '__return_false', self::MENU_SLUG );
+		add_settings_section( 'spa_section_facebook', __( 'Facebook', 'announcer-for-sportspress' ), '__return_false', self::MENU_SLUG );
 
 		add_settings_field(
 			self::OPTION_FACEBOOK_ENABLED,
-			__( 'Share Button', 'sportspress-announcer' ),
+			__( 'Share Button', 'announcer-for-sportspress' ),
 			array( $this, 'render_facebook_enabled_field' ),
 			self::MENU_SLUG,
 			'spa_section_facebook'
@@ -739,7 +739,7 @@ class SPA_Settings {
 
 		add_settings_field(
 			self::OPTION_FACEBOOK_TEMPLATE,
-			__( 'Result Template', 'sportspress-announcer' ),
+			__( 'Result Template', 'announcer-for-sportspress' ),
 			array( $this, 'render_facebook_template_field' ),
 			self::MENU_SLUG,
 			'spa_section_facebook'
@@ -757,23 +757,23 @@ class SPA_Settings {
 		check_ajax_referer( 'spa_test_webhook_nonce', 'nonce' );
 
 		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_send_json_error( __( 'Permission denied.', 'sportspress-announcer' ) );
+			wp_send_json_error( __( 'Permission denied.', 'announcer-for-sportspress' ) );
 		}
 
 		$url = esc_url_raw( wp_unslash( $_POST['webhook_url'] ?? '' ) );
 		if ( empty( $url ) ) {
-			wp_send_json_error( __( 'No webhook URL entered.', 'sportspress-announcer' ) );
+			wp_send_json_error( __( 'No webhook URL entered.', 'announcer-for-sportspress' ) );
 		}
 
 		if ( 0 !== strpos( $url, 'https://discord.com/api/webhooks/' ) ) {
-			wp_send_json_error( __( 'That doesn\'t look like a Discord webhook URL.', 'sportspress-announcer' ) );
+			wp_send_json_error( __( 'That doesn\'t look like a Discord webhook URL.', 'announcer-for-sportspress' ) );
 		}
 
 		$payload = array(
 			'embeds' => array(
 				array(
-					'title'       => __( 'SportsPress Announcer', 'sportspress-announcer' ),
-					'description' => __( 'Webhook connection successful.', 'sportspress-announcer' ),
+					'title'       => __( 'Announcer for SportsPress', 'announcer-for-sportspress' ),
+					'description' => __( 'Webhook connection successful.', 'announcer-for-sportspress' ),
 					'color'       => 0x57F287,
 				),
 			),
@@ -807,7 +807,7 @@ class SPA_Settings {
 			add_settings_error(
 				self::OPTION_WEBHOOK,
 				'spa_invalid_webhook',
-				__( 'That doesn\'t look like a Discord webhook URL. It should start with https://discord.com/api/webhooks/', 'sportspress-announcer' )
+				__( 'That doesn\'t look like a Discord webhook URL. It should start with https://discord.com/api/webhooks/', 'announcer-for-sportspress' )
 			);
 			return get_option( self::OPTION_WEBHOOK, '' );
 		}
@@ -823,7 +823,7 @@ class SPA_Settings {
 	 */
 	public function render_announcements_section_intro(): void {
 		?>
-		<p class="description"><?php esc_html_e( 'Configure the result message posted to Discord, Slack, and other channels.', 'sportspress-announcer' ); ?></p>
+		<p class="description"><?php esc_html_e( 'Configure the result message posted to Discord, Slack, and other channels.', 'announcer-for-sportspress' ); ?></p>
 		<?php
 	}
 
@@ -843,7 +843,7 @@ class SPA_Settings {
 			style="resize:vertical;"
 		><?php echo esc_textarea( $value ); ?></textarea>
 		<div style="display:flex; align-items:flex-start; gap:8px; margin-top:6px;">
-			<button type="button" class="button spa-emoji-trigger" data-target="<?php echo esc_attr( self::OPTION_RESULT_TEMPLATE ); ?>" style="flex-shrink:0;">😀 <?php esc_html_e( 'Emoji', 'sportspress-announcer' ); ?></button>
+			<button type="button" class="button spa-emoji-trigger" data-target="<?php echo esc_attr( self::OPTION_RESULT_TEMPLATE ); ?>" style="flex-shrink:0;">😀 <?php esc_html_e( 'Emoji', 'announcer-for-sportspress' ); ?></button>
 			<p class="description" style="margin:0;">
 				<?php
 				$chips = array( '{home}', '{away}', '{home_score}', '{away_score}', '{competition}', '{event_url}' );
@@ -851,16 +851,16 @@ class SPA_Settings {
 					printf(
 						'<code class="spa-placeholder" data-target="%s" style="cursor:pointer;" title="%s">%s</code> ',
 						esc_attr( self::OPTION_RESULT_TEMPLATE ),
-						esc_attr( __( 'Click to insert', 'sportspress-announcer' ) ),
+						esc_attr( __( 'Click to insert', 'announcer-for-sportspress' ) ),
 						esc_html( $chip )
 					);
 				}
 				?>
-				<br><?php esc_html_e( 'Team names are auto-bolded per platform.', 'sportspress-announcer' ); ?>
+				<br><?php esc_html_e( 'Team names are auto-bolded per platform.', 'announcer-for-sportspress' ); ?>
 				<?php if ( $this->slack_active() ) : ?>
-					<?php esc_html_e( 'Slack mentions (<!channel>, <!here>) and emoji work too.', 'sportspress-announcer' ); ?>
+					<?php esc_html_e( 'Slack mentions (<!channel>, <!here>) and emoji work too.', 'announcer-for-sportspress' ); ?>
 				<?php else : ?>
-					<?php esc_html_e( 'Emoji work too.', 'sportspress-announcer' ); ?>
+					<?php esc_html_e( 'Emoji work too.', 'announcer-for-sportspress' ); ?>
 				<?php endif; ?>
 			</p>
 		</div>
@@ -892,7 +892,7 @@ class SPA_Settings {
 				value="1"
 				<?php checked( $enabled ); ?>
 			/>
-			<?php esc_html_e( 'Send automatic Discord announcements when event results are published', 'sportspress-announcer' ); ?>
+			<?php esc_html_e( 'Send automatic Discord announcements when event results are published', 'announcer-for-sportspress' ); ?>
 		</label>
 		<?php
 	}
@@ -918,7 +918,7 @@ class SPA_Settings {
 			printf(
 				wp_kses(
 					/* translators: %s: URL to Discord docs */
-					__( 'Paste your Discord channel\'s incoming webhook URL. <a href="%s" target="_blank" rel="noopener">How to create a webhook →</a>', 'sportspress-announcer' ),
+					__( 'Paste your Discord channel\'s incoming webhook URL. <a href="%s" target="_blank" rel="noopener">How to create a webhook →</a>', 'announcer-for-sportspress' ),
 					array(
 						'a' => array(
 							'href'   => array(),
@@ -933,7 +933,7 @@ class SPA_Settings {
 		</p>
 		<p>
 			<button type="button" id="spa-test-webhook" class="button">
-				<?php esc_html_e( 'Send Test Message', 'sportspress-announcer' ); ?>
+				<?php esc_html_e( 'Send Test Message', 'announcer-for-sportspress' ); ?>
 			</button>
 			<span id="spa-test-result" style="display:inline-flex; align-items:center; min-height:30px; margin-left:8px; vertical-align:middle;"></span>
 		</p>
@@ -955,7 +955,7 @@ class SPA_Settings {
 			var input  = document.getElementById( '<?php echo esc_js( self::OPTION_WEBHOOK ); ?>' );
 			if ( ! btn || ! result || ! input ) return;
 			btn.addEventListener( 'click', function () {
-				result.textContent = '<?php echo esc_js( __( 'Sending…', 'sportspress-announcer' ) ); ?>';
+				result.textContent = '<?php echo esc_js( __( 'Sending…', 'announcer-for-sportspress' ) ); ?>';
 				result.style.color = '';
 				btn.disabled = true;
 				var data = new FormData();
@@ -966,15 +966,15 @@ class SPA_Settings {
 					.then( function ( r ) { return r.json(); } )
 					.then( function ( json ) {
 						if ( json.success ) {
-							result.textContent = '<?php echo esc_js( __( '✓ Test message sent!', 'sportspress-announcer' ) ); ?>';
+							result.textContent = '<?php echo esc_js( __( '✓ Test message sent!', 'announcer-for-sportspress' ) ); ?>';
 							result.style.color = '#46b450';
 						} else {
-							result.textContent = '<?php echo esc_js( __( '✗ Error: ', 'sportspress-announcer' ) ); ?>' + ( json.data || '' );
+							result.textContent = '<?php echo esc_js( __( '✗ Error: ', 'announcer-for-sportspress' ) ); ?>' + ( json.data || '' );
 							result.style.color = '#dc3232';
 						}
 					} )
 					.catch( function () {
-						result.textContent = '<?php echo esc_js( __( '✗ Request failed.', 'sportspress-announcer' ) ); ?>';
+						result.textContent = '<?php echo esc_js( __( '✗ Request failed.', 'announcer-for-sportspress' ) ); ?>';
 						result.style.color = '#dc3232';
 					} )
 					.finally( function () {
@@ -1022,7 +1022,7 @@ class SPA_Settings {
 					'spa_invalid_channel_map_url',
 					sprintf(
 						/* translators: %s: competition/league label */
-						__( 'Invalid Discord webhook URL for "%s" — must start with https://discord.com/api/webhooks/', 'sportspress-announcer' ),
+						__( 'Invalid Discord webhook URL for "%s" — must start with https://discord.com/api/webhooks/', 'announcer-for-sportspress' ),
 						$key
 					)
 				);
@@ -1042,17 +1042,17 @@ class SPA_Settings {
 	public function render_channel_map_field(): void {
 		$map    = $this->seed_channel_map( self::OPTION_DISCORD_CHANNEL_MAP );
 		$opt    = self::OPTION_DISCORD_CHANNEL_MAP;
-		$ph_key = __( 'Division / competition name', 'sportspress-announcer' );
-		$ph_url = __( 'https://discord.com/api/webhooks/…', 'sportspress-announcer' );
+		$ph_key = __( 'Division / competition name', 'announcer-for-sportspress' );
+		$ph_url = __( 'https://discord.com/api/webhooks/…', 'announcer-for-sportspress' );
 		?>
 		<p class="description" style="margin-bottom:10px;">
-			<?php esc_html_e( 'Route each division to its own Discord channel. The key must match the competition name exactly. Leave the URL blank to use the default webhook. Per-division routing applies to result announcements only — the digest always uses the default webhook.', 'sportspress-announcer' ); ?>
+			<?php esc_html_e( 'Route each division to its own Discord channel. The key must match the competition name exactly. Leave the URL blank to use the default webhook. Per-division routing applies to result announcements only — the digest always uses the default webhook.', 'announcer-for-sportspress' ); ?>
 		</p>
 		<table id="spa-channel-map-table" style="border-collapse:collapse; width:100%; max-width:700px;">
 			<thead>
 				<tr>
-					<th style="text-align:left; padding:0 10px 6px 0; font-weight:600; width:35%;"><?php esc_html_e( 'Competition name', 'sportspress-announcer' ); ?></th>
-					<th style="text-align:left; padding:0 0 6px 0; font-weight:600;"><?php esc_html_e( 'Discord webhook URL', 'sportspress-announcer' ); ?></th>
+					<th style="text-align:left; padding:0 10px 6px 0; font-weight:600; width:35%;"><?php esc_html_e( 'Competition name', 'announcer-for-sportspress' ); ?></th>
+					<th style="text-align:left; padding:0 0 6px 0; font-weight:600;"><?php esc_html_e( 'Discord webhook URL', 'announcer-for-sportspress' ); ?></th>
 					<th style="width:30px;"></th>
 				</tr>
 			</thead>
@@ -1078,7 +1078,7 @@ class SPA_Settings {
 		</table>
 		<p style="margin-top:8px;">
 			<button type="button" id="spa-channel-map-add" class="button">
-				<?php esc_html_e( '+ Add channel', 'sportspress-announcer' ); ?>
+				<?php esc_html_e( '+ Add channel', 'announcer-for-sportspress' ); ?>
 			</button>
 		</p>
 		<?php
@@ -1154,7 +1154,7 @@ class SPA_Settings {
 					/>
 			</td>
 			<td style="padding:4px 0; text-align:center;">
-				<button type="button" class="button-link <?php echo esc_attr( $remove_class ); ?>" title="<?php esc_attr_e( 'Remove', 'sportspress-announcer' ); ?>" style="color:#a00; padding:4px;">&#x2715;</button>
+				<button type="button" class="button-link <?php echo esc_attr( $remove_class ); ?>" title="<?php esc_attr_e( 'Remove', 'announcer-for-sportspress' ); ?>" style="color:#a00; padding:4px;">&#x2715;</button>
 			</td>
 		</tr>
 		<?php
@@ -1172,8 +1172,8 @@ class SPA_Settings {
 			var table   = document.getElementById( 'spa-channel-map-table' );
 			var addBtn  = document.getElementById( 'spa-channel-map-add' );
 			var opt     = '<?php echo esc_js( self::OPTION_DISCORD_CHANNEL_MAP ); ?>';
-			var phKey   = '<?php echo esc_js( __( 'Division / competition name', 'sportspress-announcer' ) ); ?>';
-			var phUrl   = '<?php echo esc_js( __( 'https://discord.com/api/webhooks/…', 'sportspress-announcer' ) ); ?>';
+			var phKey   = '<?php echo esc_js( __( 'Division / competition name', 'announcer-for-sportspress' ) ); ?>';
+			var phUrl   = '<?php echo esc_js( __( 'https://discord.com/api/webhooks/…', 'announcer-for-sportspress' ) ); ?>';
 
 			function nextIndex() {
 				return table.querySelectorAll( '.spa-channel-map-row' ).length;
@@ -1256,7 +1256,7 @@ class SPA_Settings {
 					'spa_invalid_slack_channel_map_url',
 					sprintf(
 						/* translators: %s: competition/league label */
-						__( 'Invalid Slack webhook URL for "%s" — must start with https://hooks.slack.com/services/ or https://hooks.slack.com/workflows/', 'sportspress-announcer' ),
+						__( 'Invalid Slack webhook URL for "%s" — must start with https://hooks.slack.com/services/ or https://hooks.slack.com/workflows/', 'announcer-for-sportspress' ),
 						$key
 					)
 				);
@@ -1276,17 +1276,17 @@ class SPA_Settings {
 	public function render_slack_channel_map_field(): void {
 		$map    = $this->seed_channel_map( self::OPTION_SLACK_CHANNEL_MAP );
 		$opt    = self::OPTION_SLACK_CHANNEL_MAP;
-		$ph_key = __( 'Division / competition name', 'sportspress-announcer' );
-		$ph_url = __( 'https://hooks.slack.com/services/…', 'sportspress-announcer' );
+		$ph_key = __( 'Division / competition name', 'announcer-for-sportspress' );
+		$ph_url = __( 'https://hooks.slack.com/services/…', 'announcer-for-sportspress' );
 		?>
 		<p class="description" style="margin-bottom:10px;">
-			<?php esc_html_e( 'Optionally route each division to its own Slack channel. The key must match the competition name exactly. Leave the URL blank to use the default webhook above. Per-division routing applies to result announcements only.', 'sportspress-announcer' ); ?>
+			<?php esc_html_e( 'Optionally route each division to its own Slack channel. The key must match the competition name exactly. Leave the URL blank to use the default webhook above. Per-division routing applies to result announcements only.', 'announcer-for-sportspress' ); ?>
 		</p>
 		<table id="spa-slack-channel-map-table" style="border-collapse:collapse; width:100%; max-width:700px;">
 			<thead>
 				<tr>
-					<th style="text-align:left; padding:0 10px 6px 0; font-weight:600; width:35%;"><?php esc_html_e( 'Competition name', 'sportspress-announcer' ); ?></th>
-					<th style="text-align:left; padding:0 0 6px 0; font-weight:600;"><?php esc_html_e( 'Slack webhook URL', 'sportspress-announcer' ); ?></th>
+					<th style="text-align:left; padding:0 10px 6px 0; font-weight:600; width:35%;"><?php esc_html_e( 'Competition name', 'announcer-for-sportspress' ); ?></th>
+					<th style="text-align:left; padding:0 0 6px 0; font-weight:600;"><?php esc_html_e( 'Slack webhook URL', 'announcer-for-sportspress' ); ?></th>
 					<th style="width:30px;"></th>
 				</tr>
 			</thead>
@@ -1312,7 +1312,7 @@ class SPA_Settings {
 		</table>
 		<p style="margin-top:8px;">
 			<button type="button" id="spa-slack-channel-map-add" class="button">
-				<?php esc_html_e( '+ Add channel', 'sportspress-announcer' ); ?>
+				<?php esc_html_e( '+ Add channel', 'announcer-for-sportspress' ); ?>
 			</button>
 		</p>
 		<?php
@@ -1331,8 +1331,8 @@ class SPA_Settings {
 			var table   = document.getElementById( 'spa-slack-channel-map-table' );
 			var addBtn  = document.getElementById( 'spa-slack-channel-map-add' );
 			var opt     = '<?php echo esc_js( self::OPTION_SLACK_CHANNEL_MAP ); ?>';
-			var phKey   = '<?php echo esc_js( __( 'Division / competition name', 'sportspress-announcer' ) ); ?>';
-			var phUrl   = '<?php echo esc_js( __( 'https://hooks.slack.com/services/…', 'sportspress-announcer' ) ); ?>';
+			var phKey   = '<?php echo esc_js( __( 'Division / competition name', 'announcer-for-sportspress' ) ); ?>';
+			var phUrl   = '<?php echo esc_js( __( 'https://hooks.slack.com/services/…', 'announcer-for-sportspress' ) ); ?>';
 
 			function nextIndex() {
 				return table.querySelectorAll( '.spa-slack-channel-map-row' ).length;
@@ -1396,10 +1396,10 @@ class SPA_Settings {
 				value="1"
 				<?php checked( $enabled ); ?>
 			/>
-			<?php esc_html_e( 'Show a "Share to Facebook" button in the admin results digest', 'sportspress-announcer' ); ?>
+			<?php esc_html_e( 'Show a "Share to Facebook" button in the admin results digest', 'announcer-for-sportspress' ); ?>
 		</label>
 		<div style="margin-top:6px;">
-			<a href="#" id="spa-template-toggle" style="text-decoration:none;"><?php esc_html_e( 'Customize template ▸', 'sportspress-announcer' ); ?></a>
+			<a href="#" id="spa-template-toggle" style="text-decoration:none;"><?php esc_html_e( 'Customize template ▸', 'announcer-for-sportspress' ); ?></a>
 		</div>
 		<script>
 		document.addEventListener( 'DOMContentLoaded', function () {
@@ -1414,8 +1414,8 @@ class SPA_Settings {
 				var open = row.style.display !== 'none';
 				row.style.display = open ? 'none' : '';
 				toggle.textContent = open
-					? '<?php echo esc_js( __( 'Customize template ▸', 'sportspress-announcer' ) ); ?>'
-					: '<?php echo esc_js( __( 'Customize template ▾', 'sportspress-announcer' ) ); ?>';
+					? '<?php echo esc_js( __( 'Customize template ▸', 'announcer-for-sportspress' ) ); ?>'
+					: '<?php echo esc_js( __( 'Customize template ▾', 'announcer-for-sportspress' ) ); ?>';
 			} );
 		} );
 		</script>
@@ -1437,7 +1437,7 @@ class SPA_Settings {
 			class="large-text"
 		><?php echo esc_textarea( $value ); ?></textarea>
 		<div style="display:flex; align-items:flex-start; gap:8px; margin-top:6px;">
-			<button type="button" class="button spa-emoji-trigger" data-target="<?php echo esc_attr( self::OPTION_FACEBOOK_TEMPLATE ); ?>" style="flex-shrink:0;">😀 <?php esc_html_e( 'Emoji', 'sportspress-announcer' ); ?></button>
+			<button type="button" class="button spa-emoji-trigger" data-target="<?php echo esc_attr( self::OPTION_FACEBOOK_TEMPLATE ); ?>" style="flex-shrink:0;">😀 <?php esc_html_e( 'Emoji', 'announcer-for-sportspress' ); ?></button>
 			<p class="description" style="margin:0;">
 				<?php
 				$chips = array( '{home}', '{away}', '{home_score}', '{away_score}', '{competition}', '{venue}', '{time}', '{date}', '{event_url}' );
@@ -1445,7 +1445,7 @@ class SPA_Settings {
 					printf(
 						'<code class="spa-placeholder" data-target="%s" style="cursor:pointer;" title="%s">%s</code> ',
 						esc_attr( self::OPTION_FACEBOOK_TEMPLATE ),
-						esc_attr( __( 'Click to insert', 'sportspress-announcer' ) ),
+						esc_attr( __( 'Click to insert', 'announcer-for-sportspress' ) ),
 						esc_html( $chip )
 					);
 				}
@@ -1472,7 +1472,7 @@ class SPA_Settings {
 			placeholder="goals"
 		/>
 		<p class="description">
-			<?php esc_html_e( 'The result column key used to read scores from SportsPress (e.g. "goals"). Must match the column slug in SportsPress → Result Columns.', 'sportspress-announcer' ); ?>
+			<?php esc_html_e( 'The result column key used to read scores from SportsPress (e.g. "goals"). Must match the column slug in SportsPress → Result Columns.', 'announcer-for-sportspress' ); ?>
 		</p>
 		<?php
 	}
@@ -1484,7 +1484,7 @@ class SPA_Settings {
 	 */
 	public function render_digest_section_intro(): void {
 		?>
-		<p class="description"><?php esc_html_e( 'Upcoming games for the next 7 days. Preview the schedule below and send it to your configured channels on demand, or auto-send on a schedule. Edit the message copy on the Templates tab.', 'sportspress-announcer' ); ?></p>
+		<p class="description"><?php esc_html_e( 'Upcoming games for the next 7 days. Preview the schedule below and send it to your configured channels on demand, or auto-send on a schedule. Edit the message copy on the Templates tab.', 'announcer-for-sportspress' ); ?></p>
 		<?php
 	}
 
@@ -1503,7 +1503,7 @@ class SPA_Settings {
 			class="large-text"
 		><?php echo esc_textarea( $value ); ?></textarea>
 		<div style="display:flex; align-items:flex-start; gap:8px; margin-top:6px;">
-			<button type="button" class="button spa-emoji-trigger" data-target="<?php echo esc_attr( self::OPTION_UPCOMING_TEMPLATE ); ?>" style="flex-shrink:0;">😀 <?php esc_html_e( 'Emoji', 'sportspress-announcer' ); ?></button>
+			<button type="button" class="button spa-emoji-trigger" data-target="<?php echo esc_attr( self::OPTION_UPCOMING_TEMPLATE ); ?>" style="flex-shrink:0;">😀 <?php esc_html_e( 'Emoji', 'announcer-for-sportspress' ); ?></button>
 			<p class="description" style="margin:0;">
 				<?php
 				$chips = array( '{home}', '{away}', '{competition}', '{venue}', '{time}', '{date}', '{event_url}' );
@@ -1511,15 +1511,15 @@ class SPA_Settings {
 					printf(
 						'<code class="spa-placeholder" data-target="%s" style="cursor:pointer;" title="%s">%s</code> ',
 						esc_attr( self::OPTION_UPCOMING_TEMPLATE ),
-						esc_attr( __( 'Click to insert', 'sportspress-announcer' ) ),
+						esc_attr( __( 'Click to insert', 'announcer-for-sportspress' ) ),
 						esc_html( $chip )
 					);
 				}
 				?>
 				<?php if ( $this->slack_active() ) : ?>
-					<br><?php esc_html_e( 'Slack mentions (<!channel>, <!here>) and emoji work too.', 'sportspress-announcer' ); ?>
+					<br><?php esc_html_e( 'Slack mentions (<!channel>, <!here>) and emoji work too.', 'announcer-for-sportspress' ); ?>
 				<?php else : ?>
-					<br><?php esc_html_e( 'Emoji work too.', 'sportspress-announcer' ); ?>
+					<br><?php esc_html_e( 'Emoji work too.', 'announcer-for-sportspress' ); ?>
 				<?php endif; ?>
 			</p>
 		</div>
@@ -1536,7 +1536,7 @@ class SPA_Settings {
 
 		if ( empty( $platforms ) ) {
 			?>
-			<p class="description"><?php esc_html_e( 'Configure a Discord or Slack webhook URL above to enable this.', 'sportspress-announcer' ); ?></p>
+			<p class="description"><?php esc_html_e( 'Configure a Discord or Slack webhook URL above to enable this.', 'announcer-for-sportspress' ); ?></p>
 			<?php
 			return;
 		}
@@ -1546,14 +1546,14 @@ class SPA_Settings {
 		$preview_text = $this->build_upcoming_preview_text( $games );
 		?>
 		<?php if ( ! empty( $games ) ) : ?>
-		<p style="margin:0 0 6px; font-weight:600;"><?php esc_html_e( 'Preview', 'sportspress-announcer' ); ?></p>
+		<p style="margin:0 0 6px; font-weight:600;"><?php esc_html_e( 'Preview', 'announcer-for-sportspress' ); ?></p>
 		<pre id="spa-preview-box" style="white-space:pre-wrap; background:#f6f7f7; border:1px solid #dcdcde; padding:10px 12px; margin:0 0 12px; font-size:12px; line-height:1.6; max-width:600px;"><?php echo esc_html( $preview_text ); ?></pre>
 		<?php else : ?>
-		<p class="description" style="margin-bottom:8px;"><?php esc_html_e( 'No upcoming games in the next 7 days.', 'sportspress-announcer' ); ?></p>
+		<p class="description" style="margin-bottom:8px;"><?php esc_html_e( 'No upcoming games in the next 7 days.', 'announcer-for-sportspress' ); ?></p>
 		<?php endif; ?>
 		<div style="display:flex;align-items:center;gap:8px;">
 			<button type="button" id="spa-publish-upcoming" class="button button-primary"<?php echo empty( $games ) ? ' disabled' : ''; ?>>
-				<?php esc_html_e( 'Send now', 'sportspress-announcer' ); ?>
+				<?php esc_html_e( 'Send now', 'announcer-for-sportspress' ); ?>
 			</button>
 			<span style="font-size:11px;color:#646970;"><?php echo esc_html( $this->upcoming_send_platforms_label( $platforms ) ); ?></span>
 			<span id="spa-publish-result" class="spa-send-result"></span>
@@ -1655,7 +1655,7 @@ class SPA_Settings {
 				value="1"
 				<?php checked( $enabled ); ?>
 			/>
-			<?php esc_html_e( 'Automatically send the fixtures digest to your configured channels', 'sportspress-announcer' ); ?>
+			<?php esc_html_e( 'Automatically send the fixtures digest to your configured channels', 'announcer-for-sportspress' ); ?>
 		</label>
 
 		<div style="margin-top:10px; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
@@ -1663,8 +1663,8 @@ class SPA_Settings {
 				id="<?php echo esc_attr( SPA_Daily_Digest_Scheduler::OPTION_FREQUENCY ); ?>"
 				name="<?php echo esc_attr( SPA_Daily_Digest_Scheduler::OPTION_FREQUENCY ); ?>"
 			>
-				<option value="daily" <?php selected( $frequency, 'daily' ); ?>><?php esc_html_e( 'Daily', 'sportspress-announcer' ); ?></option>
-				<option value="weekly" <?php selected( $frequency, 'weekly' ); ?>><?php esc_html_e( 'Weekly', 'sportspress-announcer' ); ?></option>
+				<option value="daily" <?php selected( $frequency, 'daily' ); ?>><?php esc_html_e( 'Daily', 'announcer-for-sportspress' ); ?></option>
+				<option value="weekly" <?php selected( $frequency, 'weekly' ); ?>><?php esc_html_e( 'Weekly', 'announcer-for-sportspress' ); ?></option>
 			</select>
 
 			<span id="spa-digest-day-wrap" <?php echo 'daily' === $frequency ? 'style="display:none;"' : ''; ?>>
@@ -1687,7 +1687,7 @@ class SPA_Settings {
 				<?php
 				printf(
 					/* translators: %s: formatted date/time */
-					esc_html__( 'Next send: %s', 'sportspress-announcer' ),
+					esc_html__( 'Next send: %s', 'announcer-for-sportspress' ),
 					esc_html( date_i18n( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $next ) )
 				);
 				?>
@@ -1728,20 +1728,20 @@ class SPA_Settings {
 		check_ajax_referer( 'spa_test_slack_webhook_nonce', 'nonce' );
 
 		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_send_json_error( __( 'Permission denied.', 'sportspress-announcer' ) );
+			wp_send_json_error( __( 'Permission denied.', 'announcer-for-sportspress' ) );
 		}
 
 		$url = esc_url_raw( wp_unslash( $_POST['webhook_url'] ?? '' ) );
 		if ( empty( $url ) ) {
-			wp_send_json_error( __( 'No webhook URL entered.', 'sportspress-announcer' ) );
+			wp_send_json_error( __( 'No webhook URL entered.', 'announcer-for-sportspress' ) );
 		}
 
 		if ( 0 !== strpos( $url, 'https://hooks.slack.com/services/' ) && 0 !== strpos( $url, 'https://hooks.slack.com/workflows/' ) ) {
-			wp_send_json_error( __( 'That doesn\'t look like a Slack Incoming Webhook URL.', 'sportspress-announcer' ) );
+			wp_send_json_error( __( 'That doesn\'t look like a Slack Incoming Webhook URL.', 'announcer-for-sportspress' ) );
 		}
 
 		$payload = array(
-			'text' => __( 'SportsPress Announcer - Slack webhook connection successful.', 'sportspress-announcer' ),
+			'text' => __( 'Announcer for SportsPress - Slack webhook connection successful.', 'announcer-for-sportspress' ),
 		);
 
 		$slack  = new SPA_Webhook_Slack( $url );
@@ -1770,7 +1770,7 @@ class SPA_Settings {
 			add_settings_error(
 				self::OPTION_SLACK_WEBHOOK,
 				'spa_invalid_slack_webhook',
-				__( 'That doesn\'t look like a Slack Incoming Webhook URL. It should start with https://hooks.slack.com/services/ or https://hooks.slack.com/workflows/', 'sportspress-announcer' )
+				__( 'That doesn\'t look like a Slack Incoming Webhook URL. It should start with https://hooks.slack.com/services/ or https://hooks.slack.com/workflows/', 'announcer-for-sportspress' )
 			);
 			return get_option( self::OPTION_SLACK_WEBHOOK, '' );
 		}
@@ -1784,7 +1784,7 @@ class SPA_Settings {
 	 */
 	public function render_slack_section_intro(): void {
 		?>
-		<p class="description"><?php esc_html_e( 'Post match results and upcoming game digests to a Slack channel via an Incoming Webhook.', 'sportspress-announcer' ); ?></p>
+		<p class="description"><?php esc_html_e( 'Post match results and upcoming game digests to a Slack channel via an Incoming Webhook.', 'announcer-for-sportspress' ); ?></p>
 		<?php
 	}
 
@@ -1804,7 +1804,7 @@ class SPA_Settings {
 				value="1"
 				<?php checked( $enabled ); ?>
 			/>
-			<?php esc_html_e( 'Send automatic Slack announcements when event results are published', 'sportspress-announcer' ); ?>
+			<?php esc_html_e( 'Send automatic Slack announcements when event results are published', 'announcer-for-sportspress' ); ?>
 		</label>
 		<?php
 	}
@@ -1830,7 +1830,7 @@ class SPA_Settings {
 			printf(
 				wp_kses(
 					/* translators: %s: URL to Slack docs */
-					__( 'Paste your Slack channel\'s Incoming Webhook URL. <a href="%s" target="_blank" rel="noopener">How to create a webhook →</a>', 'sportspress-announcer' ),
+					__( 'Paste your Slack channel\'s Incoming Webhook URL. <a href="%s" target="_blank" rel="noopener">How to create a webhook →</a>', 'announcer-for-sportspress' ),
 					array(
 						'a' => array(
 							'href'   => array(),
@@ -1845,7 +1845,7 @@ class SPA_Settings {
 		</p>
 		<p>
 			<button type="button" id="spa-test-slack-webhook" class="button">
-				<?php esc_html_e( 'Send Test Message', 'sportspress-announcer' ); ?>
+				<?php esc_html_e( 'Send Test Message', 'announcer-for-sportspress' ); ?>
 			</button>
 			<span id="spa-test-slack-result" style="display:inline-flex; align-items:center; min-height:30px; margin-left:8px; vertical-align:middle;"></span>
 		</p>
@@ -1867,7 +1867,7 @@ class SPA_Settings {
 			var input  = document.getElementById( '<?php echo esc_js( self::OPTION_SLACK_WEBHOOK ); ?>' );
 			if ( ! btn || ! result || ! input ) return;
 			btn.addEventListener( 'click', function () {
-				result.textContent = '<?php echo esc_js( __( 'Sending…', 'sportspress-announcer' ) ); ?>';
+				result.textContent = '<?php echo esc_js( __( 'Sending…', 'announcer-for-sportspress' ) ); ?>';
 				result.style.color = '';
 				btn.disabled = true;
 				var data = new FormData();
@@ -1878,15 +1878,15 @@ class SPA_Settings {
 					.then( function ( r ) { return r.json(); } )
 					.then( function ( json ) {
 						if ( json.success ) {
-							result.textContent = '<?php echo esc_js( __( '✓ Test message sent!', 'sportspress-announcer' ) ); ?>';
+							result.textContent = '<?php echo esc_js( __( '✓ Test message sent!', 'announcer-for-sportspress' ) ); ?>';
 							result.style.color = '#46b450';
 						} else {
-							result.textContent = '<?php echo esc_js( __( '✗ Error: ', 'sportspress-announcer' ) ); ?>' + ( json.data || '' );
+							result.textContent = '<?php echo esc_js( __( '✗ Error: ', 'announcer-for-sportspress' ) ); ?>' + ( json.data || '' );
 							result.style.color = '#dc3232';
 						}
 					} )
 					.catch( function () {
-						result.textContent = '<?php echo esc_js( __( '✗ Request failed.', 'sportspress-announcer' ) ); ?>';
+						result.textContent = '<?php echo esc_js( __( '✗ Request failed.', 'announcer-for-sportspress' ) ); ?>';
 						result.style.color = '#dc3232';
 					} )
 					.finally( function () {
@@ -2082,21 +2082,21 @@ class SPA_Settings {
 		<div class="spa-status-bar">
 			<?php if ( $discord_active ) : ?>
 				<span class="spa-status-dot spa-status-dot--green"></span>
-				<strong><?php esc_html_e( 'Discord', 'sportspress-announcer' ); ?></strong>
+				<strong><?php esc_html_e( 'Discord', 'announcer-for-sportspress' ); ?></strong>
 			<?php else : ?>
 				<span class="spa-status-dot spa-status-dot--gray"></span>
-				<span style="color:#8c8f94"><?php esc_html_e( 'Discord', 'sportspress-announcer' ); ?></span>
+				<span style="color:#8c8f94"><?php esc_html_e( 'Discord', 'announcer-for-sportspress' ); ?></span>
 			<?php endif; ?>
 			<span class="spa-status-sep">·</span>
-			<span style="color:#8c8f94"><?php esc_html_e( 'Slack', 'sportspress-announcer' ); ?></span>
-			<span class="spa-pro-badge"><?php esc_html_e( 'Pro', 'sportspress-announcer' ); ?></span>
+			<span style="color:#8c8f94"><?php esc_html_e( 'Slack', 'announcer-for-sportspress' ); ?></span>
+			<span class="spa-pro-badge"><?php esc_html_e( 'Pro', 'announcer-for-sportspress' ); ?></span>
 			<span class="spa-status-divider">|</span>
 			<span style="color:#50575e">
 				<?php
 				echo esc_html(
 					sprintf(
 						/* translators: %d: number of announcements sent today */
-						_n( '%d sent today', '%d sent today', $sent_today, 'sportspress-announcer' ),
+						_n( '%d sent today', '%d sent today', $sent_today, 'announcer-for-sportspress' ),
 						$sent_today
 					)
 				);
@@ -2109,7 +2109,7 @@ class SPA_Settings {
 					echo esc_html(
 						sprintf(
 							/* translators: %d: number of failed announcements */
-							_n( '%d failed', '%d failed', $log_failed, 'sportspress-announcer' ),
+							_n( '%d failed', '%d failed', $log_failed, 'announcer-for-sportspress' ),
 							$log_failed
 						)
 					);
@@ -2117,7 +2117,7 @@ class SPA_Settings {
 				</strong>
 			<?php endif; ?>
 			<a href="<?php echo esc_url( $general_url ); ?>" style="margin-left:auto;font-size:11px;color:#2271b1;white-space:nowrap">
-				&#9881; <?php esc_html_e( 'General settings', 'sportspress-announcer' ); ?>
+				&#9881; <?php esc_html_e( 'General settings', 'announcer-for-sportspress' ); ?>
 			</a>
 		</div>
 		<?php
@@ -2136,13 +2136,13 @@ class SPA_Settings {
 		?>
 		<div class="spa-dashboard-card">
 			<div class="spa-dashboard-card-head">
-				<span class="spa-dashboard-card-title">&#128226; <?php esc_html_e( 'Recent Announcements', 'sportspress-announcer' ); ?></span>
-				<span style="font-size:11px;color:#8c8f94"><?php esc_html_e( 'Auto-posts when a result is saved', 'sportspress-announcer' ); ?></span>
+				<span class="spa-dashboard-card-title">&#128226; <?php esc_html_e( 'Recent Announcements', 'announcer-for-sportspress' ); ?></span>
+				<span style="font-size:11px;color:#8c8f94"><?php esc_html_e( 'Auto-posts when a result is saved', 'announcer-for-sportspress' ); ?></span>
 			</div>
 
 			<?php if ( empty( $recent_log ) ) : ?>
 				<div class="spa-dashboard-card-row" style="color:#8c8f94;font-style:italic">
-					<?php esc_html_e( 'No announcements yet.', 'sportspress-announcer' ); ?>
+					<?php esc_html_e( 'No announcements yet.', 'announcer-for-sportspress' ); ?>
 				</div>
 			<?php else : ?>
 				<?php foreach ( $recent_log as $entry ) : ?>
@@ -2156,7 +2156,7 @@ class SPA_Settings {
 					echo esc_html(
 						sprintf(
 							/* translators: %d: total log entry count */
-							__( 'See all %d entries in Log →', 'sportspress-announcer' ),
+							__( 'See all %d entries in Log →', 'announcer-for-sportspress' ),
 							$log_total
 						)
 					);
@@ -2185,11 +2185,11 @@ class SPA_Settings {
 			<span class="spa-dashboard-row-time"><?php echo $is_failed ? '<span style="color:#d63638">fail</span>' : esc_html( $time_label ); ?></span>
 			<?php if ( $is_failed ) : ?>
 				<button type="button" class="button spa-retry-btn" data-uid="<?php echo esc_attr( $entry['uid'] ?? '' ); ?>" data-nonce="<?php echo esc_attr( $retry_nonce ); ?>">
-					<?php esc_html_e( 'Retry', 'sportspress-announcer' ); ?>
+					<?php esc_html_e( 'Retry', 'announcer-for-sportspress' ); ?>
 				</button>
 			<?php else : ?>
 				<button type="button" class="button spa-retry-btn" data-uid="<?php echo esc_attr( $entry['uid'] ?? '' ); ?>" data-nonce="<?php echo esc_attr( $retry_nonce ); ?>" data-resend="1">
-					<?php esc_html_e( 'Resend', 'sportspress-announcer' ); ?>
+					<?php esc_html_e( 'Resend', 'announcer-for-sportspress' ); ?>
 				</button>
 			<?php endif; ?>
 		</div>
@@ -2210,12 +2210,12 @@ class SPA_Settings {
 		if ( $diff < 3600 ) {
 			$mins = (int) floor( $diff / 60 );
 			/* translators: %d: minutes ago */
-			return sprintf( _n( '%dm', '%dm', $mins, 'sportspress-announcer' ), $mins );
+			return sprintf( _n( '%dm', '%dm', $mins, 'announcer-for-sportspress' ), $mins );
 		}
 		if ( $diff < 86400 ) {
 			$hours = (int) floor( $diff / 3600 );
 			/* translators: %d: hours ago */
-			return sprintf( _n( '%dh', '%dh', $hours, 'sportspress-announcer' ), $hours );
+			return sprintf( _n( '%dh', '%dh', $hours, 'announcer-for-sportspress' ), $hours );
 		}
 		return wp_date( 'M j', $ts );
 	}
@@ -2241,14 +2241,14 @@ class SPA_Settings {
 		?>
 		<div class="spa-dashboard-card">
 			<div class="spa-dashboard-card-head">
-				<span class="spa-dashboard-card-title">&#128197; <?php esc_html_e( 'Fixtures Digest', 'sportspress-announcer' ); ?></span>
+				<span class="spa-dashboard-card-title">&#128197; <?php esc_html_e( 'Fixtures Digest', 'announcer-for-sportspress' ); ?></span>
 				<?php if ( $next_date_label ) : ?>
 					<span style="font-size:11px;color:#646970">
 						<?php
 						echo esc_html(
 							sprintf(
 								/* translators: %s: next fixture date */
-								__( 'Next fixtures: %s', 'sportspress-announcer' ),
+								__( 'Next fixtures: %s', 'announcer-for-sportspress' ),
 								$next_date_label
 							)
 						);
@@ -2261,18 +2261,18 @@ class SPA_Settings {
 				<?php if ( ! empty( $upcoming_games ) ) : ?>
 					<?php $this->render_digest_preview( $upcoming_games ); ?>
 				<?php else : ?>
-					<p style="color:#8c8f94;font-size:12px;margin:0 0 10px"><?php esc_html_e( 'No upcoming games found in the next 7 days.', 'sportspress-announcer' ); ?></p>
+					<p style="color:#8c8f94;font-size:12px;margin:0 0 10px"><?php esc_html_e( 'No upcoming games found in the next 7 days.', 'announcer-for-sportspress' ); ?></p>
 				<?php endif; ?>
 
 				<div style="display:flex;align-items:center;gap:10px;margin-top:10px">
 					<button type="button" id="spa-send-digest-btn" class="button button-primary" <?php echo ( empty( $upcoming_games ) || empty( $platforms ) ) ? 'disabled' : ''; ?>>
-						<?php esc_html_e( 'Send now', 'sportspress-announcer' ); ?>
+						<?php esc_html_e( 'Send now', 'announcer-for-sportspress' ); ?>
 					</button>
 					<span id="spa-send-digest-result" class="spa-send-result"></span>
 					<?php $this->render_dashboard_platform_hint( $platforms ); ?>
 					<div class="spa-pro-lock-inline">
-						&#128274; <?php esc_html_e( 'Auto-schedule weekly', 'sportspress-announcer' ); ?>
-						<span class="spa-pro-badge"><?php esc_html_e( 'Pro', 'sportspress-announcer' ); ?></span>
+						&#128274; <?php esc_html_e( 'Auto-schedule weekly', 'announcer-for-sportspress' ); ?>
+						<span class="spa-pro-badge"><?php esc_html_e( 'Pro', 'announcer-for-sportspress' ); ?></span>
 					</div>
 				</div>
 			</div>
@@ -2296,7 +2296,7 @@ class SPA_Settings {
 			$platforms['discord'] = array(
 				'action'       => 'spa_send_upcoming',
 				'nonce_action' => 'spa_send_upcoming_nonce',
-				'label'        => __( 'Discord', 'sportspress-announcer' ),
+				'label'        => __( 'Discord', 'announcer-for-sportspress' ),
 			);
 		}
 
@@ -2304,7 +2304,7 @@ class SPA_Settings {
 			$platforms['slack'] = array(
 				'action'       => 'spa_send_upcoming_slack',
 				'nonce_action' => 'spa_send_upcoming_slack_nonce',
-				'label'        => __( 'Slack', 'sportspress-announcer' ),
+				'label'        => __( 'Slack', 'announcer-for-sportspress' ),
 			);
 		}
 
@@ -2329,7 +2329,7 @@ class SPA_Settings {
 	 */
 	private function render_dashboard_platform_hint( array $platforms ): void {
 		if ( empty( $platforms ) ) {
-			echo '<span style="font-size:11px;color:#8c8f94">' . esc_html__( 'No webhook configured', 'sportspress-announcer' ) . '</span>';
+			echo '<span style="font-size:11px;color:#8c8f94">' . esc_html__( 'No webhook configured', 'announcer-for-sportspress' ) . '</span>';
 			return;
 		}
 		echo '<span style="font-size:11px;color:#646970">' . esc_html( $this->upcoming_send_platforms_label( $platforms ) ) . '</span>';
@@ -2358,11 +2358,11 @@ class SPA_Settings {
 
 		$labels = wp_json_encode(
 			array(
-				'title'       => __( 'Send this now?', 'sportspress-announcer' ),
-				'warn'        => __( 'This is sent immediately and cannot be undone.', 'sportspress-announcer' ),
-				'broadcastTo' => __( 'Broadcasts to: ', 'sportspress-announcer' ),
-				'cancel'      => __( 'Cancel', 'sportspress-announcer' ),
-				'confirm'     => __( 'Send now', 'sportspress-announcer' ),
+				'title'       => __( 'Send this now?', 'announcer-for-sportspress' ),
+				'warn'        => __( 'This is sent immediately and cannot be undone.', 'announcer-for-sportspress' ),
+				'broadcastTo' => __( 'Broadcasts to: ', 'announcer-for-sportspress' ),
+				'cancel'      => __( 'Cancel', 'announcer-for-sportspress' ),
+				'confirm'     => __( 'Send now', 'announcer-for-sportspress' ),
 			)
 		);
 		?>
@@ -2538,7 +2538,7 @@ class SPA_Settings {
 		?>
 		function send() {
 			btn.disabled = true;
-			btn.textContent = <?php echo wp_json_encode( __( 'Sending…', 'sportspress-announcer' ) ); ?>;
+			btn.textContent = <?php echo wp_json_encode( __( 'Sending…', 'announcer-for-sportspress' ) ); ?>;
 			if ( result ) { result.textContent = ''; }
 			var reqs = specs.map( function ( s ) {
 				var fd = new FormData();
@@ -2550,20 +2550,20 @@ class SPA_Settings {
 				var errors = [];
 				results.forEach( function ( r ) {
 					if ( r.status === 'rejected' || ( r.value && ! r.value.success ) ) {
-						errors.push( r.value ? ( r.value.data || <?php echo wp_json_encode( __( 'Unknown error', 'sportspress-announcer' ) ); ?> ) : <?php echo wp_json_encode( __( 'Request failed', 'sportspress-announcer' ) ); ?> );
+						errors.push( r.value ? ( r.value.data || <?php echo wp_json_encode( __( 'Unknown error', 'announcer-for-sportspress' ) ); ?> ) : <?php echo wp_json_encode( __( 'Request failed', 'announcer-for-sportspress' ) ); ?> );
 					}
 				} );
 				btn.disabled = false;
 				btn.textContent = idle;
 				if ( ! result ) { return; }
 				if ( errors.length === 0 ) {
-					result.textContent = <?php echo wp_json_encode( __( '✓ Sent', 'sportspress-announcer' ) ); ?>;
+					result.textContent = <?php echo wp_json_encode( __( '✓ Sent', 'announcer-for-sportspress' ) ); ?>;
 					result.style.color = '#00a32a';
 				} else if ( errors.length === results.length ) {
-					result.textContent = <?php echo wp_json_encode( __( '✗ ', 'sportspress-announcer' ) ); ?> + errors.join( '; ' );
+					result.textContent = <?php echo wp_json_encode( __( '✗ ', 'announcer-for-sportspress' ) ); ?> + errors.join( '; ' );
 					result.style.color = '#d63638';
 				} else {
-					result.textContent = <?php echo wp_json_encode( __( '⚠ Partial: ', 'sportspress-announcer' ) ); ?> + errors.join( '; ' );
+					result.textContent = <?php echo wp_json_encode( __( '⚠ Partial: ', 'announcer-for-sportspress' ) ); ?> + errors.join( '; ' );
 					result.style.color = '#ffb900';
 				}
 			} );
@@ -2586,15 +2586,15 @@ class SPA_Settings {
 				echo esc_html(
 					sprintf(
 						/* translators: %s: formatted date and time */
-						__( 'Last digest: %s', 'sportspress-announcer' ),
+						__( 'Last digest: %s', 'announcer-for-sportspress' ),
 						wp_date( 'D M j · g:ia', $last_digest_ts )
 					)
 				);
 				?>
 				&nbsp;·&nbsp;
-				<a href="<?php echo esc_url( $log_url ); ?>"><?php esc_html_e( 'View in log →', 'sportspress-announcer' ); ?></a>
+				<a href="<?php echo esc_url( $log_url ); ?>"><?php esc_html_e( 'View in log →', 'announcer-for-sportspress' ); ?></a>
 			<?php else : ?>
-				<span style="color:#8c8f94"><?php esc_html_e( 'No digest sent yet.', 'sportspress-announcer' ); ?></span>
+				<span style="color:#8c8f94"><?php esc_html_e( 'No digest sent yet.', 'announcer-for-sportspress' ); ?></span>
 			<?php endif; ?>
 		</div>
 		<?php
@@ -2609,8 +2609,8 @@ class SPA_Settings {
 	private function render_digest_preview( array $upcoming_games ): void {
 		?>
 		<div class="spa-discord-preview">
-			<div class="spa-discord-preview-bot"><?php esc_html_e( 'SportsPress Bot', 'sportspress-announcer' ); ?></div>
-			<strong><?php esc_html_e( 'Upcoming Games', 'sportspress-announcer' ); ?></strong><br>
+			<div class="spa-discord-preview-bot"><?php esc_html_e( 'SportsPress Bot', 'announcer-for-sportspress' ); ?></div>
+			<strong><?php esc_html_e( 'Upcoming Games', 'announcer-for-sportspress' ); ?></strong><br>
 			<?php
 			foreach ( array_slice( $upcoming_games, 0, 4 ) as $game ) {
 				echo '&#127903; ' . esc_html( $game['label'] );
@@ -2621,7 +2621,7 @@ class SPA_Settings {
 			}
 			$overflow = count( $upcoming_games ) - 4;
 			if ( $overflow > 0 ) {
-				echo '<span style="color:#72767d;font-size:11px">+ ' . esc_html( (string) $overflow ) . ' ' . esc_html__( 'more', 'sportspress-announcer' ) . '</span>';
+				echo '<span style="color:#72767d;font-size:11px">+ ' . esc_html( (string) $overflow ) . ' ' . esc_html__( 'more', 'announcer-for-sportspress' ) . '</span>';
 			}
 			?>
 		</div>
@@ -2644,8 +2644,8 @@ class SPA_Settings {
 					var isResend = btn.dataset.resend === '1';
 					btn.disabled = true;
 					btn.textContent = isResend
-						? '<?php echo esc_js( __( 'Sending…', 'sportspress-announcer' ) ); ?>'
-						: '<?php echo esc_js( __( 'Retrying…', 'sportspress-announcer' ) ); ?>';
+						? '<?php echo esc_js( __( 'Sending…', 'announcer-for-sportspress' ) ); ?>'
+						: '<?php echo esc_js( __( 'Retrying…', 'announcer-for-sportspress' ) ); ?>';
 					var fd = new FormData();
 					fd.append( 'action', 'spa_retry_announcement' );
 					fd.append( 'nonce', nonce );
@@ -2660,21 +2660,21 @@ class SPA_Settings {
 									var dot = row.querySelector( '.spa-status-dot' );
 									if ( dot ) { dot.className = 'spa-status-dot spa-status-dot--green'; }
 								}
-								btn.textContent = '<?php echo esc_js( __( 'Resend', 'sportspress-announcer' ) ); ?>';
+								btn.textContent = '<?php echo esc_js( __( 'Resend', 'announcer-for-sportspress' ) ); ?>';
 								btn.dataset.resend = '1';
 								btn.disabled = false;
 							} else {
 								btn.textContent = isResend
-									? '<?php echo esc_js( __( 'Resend', 'sportspress-announcer' ) ); ?>'
-									: '<?php echo esc_js( __( 'Retry', 'sportspress-announcer' ) ); ?>';
+									? '<?php echo esc_js( __( 'Resend', 'announcer-for-sportspress' ) ); ?>'
+									: '<?php echo esc_js( __( 'Retry', 'announcer-for-sportspress' ) ); ?>';
 								btn.disabled = false;
-								alert( json.data || '<?php echo esc_js( __( 'Request failed.', 'sportspress-announcer' ) ); ?>' );
+								alert( json.data || '<?php echo esc_js( __( 'Request failed.', 'announcer-for-sportspress' ) ); ?>' );
 							}
 						} )
 						.catch( function () {
 							btn.textContent = isResend
-								? '<?php echo esc_js( __( 'Resend', 'sportspress-announcer' ) ); ?>'
-								: '<?php echo esc_js( __( 'Retry', 'sportspress-announcer' ) ); ?>';
+								? '<?php echo esc_js( __( 'Resend', 'announcer-for-sportspress' ) ); ?>'
+								: '<?php echo esc_js( __( 'Retry', 'announcer-for-sportspress' ) ); ?>';
 							btn.disabled = false;
 						} );
 				} );
@@ -2752,13 +2752,13 @@ class SPA_Settings {
 		<div class="spa-log-toolbar">
 			<div class="spa-filter-pills">
 				<a href="<?php echo esc_url( $base_url ); ?>" class="spa-pill<?php echo '' === $type_filter ? ' spa-pill--active' : ''; ?>">
-					<?php esc_html_e( 'All', 'sportspress-announcer' ); ?> <span class="spa-pill-count"><?php echo esc_html( (string) $count_all ); ?></span>
+					<?php esc_html_e( 'All', 'announcer-for-sportspress' ); ?> <span class="spa-pill-count"><?php echo esc_html( (string) $count_all ); ?></span>
 				</a>
 				<a href="<?php echo esc_url( add_query_arg( 'log_type', 'result', $base_url ) ); ?>" class="spa-pill<?php echo 'result' === $type_filter ? ' spa-pill--active' : ''; ?>">
-					<?php esc_html_e( 'Results', 'sportspress-announcer' ); ?> <span class="spa-pill-count"><?php echo esc_html( (string) $count_result ); ?></span>
+					<?php esc_html_e( 'Results', 'announcer-for-sportspress' ); ?> <span class="spa-pill-count"><?php echo esc_html( (string) $count_result ); ?></span>
 				</a>
 				<a href="<?php echo esc_url( add_query_arg( 'log_type', 'digest', $base_url ) ); ?>" class="spa-pill<?php echo 'digest' === $type_filter ? ' spa-pill--active' : ''; ?>">
-					<?php esc_html_e( 'Digest', 'sportspress-announcer' ); ?> <span class="spa-pill-count"><?php echo esc_html( (string) $count_digest ); ?></span>
+					<?php esc_html_e( 'Digest', 'announcer-for-sportspress' ); ?> <span class="spa-pill-count"><?php echo esc_html( (string) $count_digest ); ?></span>
 				</a>
 			</div>
 			<form method="get" style="margin-left:auto">
@@ -2767,7 +2767,7 @@ class SPA_Settings {
 				<?php if ( $type_filter ) : ?>
 					<input type="hidden" name="log_type" value="<?php echo esc_attr( $type_filter ); ?>">
 				<?php endif; ?>
-				<input type="search" name="log_search" value="<?php echo esc_attr( $search ); ?>" placeholder="<?php esc_attr_e( 'Search…', 'sportspress-announcer' ); ?>" class="spa-log-search">
+				<input type="search" name="log_search" value="<?php echo esc_attr( $search ); ?>" placeholder="<?php esc_attr_e( 'Search…', 'announcer-for-sportspress' ); ?>" class="spa-log-search">
 			</form>
 		</div>
 		<?php
@@ -2784,16 +2784,16 @@ class SPA_Settings {
 		?>
 		<div class="spa-dashboard-card" style="margin-bottom:8px">
 			<div class="spa-log-row spa-log-row--header">
-				<span><?php esc_html_e( 'Type', 'sportspress-announcer' ); ?></span>
-				<span><?php esc_html_e( 'Event', 'sportspress-announcer' ); ?></span>
-				<span><?php esc_html_e( 'Channel', 'sportspress-announcer' ); ?></span>
-				<span><?php esc_html_e( 'Sent', 'sportspress-announcer' ); ?></span>
-				<span><?php esc_html_e( 'Status', 'sportspress-announcer' ); ?></span>
+				<span><?php esc_html_e( 'Type', 'announcer-for-sportspress' ); ?></span>
+				<span><?php esc_html_e( 'Event', 'announcer-for-sportspress' ); ?></span>
+				<span><?php esc_html_e( 'Channel', 'announcer-for-sportspress' ); ?></span>
+				<span><?php esc_html_e( 'Sent', 'announcer-for-sportspress' ); ?></span>
+				<span><?php esc_html_e( 'Status', 'announcer-for-sportspress' ); ?></span>
 			</div>
 
 			<?php if ( empty( $entries ) ) : ?>
 				<div class="spa-log-row" style="color:#8c8f94;font-style:italic;grid-column:1/-1">
-					<?php esc_html_e( 'No entries found.', 'sportspress-announcer' ); ?>
+					<?php esc_html_e( 'No entries found.', 'announcer-for-sportspress' ); ?>
 				</div>
 			<?php else : ?>
 				<?php foreach ( $entries as $entry ) : ?>
@@ -2824,8 +2824,8 @@ class SPA_Settings {
 			$row_class .= ' spa-log-row--digest';
 		}
 		$type_label = $is_result
-			? esc_html__( 'Result', 'sportspress-announcer' )
-			: esc_html__( 'Digest', 'sportspress-announcer' );
+			? esc_html__( 'Result', 'announcer-for-sportspress' )
+			: esc_html__( 'Digest', 'announcer-for-sportspress' );
 		$type_color = $is_result ? '#2271b1' : '#996800';
 		?>
 		<div class="<?php echo esc_attr( $row_class ); ?>">
@@ -2835,10 +2835,10 @@ class SPA_Settings {
 			<span style="color:#8c8f94"><?php echo esc_html( $time_label ); ?></span>
 			<?php if ( $is_failed ) : ?>
 				<button type="button" class="button spa-retry-btn spa-log-retry-btn" data-uid="<?php echo esc_attr( $entry['uid'] ?? '' ); ?>" data-nonce="<?php echo esc_attr( $retry_nonce ); ?>">
-					&#10007; <?php esc_html_e( 'Retry', 'sportspress-announcer' ); ?>
+					&#10007; <?php esc_html_e( 'Retry', 'announcer-for-sportspress' ); ?>
 				</button>
 			<?php else : ?>
-				<span style="color:#00a32a;font-weight:600">&#10003; <?php esc_html_e( 'Sent', 'sportspress-announcer' ); ?></span>
+				<span style="color:#00a32a;font-weight:600">&#10003; <?php esc_html_e( 'Sent', 'announcer-for-sportspress' ); ?></span>
 			<?php endif; ?>
 		</div>
 		<?php
@@ -2855,12 +2855,12 @@ class SPA_Settings {
 		if ( $diff < 3600 ) {
 			$mins = (int) floor( $diff / 60 );
 			/* translators: %d: minutes ago */
-			return sprintf( _n( '%dm ago', '%dm ago', $mins, 'sportspress-announcer' ), $mins );
+			return sprintf( _n( '%dm ago', '%dm ago', $mins, 'announcer-for-sportspress' ), $mins );
 		}
 		if ( $diff < 86400 ) {
 			$hours = (int) floor( $diff / 3600 );
 			/* translators: %d: hours ago */
-			return sprintf( _n( '%dh ago', '%dh ago', $hours, 'sportspress-announcer' ), $hours );
+			return sprintf( _n( '%dh ago', '%dh ago', $hours, 'announcer-for-sportspress' ), $hours );
 		}
 		return $ts > 0 ? wp_date( 'M j', $ts ) : '—';
 	}
@@ -2885,7 +2885,7 @@ class SPA_Settings {
 				echo esc_html(
 					sprintf(
 						/* translators: 1: first entry, 2: last entry, 3: total */
-						__( 'Showing %1$d–%2$d of %3$d entries', 'sportspress-announcer' ),
+						__( 'Showing %1$d–%2$d of %3$d entries', 'announcer-for-sportspress' ),
 						$from,
 						$to,
 						$total
@@ -2895,14 +2895,14 @@ class SPA_Settings {
 			</span>
 			<div style="display:flex;gap:4px">
 				<?php if ( $paged > 1 ) : ?>
-					<a href="<?php echo esc_url( add_query_arg( 'log_paged', $paged - 1, $base_url ) ); ?>" class="button"><?php esc_html_e( '← Prev', 'sportspress-announcer' ); ?></a>
+					<a href="<?php echo esc_url( add_query_arg( 'log_paged', $paged - 1, $base_url ) ); ?>" class="button"><?php esc_html_e( '← Prev', 'announcer-for-sportspress' ); ?></a>
 				<?php else : ?>
-					<button class="button" disabled><?php esc_html_e( '← Prev', 'sportspress-announcer' ); ?></button>
+					<button class="button" disabled><?php esc_html_e( '← Prev', 'announcer-for-sportspress' ); ?></button>
 				<?php endif; ?>
 				<?php if ( $paged < $total_pages ) : ?>
-					<a href="<?php echo esc_url( add_query_arg( 'log_paged', $paged + 1, $base_url ) ); ?>" class="button button-primary"><?php esc_html_e( 'Next →', 'sportspress-announcer' ); ?></a>
+					<a href="<?php echo esc_url( add_query_arg( 'log_paged', $paged + 1, $base_url ) ); ?>" class="button button-primary"><?php esc_html_e( 'Next →', 'announcer-for-sportspress' ); ?></a>
 				<?php else : ?>
-					<button class="button" disabled><?php esc_html_e( 'Next →', 'sportspress-announcer' ); ?></button>
+					<button class="button" disabled><?php esc_html_e( 'Next →', 'announcer-for-sportspress' ); ?></button>
 				<?php endif; ?>
 			</div>
 		</div>
@@ -2923,7 +2923,7 @@ class SPA_Settings {
 					var uid   = btn.dataset.uid;
 					var nonce = btn.dataset.nonce;
 					btn.disabled = true;
-					btn.textContent = '<?php echo esc_js( __( 'Retrying…', 'sportspress-announcer' ) ); ?>';
+					btn.textContent = '<?php echo esc_js( __( 'Retrying…', 'announcer-for-sportspress' ) ); ?>';
 					var fd = new FormData();
 					fd.append( 'action', 'spa_retry_announcement' );
 					fd.append( 'nonce', nonce );
@@ -2937,18 +2937,18 @@ class SPA_Settings {
 									row.classList.remove( 'spa-log-row--failed' );
 									btn.replaceWith( Object.assign( document.createElement( 'span' ), {
 										style: 'color:#00a32a;font-weight:600',
-										textContent: '✓ <?php echo esc_js( __( 'Sent', 'sportspress-announcer' ) ); ?>',
+										textContent: '✓ <?php echo esc_js( __( 'Sent', 'announcer-for-sportspress' ) ); ?>',
 									} ) );
 								}
 							} else {
 								btn.disabled = false;
-								btn.textContent = '✗ <?php echo esc_js( __( 'Retry', 'sportspress-announcer' ) ); ?>';
-								alert( json.data || '<?php echo esc_js( __( 'Request failed.', 'sportspress-announcer' ) ); ?>' );
+								btn.textContent = '✗ <?php echo esc_js( __( 'Retry', 'announcer-for-sportspress' ) ); ?>';
+								alert( json.data || '<?php echo esc_js( __( 'Request failed.', 'announcer-for-sportspress' ) ); ?>' );
 							}
 						} )
 						.catch( function () {
 							btn.disabled = false;
-							btn.textContent = '✗ <?php echo esc_js( __( 'Retry', 'sportspress-announcer' ) ); ?>';
+							btn.textContent = '✗ <?php echo esc_js( __( 'Retry', 'announcer-for-sportspress' ) ); ?>';
 						} );
 				} );
 			} );
@@ -3055,28 +3055,28 @@ class SPA_Settings {
 		?>
 		<nav class="spa-tabs" role="tablist">
 			<button type="button" class="spa-tab<?php echo 'dashboard' === $active_tab ? ' is-active' : ''; ?>" data-tab="dashboard" role="tab" aria-selected="<?php echo 'dashboard' === $active_tab ? 'true' : 'false'; ?>">
-				<?php esc_html_e( 'Dashboard', 'sportspress-announcer' ); ?>
+				<?php esc_html_e( 'Dashboard', 'announcer-for-sportspress' ); ?>
 			</button>
 			<button type="button" class="spa-tab<?php echo 'channels' === $active_tab ? ' is-active' : ''; ?>" data-tab="channels" role="tab" aria-selected="<?php echo 'channels' === $active_tab ? 'true' : 'false'; ?>">
-				<?php esc_html_e( 'Channels', 'sportspress-announcer' ); ?>
+				<?php esc_html_e( 'Channels', 'announcer-for-sportspress' ); ?>
 				<?php if ( $discord_active ) : ?>
 					<span class="spa-tab-badge"><?php echo esc_html( (string) max( 1, $discord_channel_count ) ); ?></span>
 				<?php endif; ?>
 			</button>
 			<button type="button" class="spa-tab<?php echo 'digest' === $active_tab ? ' is-active' : ''; ?>" data-tab="digest" role="tab" aria-selected="<?php echo 'digest' === $active_tab ? 'true' : 'false'; ?>">
-				<?php esc_html_e( 'Digest', 'sportspress-announcer' ); ?>
+				<?php esc_html_e( 'Digest', 'announcer-for-sportspress' ); ?>
 			</button>
 			<button type="button" class="spa-tab<?php echo 'templates' === $active_tab ? ' is-active' : ''; ?>" data-tab="templates" role="tab" aria-selected="<?php echo 'templates' === $active_tab ? 'true' : 'false'; ?>">
-				<?php esc_html_e( 'Templates', 'sportspress-announcer' ); ?>
+				<?php esc_html_e( 'Templates', 'announcer-for-sportspress' ); ?>
 			</button>
 			<button type="button" class="spa-tab<?php echo 'general' === $active_tab ? ' is-active' : ''; ?>" data-tab="general" role="tab" aria-selected="<?php echo 'general' === $active_tab ? 'true' : 'false'; ?>">
-				<?php esc_html_e( 'General', 'sportspress-announcer' ); ?>
+				<?php esc_html_e( 'General', 'announcer-for-sportspress' ); ?>
 			</button>
 			<button type="button" class="spa-tab<?php echo 'log' === $active_tab ? ' is-active' : ''; ?>" data-tab="log" role="tab" aria-selected="<?php echo 'log' === $active_tab ? 'true' : 'false'; ?>">
-				<?php esc_html_e( 'Log', 'sportspress-announcer' ); ?>
+				<?php esc_html_e( 'Log', 'announcer-for-sportspress' ); ?>
 			</button>
 			<button type="button" class="spa-tab<?php echo 'pro' === $active_tab ? ' is-active' : ''; ?>" data-tab="pro" role="tab" aria-selected="<?php echo 'pro' === $active_tab ? 'true' : 'false'; ?>">
-				<?php esc_html_e( 'Pro', 'sportspress-announcer' ); ?>
+				<?php esc_html_e( 'Pro', 'announcer-for-sportspress' ); ?>
 			</button>
 		</nav>
 		<?php
@@ -3140,7 +3140,7 @@ class SPA_Settings {
 			$this->render_registered_section( $page, 'spa_section_sportspress' );
 			$this->render_unhandled_registered_sections( $page, $ctx['handled_sections'] );
 			?>
-			<?php submit_button( __( 'Save Settings', 'sportspress-announcer' ) ); ?>
+			<?php submit_button( __( 'Save Settings', 'announcer-for-sportspress' ) ); ?>
 		</div>
 
 		<!-- Channels tab -->
@@ -3153,7 +3153,7 @@ class SPA_Settings {
 			<?php $this->render_registered_section( $page, 'spa_section_digest' ); ?>
 			<hr style="margin:24px 0">
 			<?php $this->render_weekly_digest_section(); ?>
-			<?php submit_button( __( 'Save Settings', 'sportspress-announcer' ) ); ?>
+			<?php submit_button( __( 'Save Settings', 'announcer-for-sportspress' ) ); ?>
 		</div>
 
 		<!-- Templates tab -->
@@ -3163,7 +3163,7 @@ class SPA_Settings {
 				$this->render_registered_section( $page, $section_id );
 			}
 			?>
-			<?php submit_button( __( 'Save Settings', 'sportspress-announcer' ) ); ?>
+			<?php submit_button( __( 'Save Settings', 'announcer-for-sportspress' ) ); ?>
 		</div>
 
 		<!-- Log tab -->
@@ -3191,7 +3191,7 @@ class SPA_Settings {
 		$this->render_discord_card( $page, $discord_active, $discord_fields );
 		$this->render_slack_card( $page, $slack_fields );
 		$this->render_facebook_card();
-		submit_button( __( 'Save Settings', 'sportspress-announcer' ) );
+		submit_button( __( 'Save Settings', 'announcer-for-sportspress' ) );
 	}
 
 	/**
@@ -3208,28 +3208,28 @@ class SPA_Settings {
 			<div class="spa-integration-card-head">
 				<div class="spa-integration-card-title">
 					<span class="spa-platform-icon spa-platform-icon--discord">D</span>
-					<?php esc_html_e( 'Discord', 'sportspress-announcer' ); ?>
+					<?php esc_html_e( 'Discord', 'announcer-for-sportspress' ); ?>
 				</div>
 				<?php if ( $discord_active ) : ?>
-					<span class="spa-status-active">&#9679; <?php esc_html_e( 'Active', 'sportspress-announcer' ); ?></span>
+					<span class="spa-status-active">&#9679; <?php esc_html_e( 'Active', 'announcer-for-sportspress' ); ?></span>
 				<?php endif; ?>
 			</div>
 
 			<!-- Enabled toggle -->
 			<div class="spa-integration-card-body spa-section-alt">
-				<div class="spa-section-label"><?php esc_html_e( 'Announcements', 'sportspress-announcer' ); ?></div>
+				<div class="spa-section-label"><?php esc_html_e( 'Announcements', 'announcer-for-sportspress' ); ?></div>
 				<?php $this->render_registered_field( $page, 'spa_section_discord', self::OPTION_DISCORD_ENABLED ); ?>
 			</div>
 
 			<!-- Default webhook -->
 			<div class="spa-integration-card-body spa-section-alt">
-				<div class="spa-section-label"><?php esc_html_e( 'Default Channel', 'sportspress-announcer' ); ?></div>
+				<div class="spa-section-label"><?php esc_html_e( 'Default Channel', 'announcer-for-sportspress' ); ?></div>
 				<?php $this->render_registered_field( $page, 'spa_section_discord', self::OPTION_WEBHOOK ); ?>
 			</div>
 
 			<!-- Channel routing -->
 			<div class="spa-integration-card-body">
-				<div class="spa-section-label"><?php esc_html_e( 'Channel Routing', 'sportspress-announcer' ); ?></div>
+				<div class="spa-section-label"><?php esc_html_e( 'Channel Routing', 'announcer-for-sportspress' ); ?></div>
 				<?php $this->render_registered_field( $page, 'spa_section_discord', self::OPTION_DISCORD_CHANNEL_MAP ); ?>
 			</div>
 
@@ -3251,23 +3251,23 @@ class SPA_Settings {
 			<div class="spa-integration-card-head">
 				<div class="spa-integration-card-title">
 					<span class="spa-platform-icon spa-platform-icon--slack">S</span>
-					<?php esc_html_e( 'Slack', 'sportspress-announcer' ); ?>
-					<span class="spa-pro-badge"><?php esc_html_e( 'Pro', 'sportspress-announcer' ); ?></span>
+					<?php esc_html_e( 'Slack', 'announcer-for-sportspress' ); ?>
+					<span class="spa-pro-badge"><?php esc_html_e( 'Pro', 'announcer-for-sportspress' ); ?></span>
 				</div>
 			</div>
 			<div class="spa-integration-card-body">
 				<?php $this->render_registered_section_callback( $page, 'spa_section_slack' ); ?>
 			</div>
 			<div class="spa-integration-card-body spa-section-alt">
-				<div class="spa-section-label"><?php esc_html_e( 'Announcements', 'sportspress-announcer' ); ?></div>
+				<div class="spa-section-label"><?php esc_html_e( 'Announcements', 'announcer-for-sportspress' ); ?></div>
 				<?php $this->render_registered_field( $page, 'spa_section_slack', self::OPTION_SLACK_ENABLED ); ?>
 			</div>
 			<div class="spa-integration-card-body spa-section-alt">
-				<div class="spa-section-label"><?php esc_html_e( 'Webhook URL', 'sportspress-announcer' ); ?></div>
+				<div class="spa-section-label"><?php esc_html_e( 'Webhook URL', 'announcer-for-sportspress' ); ?></div>
 				<?php $this->render_registered_field( $page, 'spa_section_slack', self::OPTION_SLACK_WEBHOOK ); ?>
 			</div>
 			<div class="spa-integration-card-body">
-				<div class="spa-section-label"><?php esc_html_e( 'Channel Routing', 'sportspress-announcer' ); ?></div>
+				<div class="spa-section-label"><?php esc_html_e( 'Channel Routing', 'announcer-for-sportspress' ); ?></div>
 				<?php $this->render_registered_field( $page, 'spa_section_slack', self::OPTION_SLACK_CHANNEL_MAP ); ?>
 			</div>
 
@@ -3287,11 +3287,11 @@ class SPA_Settings {
 			<div class="spa-integration-card-head">
 				<div class="spa-integration-card-title">
 					<span class="spa-platform-icon spa-platform-icon--facebook">f</span>
-					<?php esc_html_e( 'Facebook', 'sportspress-announcer' ); ?>
-					<span class="spa-pro-badge"><?php esc_html_e( 'Pro', 'sportspress-announcer' ); ?></span>
+					<?php esc_html_e( 'Facebook', 'announcer-for-sportspress' ); ?>
+					<span class="spa-pro-badge"><?php esc_html_e( 'Pro', 'announcer-for-sportspress' ); ?></span>
 				</div>
 				<a href="<?php echo esc_url( SPA_License::upgrade_url( 'facebook-card' ) ); ?>" style="font-size:11px;color:#2271b1;">
-					<?php esc_html_e( 'Coming soon →', 'sportspress-announcer' ); ?>
+					<?php esc_html_e( 'Coming soon →', 'announcer-for-sportspress' ); ?>
 				</a>
 			</div>
 		</div>
@@ -3314,40 +3314,40 @@ class SPA_Settings {
 	private function render_help_sidebar( array $qs ): void {
 		?>
 		<div class="spa-help-sidebar">
-			<h3><?php esc_html_e( 'Quick Start', 'sportspress-announcer' ); ?></h3>
+			<h3><?php esc_html_e( 'Quick Start', 'announcer-for-sportspress' ); ?></h3>
 			<ul class="spa-checklist">
 				<li>
 					<span class="spa-check-done">✓</span>
-					<span><?php esc_html_e( 'Activate plugin', 'sportspress-announcer' ); ?></span>
+					<span><?php esc_html_e( 'Activate plugin', 'announcer-for-sportspress' ); ?></span>
 				</li>
-				<li class="spa-qs-item<?php echo $qs['connected'] ? ' is-done' : ''; ?>" data-item="connected" title="<?php esc_attr_e( 'Click to mark done', 'sportspress-announcer' ); ?>">
+				<li class="spa-qs-item<?php echo $qs['connected'] ? ' is-done' : ''; ?>" data-item="connected" title="<?php esc_attr_e( 'Click to mark done', 'announcer-for-sportspress' ); ?>">
 					<span class="spa-qs-icon"><?php echo $qs['connected'] ? '✓' : '○'; ?></span>
-					<span><?php esc_html_e( 'Connect a channel', 'sportspress-announcer' ); ?></span>
+					<span><?php esc_html_e( 'Connect a channel', 'announcer-for-sportspress' ); ?></span>
 				</li>
-				<li class="spa-qs-item<?php echo $qs['templated'] ? ' is-done' : ''; ?>" data-item="templated" title="<?php esc_attr_e( 'Click to mark done', 'sportspress-announcer' ); ?>">
+				<li class="spa-qs-item<?php echo $qs['templated'] ? ' is-done' : ''; ?>" data-item="templated" title="<?php esc_attr_e( 'Click to mark done', 'announcer-for-sportspress' ); ?>">
 					<span class="spa-qs-icon"><?php echo $qs['templated'] ? '✓' : '○'; ?></span>
-					<span><?php esc_html_e( 'Customize result template', 'sportspress-announcer' ); ?></span>
+					<span><?php esc_html_e( 'Customize result template', 'announcer-for-sportspress' ); ?></span>
 				</li>
-				<li class="spa-qs-item<?php echo $qs['tested'] ? ' is-done' : ''; ?>" data-item="tested" title="<?php esc_attr_e( 'Click to mark done', 'sportspress-announcer' ); ?>">
+				<li class="spa-qs-item<?php echo $qs['tested'] ? ' is-done' : ''; ?>" data-item="tested" title="<?php esc_attr_e( 'Click to mark done', 'announcer-for-sportspress' ); ?>">
 					<span class="spa-qs-icon"><?php echo $qs['tested'] ? '✓' : '○'; ?></span>
-					<span><?php esc_html_e( 'Send a test announcement', 'sportspress-announcer' ); ?></span>
+					<span><?php esc_html_e( 'Send a test announcement', 'announcer-for-sportspress' ); ?></span>
 				</li>
-				<li class="spa-qs-item<?php echo $qs['published'] ? ' is-done' : ''; ?>" data-item="published" title="<?php esc_attr_e( 'Click to mark done', 'sportspress-announcer' ); ?>">
+				<li class="spa-qs-item<?php echo $qs['published'] ? ' is-done' : ''; ?>" data-item="published" title="<?php esc_attr_e( 'Click to mark done', 'announcer-for-sportspress' ); ?>">
 					<span class="spa-qs-icon"><?php echo $qs['published'] ? '✓' : '○'; ?></span>
-					<span><?php esc_html_e( 'Publish your first result', 'sportspress-announcer' ); ?></span>
+					<span><?php esc_html_e( 'Publish your first result', 'announcer-for-sportspress' ); ?></span>
 				</li>
 			</ul>
 
 			<div class="spa-help-divider"></div>
 
-			<h4 id="spa-help-tab-title"><?php esc_html_e( 'On this tab', 'sportspress-announcer' ); ?></h4>
+			<h4 id="spa-help-tab-title"><?php esc_html_e( 'On this tab', 'announcer-for-sportspress' ); ?></h4>
 			<p class="spa-help-tip" id="spa-help-tab-tip">
-				<?php esc_html_e( 'Your score column key must match the result column slug set up in SportsPress → Result Columns.', 'sportspress-announcer' ); ?>
+				<?php esc_html_e( 'Your score column key must match the result column slug set up in SportsPress → Result Columns.', 'announcer-for-sportspress' ); ?>
 			</p>
 
 			<div class="spa-help-links">
-				<a href="https://support.discord.com/hc/en-us/articles/228383668" target="_blank" rel="noopener">📖 <?php esc_html_e( 'How to create a webhook', 'sportspress-announcer' ); ?></a>
-				<a href="https://sportspress-announcer.com/docs" target="_blank" rel="noopener">? <?php esc_html_e( 'Full docs →', 'sportspress-announcer' ); ?></a>
+				<a href="https://support.discord.com/hc/en-us/articles/228383668" target="_blank" rel="noopener">📖 <?php esc_html_e( 'How to create a webhook', 'announcer-for-sportspress' ); ?></a>
+				<a href="https://sportspress-announcer.com/docs" target="_blank" rel="noopener">? <?php esc_html_e( 'Full docs →', 'announcer-for-sportspress' ); ?></a>
 			</div>
 		</div><!-- .spa-help-sidebar -->
 		<?php
@@ -3367,13 +3367,13 @@ class SPA_Settings {
 			var panels = document.querySelectorAll( '.spa-panel' );
 
 			var tips = {
-				dashboard: '<?php echo esc_js( __( 'Your daily cockpit — platform status, recent announcements, and upcoming digest.', 'sportspress-announcer' ) ); ?>',
-				channels:  '<?php echo esc_js( __( 'One Discord channel handles most leagues. Add routing rules only if you run multiple divisions.', 'sportspress-announcer' ) ); ?>',
-				digest:    '<?php echo esc_js( __( 'The digest lists upcoming games for the next 7 days. Use auto-send to post it to Discord on a schedule.', 'sportspress-announcer' ) ); ?>',
-				templates: '<?php echo esc_js( __( 'Click any placeholder chip to insert it into the template. Team names are auto-bolded on each platform.', 'sportspress-announcer' ) ); ?>',
-				general:   '<?php echo esc_js( __( 'Your score column key must match the result column slug set up in SportsPress → Result Columns.', 'sportspress-announcer' ) ); ?>',
-				log:       '<?php echo esc_js( __( 'Full history of every announcement sent. Filter by type or search by event name.', 'sportspress-announcer' ) ); ?>',
-				pro:       '<?php echo esc_js( __( 'A look at what Pro will add. Not for sale yet, but coming soon.', 'sportspress-announcer' ) ); ?>',
+				dashboard: '<?php echo esc_js( __( 'Your daily cockpit — platform status, recent announcements, and upcoming digest.', 'announcer-for-sportspress' ) ); ?>',
+				channels:  '<?php echo esc_js( __( 'One Discord channel handles most leagues. Add routing rules only if you run multiple divisions.', 'announcer-for-sportspress' ) ); ?>',
+				digest:    '<?php echo esc_js( __( 'The digest lists upcoming games for the next 7 days. Use auto-send to post it to Discord on a schedule.', 'announcer-for-sportspress' ) ); ?>',
+				templates: '<?php echo esc_js( __( 'Click any placeholder chip to insert it into the template. Team names are auto-bolded on each platform.', 'announcer-for-sportspress' ) ); ?>',
+				general:   '<?php echo esc_js( __( 'Your score column key must match the result column slug set up in SportsPress → Result Columns.', 'announcer-for-sportspress' ) ); ?>',
+				log:       '<?php echo esc_js( __( 'Full history of every announcement sent. Filter by type or search by event name.', 'announcer-for-sportspress' ) ); ?>',
+				pro:       '<?php echo esc_js( __( 'A look at what Pro will add. Not for sale yet, but coming soon.', 'announcer-for-sportspress' ) ); ?>',
 			};
 
 			var tipEl = document.getElementById( 'spa-help-tab-tip' );
@@ -3531,17 +3531,17 @@ class SPA_Settings {
 		?>
 		<div class="spa-weekly-digest<?php echo $locked ? ' spa-pro-locked' : ''; ?>">
 
-			<h3><?php esc_html_e( 'Weekly Recap', 'sportspress-announcer' ); ?></h3>
+			<h3><?php esc_html_e( 'Weekly Recap', 'announcer-for-sportspress' ); ?></h3>
 			<p class="description">
-				<?php esc_html_e( 'A weekly rhythm: results, standings movement, and stat leaders, posted automatically to your channels.', 'sportspress-announcer' ); ?>
+				<?php esc_html_e( 'A weekly rhythm: results, standings movement, and stat leaders, posted automatically to your channels.', 'announcer-for-sportspress' ); ?>
 			</p>
 
 			<?php if ( $locked ) : ?>
 			<div class="spa-pro-strip">
 				<span class="dashicons dashicons-lock"></span>
-				<?php esc_html_e( 'Scheduling & automatic posting require Pro.', 'sportspress-announcer' ); ?>
+				<?php esc_html_e( 'Scheduling & automatic posting require Pro.', 'announcer-for-sportspress' ); ?>
 				<a href="<?php echo esc_url( $this->weekly_digest_upgrade_url() ); ?>">
-					<?php esc_html_e( 'Coming soon: see what Pro adds →', 'sportspress-announcer' ); ?>
+					<?php esc_html_e( 'Coming soon: see what Pro adds →', 'announcer-for-sportspress' ); ?>
 				</a>
 			</div>
 			<?php endif; ?>
@@ -3573,16 +3573,16 @@ class SPA_Settings {
 
 			<?php if ( ! empty( $leagues ) ) : ?>
 			<tr>
-				<th scope="row"><?php esc_html_e( 'Leagues', 'sportspress-announcer' ); ?></th>
+				<th scope="row"><?php esc_html_e( 'Leagues', 'announcer-for-sportspress' ); ?></th>
 				<td>
 					<?php $this->render_digest_league_checkboxes( $leagues, $selected_lg, $dis ); ?>
-					<p class="description"><?php esc_html_e( 'One digest is posted per selected league.', 'sportspress-announcer' ); ?></p>
+					<p class="description"><?php esc_html_e( 'One digest is posted per selected league.', 'announcer-for-sportspress' ); ?></p>
 				</td>
 			</tr>
 			<?php endif; ?>
 
 			<tr>
-				<th scope="row"><?php esc_html_e( 'Content', 'sportspress-announcer' ); ?></th>
+				<th scope="row"><?php esc_html_e( 'Content', 'announcer-for-sportspress' ); ?></th>
 				<td>
 					<?php $this->render_weekly_digest_content_toggles( $dis ); ?>
 				</td>
@@ -3590,7 +3590,7 @@ class SPA_Settings {
 
 			<?php if ( ! empty( $available_stats ) ) : ?>
 			<tr>
-				<th scope="row"><?php esc_html_e( 'Stat leaders (up to 3)', 'sportspress-announcer' ); ?></th>
+				<th scope="row"><?php esc_html_e( 'Stat leaders (up to 3)', 'announcer-for-sportspress' ); ?></th>
 				<td>
 					<?php $this->render_digest_stat_checkboxes( $available_stats, $selected_stats, $dis ); ?>
 				</td>
@@ -3650,17 +3650,17 @@ class SPA_Settings {
 		$current_day = get_option( 'spa_weekly_digest_day', 'monday' );
 		?>
 		<tr>
-			<th scope="row"><?php esc_html_e( 'Enable', 'sportspress-announcer' ); ?></th>
+			<th scope="row"><?php esc_html_e( 'Enable', 'announcer-for-sportspress' ); ?></th>
 			<td>
 				<label>
 					<input type="checkbox" name="spa_weekly_digest_enabled" value="1"
 						<?php checked( get_option( 'spa_weekly_digest_enabled' ) ); ?><?php echo $dis; // phpcs:ignore ?>>
-					<?php esc_html_e( 'Send an automatic weekly recap to configured channels', 'sportspress-announcer' ); ?>
+					<?php esc_html_e( 'Send an automatic weekly recap to configured channels', 'announcer-for-sportspress' ); ?>
 				</label>
 			</td>
 		</tr>
 		<tr>
-			<th scope="row"><?php esc_html_e( 'Send day', 'sportspress-announcer' ); ?></th>
+			<th scope="row"><?php esc_html_e( 'Send day', 'announcer-for-sportspress' ); ?></th>
 			<td>
 				<select name="spa_weekly_digest_day"<?php echo $dis; // phpcs:ignore ?>>
 					<?php $this->render_weekday_options( $current_day ); ?>
@@ -3668,7 +3668,7 @@ class SPA_Settings {
 			</td>
 		</tr>
 		<tr>
-			<th scope="row"><?php esc_html_e( 'Send time', 'sportspress-announcer' ); ?></th>
+			<th scope="row"><?php esc_html_e( 'Send time', 'announcer-for-sportspress' ); ?></th>
 			<td>
 				<input type="time" name="spa_weekly_digest_time"
 					value="<?php echo esc_attr( get_option( 'spa_weekly_digest_time', '09:00' ) ); ?>"<?php echo $dis; // phpcs:ignore ?>>
@@ -3705,11 +3705,11 @@ class SPA_Settings {
 	private function render_weekly_digest_timezone_hint(): void {
 		printf(
 			/* translators: %s: site timezone string */
-			esc_html__( 'Uses your site timezone (%s). On low-traffic sites, set up a real server cron hitting wp-cron.php for reliable delivery.', 'sportspress-announcer' ),
+			esc_html__( 'Uses your site timezone (%s). On low-traffic sites, set up a real server cron hitting wp-cron.php for reliable delivery.', 'announcer-for-sportspress' ),
 			esc_html( wp_timezone_string() )
 		);
 		if ( defined( 'DISABLE_WP_CRON' ) && DISABLE_WP_CRON ) {
-			echo ' <strong>' . esc_html__( 'DISABLE_WP_CRON is active — a real cron job is required.', 'sportspress-announcer' ) . '</strong>';
+			echo ' <strong>' . esc_html__( 'DISABLE_WP_CRON is active — a real cron job is required.', 'announcer-for-sportspress' ) . '</strong>';
 		}
 	}
 
@@ -3721,11 +3721,11 @@ class SPA_Settings {
 	 */
 	private function render_weekly_digest_content_toggles( string $dis ): void {
 		$toggles     = array(
-			'spa_weekly_digest_include_results'   => __( 'Results', 'sportspress-announcer' ),
-			'spa_weekly_digest_include_standings' => __( 'Standings & movement', 'sportspress-announcer' ),
-			'spa_weekly_digest_include_leaders'   => __( 'Stat leaders', 'sportspress-announcer' ),
-			'spa_weekly_digest_include_upcoming'  => __( 'Upcoming games', 'sportspress-announcer' ),
-			'spa_weekly_digest_publish_as_post'   => __( 'Also publish as a site post', 'sportspress-announcer' ),
+			'spa_weekly_digest_include_results'   => __( 'Results', 'announcer-for-sportspress' ),
+			'spa_weekly_digest_include_standings' => __( 'Standings & movement', 'announcer-for-sportspress' ),
+			'spa_weekly_digest_include_leaders'   => __( 'Stat leaders', 'announcer-for-sportspress' ),
+			'spa_weekly_digest_include_upcoming'  => __( 'Upcoming games', 'announcer-for-sportspress' ),
+			'spa_weekly_digest_publish_as_post'   => __( 'Also publish as a site post', 'announcer-for-sportspress' ),
 		);
 		$defaults_on = array( 'spa_weekly_digest_include_results', 'spa_weekly_digest_include_standings', 'spa_weekly_digest_include_leaders' );
 
@@ -3763,14 +3763,14 @@ class SPA_Settings {
 	 */
 	private function render_weekly_digest_preview( array $leagues ): void {
 		?>
-		<h4><?php esc_html_e( 'Preview', 'sportspress-announcer' ); ?></h4>
+		<h4><?php esc_html_e( 'Preview', 'announcer-for-sportspress' ); ?></h4>
 		<p class="description">
-			<?php esc_html_e( 'Generate a preview using your real SportsPress data. Available on the free plan.', 'sportspress-announcer' ); ?>
+			<?php esc_html_e( 'Generate a preview using your real SportsPress data. Available on the free plan.', 'announcer-for-sportspress' ); ?>
 		</p>
 
 		<?php if ( ! empty( $leagues ) ) : ?>
 		<p>
-			<label for="spa-weekly-preview-league"><?php esc_html_e( 'League:', 'sportspress-announcer' ); ?></label>
+			<label for="spa-weekly-preview-league"><?php esc_html_e( 'League:', 'announcer-for-sportspress' ); ?></label>
 			<select id="spa-weekly-preview-league">
 				<?php foreach ( $leagues as $league ) : ?>
 				<option value="<?php echo esc_attr( $league->term_id ); ?>"><?php echo esc_html( $league->name ); ?></option>
@@ -3782,11 +3782,11 @@ class SPA_Settings {
 		<div style="display:flex;align-items:center;gap:8px;">
 			<button type="button" id="spa-weekly-preview-btn" class="button button-secondary"
 				data-nonce="<?php echo esc_attr( wp_create_nonce( 'spa_generate_digest_preview_nonce' ) ); ?>">
-				<?php esc_html_e( 'Regenerate preview', 'sportspress-announcer' ); ?>
+				<?php esc_html_e( 'Regenerate preview', 'announcer-for-sportspress' ); ?>
 			</button>
 			<button type="button" id="spa-weekly-send-btn" class="button button-primary"
 				data-nonce="<?php echo esc_attr( wp_create_nonce( 'spa_send_weekly_digest_now_nonce' ) ); ?>">
-				<?php esc_html_e( 'Send now', 'sportspress-announcer' ); ?>
+				<?php esc_html_e( 'Send now', 'announcer-for-sportspress' ); ?>
 			</button>
 			<span id="spa-weekly-preview-spinner" class="spinner" style="float:none;vertical-align:middle;display:none;"></span>
 			<span id="spa-weekly-send-result" class="spa-send-result"></span>
@@ -3830,12 +3830,12 @@ class SPA_Settings {
 						output.style.display  = 'block';
 						output.innerHTML = res.success
 							? res.data.html
-							: '<p style="color:#d63638"><?php echo esc_js( __( 'Could not generate preview. Check that SportsPress is active and leagues are configured.', 'sportspress-announcer' ) ); ?></p>';
+							: '<p style="color:#d63638"><?php echo esc_js( __( 'Could not generate preview. Check that SportsPress is active and leagues are configured.', 'announcer-for-sportspress' ) ); ?></p>';
 					} )
 					.catch( function() {
 						spinner.style.display = 'none';
 						output.style.display  = 'block';
-						output.innerHTML = '<p style="color:#d63638"><?php echo esc_js( __( 'Request failed.', 'sportspress-announcer' ) ); ?></p>';
+						output.innerHTML = '<p style="color:#d63638"><?php echo esc_js( __( 'Request failed.', 'announcer-for-sportspress' ) ); ?></p>';
 					} );
 			}
 
@@ -3862,7 +3862,7 @@ class SPA_Settings {
 			function sendWeekly() {
 				sendBtn.disabled  = true;
 				var idle          = sendBtn.textContent;
-				sendBtn.textContent = <?php echo wp_json_encode( __( 'Sending…', 'sportspress-announcer' ) ); ?>;
+				sendBtn.textContent = <?php echo wp_json_encode( __( 'Sending…', 'announcer-for-sportspress' ) ); ?>;
 				if ( sendResult ) { sendResult.textContent = ''; }
 
 				var fd = new FormData();
@@ -3877,15 +3877,15 @@ class SPA_Settings {
 						sendBtn.textContent = idle;
 						if ( ! sendResult ) { return; }
 						sendResult.textContent = res.success
-							? <?php echo wp_json_encode( __( '✓ Sent', 'sportspress-announcer' ) ); ?>
-							: ( res.data || <?php echo wp_json_encode( __( '✗ Failed', 'sportspress-announcer' ) ); ?> );
+							? <?php echo wp_json_encode( __( '✓ Sent', 'announcer-for-sportspress' ) ); ?>
+							: ( res.data || <?php echo wp_json_encode( __( '✗ Failed', 'announcer-for-sportspress' ) ); ?> );
 						sendResult.style.color = res.success ? '#00a32a' : '#d63638';
 					} )
 					.catch( function() {
 						sendBtn.disabled = false;
 						sendBtn.textContent = idle;
 						if ( sendResult ) {
-							sendResult.textContent = <?php echo wp_json_encode( __( '✗ Failed', 'sportspress-announcer' ) ); ?>;
+							sendResult.textContent = <?php echo wp_json_encode( __( '✗ Failed', 'announcer-for-sportspress' ) ); ?>;
 							sendResult.style.color = '#d63638';
 						}
 					} );
@@ -3893,7 +3893,7 @@ class SPA_Settings {
 
 			sendBtn.addEventListener( 'click', function() {
 				window.spaConfirmSend( {
-					title: <?php echo wp_json_encode( __( 'Send the weekly digest now?', 'sportspress-announcer' ) ); ?>,
+					title: <?php echo wp_json_encode( __( 'Send the weekly digest now?', 'announcer-for-sportspress' ) ); ?>,
 					previewHtml: output ? output.innerHTML : ''
 				} ).then( function( ok ) {
 					if ( ok ) { sendWeekly(); }
@@ -3925,13 +3925,13 @@ class SPA_Settings {
 	 */
 	private function weekday_choices(): array {
 		return array(
-			'monday'    => __( 'Monday', 'sportspress-announcer' ),
-			'tuesday'   => __( 'Tuesday', 'sportspress-announcer' ),
-			'wednesday' => __( 'Wednesday', 'sportspress-announcer' ),
-			'thursday'  => __( 'Thursday', 'sportspress-announcer' ),
-			'friday'    => __( 'Friday', 'sportspress-announcer' ),
-			'saturday'  => __( 'Saturday', 'sportspress-announcer' ),
-			'sunday'    => __( 'Sunday', 'sportspress-announcer' ),
+			'monday'    => __( 'Monday', 'announcer-for-sportspress' ),
+			'tuesday'   => __( 'Tuesday', 'announcer-for-sportspress' ),
+			'wednesday' => __( 'Wednesday', 'announcer-for-sportspress' ),
+			'thursday'  => __( 'Thursday', 'announcer-for-sportspress' ),
+			'friday'    => __( 'Friday', 'announcer-for-sportspress' ),
+			'saturday'  => __( 'Saturday', 'announcer-for-sportspress' ),
+			'sunday'    => __( 'Sunday', 'announcer-for-sportspress' ),
 		);
 	}
 
@@ -3948,9 +3948,9 @@ class SPA_Settings {
 			}
 		}
 		return array(
-			'goals'   => __( 'Goals', 'sportspress-announcer' ),
-			'assists' => __( 'Assists', 'sportspress-announcer' ),
-			'points'  => __( 'Points', 'sportspress-announcer' ),
+			'goals'   => __( 'Goals', 'announcer-for-sportspress' ),
+			'assists' => __( 'Assists', 'announcer-for-sportspress' ),
+			'points'  => __( 'Points', 'announcer-for-sportspress' ),
 		);
 	}
 
@@ -3971,13 +3971,13 @@ class SPA_Settings {
 		check_ajax_referer( 'spa_generate_digest_preview_nonce', 'nonce' );
 
 		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'sportspress-announcer' ) ) );
+			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'announcer-for-sportspress' ) ) );
 		}
 
 		$league_id = intval( wp_unslash( $_POST['league_id'] ?? 0 ) );
 
 		if ( ! class_exists( 'SPA_Digest_Builder' ) || ! class_exists( 'SPA_Digest_Formatter' ) ) {
-			wp_send_json_error( array( 'message' => __( 'Digest classes not loaded.', 'sportspress-announcer' ) ) );
+			wp_send_json_error( array( 'message' => __( 'Digest classes not loaded.', 'announcer-for-sportspress' ) ) );
 		}
 
 		$builder = new SPA_Digest_Builder( $league_id, SPA_Digest_Builder::options_from_settings() );

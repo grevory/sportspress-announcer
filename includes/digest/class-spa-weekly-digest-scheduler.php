@@ -171,11 +171,11 @@ class SPA_Weekly_Digest_Scheduler {
 		$last_sent     = (int) get_option( $last_sent_key, 0 );
 
 		if ( ! $force && $last_sent > 0 && ( time() - $last_sent ) < 23 * HOUR_IN_SECONDS ) {
-			return new \WP_Error( 'guard', __( 'Digest already sent in the last 23 hours.', 'sportspress-announcer' ) );
+			return new \WP_Error( 'guard', __( 'Digest already sent in the last 23 hours.', 'announcer-for-sportspress' ) );
 		}
 
 		if ( ! class_exists( 'SPA_Digest_Builder' ) || ! class_exists( 'SPA_Digest_Formatter' ) ) {
-			return new \WP_Error( 'unavailable', __( 'Digest builder unavailable.', 'sportspress-announcer' ) );
+			return new \WP_Error( 'unavailable', __( 'Digest builder unavailable.', 'announcer-for-sportspress' ) );
 		}
 
 		$builder = new SPA_Digest_Builder( $league_id, SPA_Digest_Builder::options_from_settings() );
@@ -184,7 +184,7 @@ class SPA_Weekly_Digest_Scheduler {
 
 		// Skip if no content.
 		if ( $data['is_empty'] ) {
-			return new \WP_Error( 'empty', __( 'No results, standings, or fixtures for this period.', 'sportspress-announcer' ) );
+			return new \WP_Error( 'empty', __( 'No results, standings, or fixtures for this period.', 'announcer-for-sportspress' ) );
 		}
 
 		$formatter = new SPA_Digest_Formatter( $data );
@@ -213,7 +213,7 @@ class SPA_Weekly_Digest_Scheduler {
 			return true;
 		}
 
-		return new \WP_Error( 'unsent', __( 'No channel is configured to receive the digest.', 'sportspress-announcer' ) );
+		return new \WP_Error( 'unsent', __( 'No channel is configured to receive the digest.', 'announcer-for-sportspress' ) );
 	}
 
 	/**
@@ -271,7 +271,7 @@ class SPA_Weekly_Digest_Scheduler {
 				'type'     => 'digest',
 				'label'    => sprintf(
 				/* translators: %s: league name */
-					__( 'Weekly Recap — %s', 'sportspress-announcer' ),
+					__( 'Weekly Recap — %s', 'announcer-for-sportspress' ),
 					$league_name
 				),
 				'channel'  => $league_name,
@@ -296,13 +296,13 @@ class SPA_Weekly_Digest_Scheduler {
 		$title       = $league_term && ! is_wp_error( $league_term )
 			? sprintf(
 				/* translators: 1: league name, 2: date */
-				__( 'Weekly Recap — %1$s (%2$s)', 'sportspress-announcer' ),
+				__( 'Weekly Recap — %1$s (%2$s)', 'announcer-for-sportspress' ),
 				$league_term->name,
 				$data['period']['end']
 			)
 			: sprintf(
 				/* translators: %s: date */
-				__( 'Weekly Recap (%s)', 'sportspress-announcer' ),
+				__( 'Weekly Recap (%s)', 'announcer-for-sportspress' ),
 				$data['period']['end']
 			);
 

@@ -1,6 +1,6 @@
 <?php
 /**
- * Uninstall cleanup for SportsPress Announcer.
+ * Uninstall cleanup for Announcer for SportsPress.
  *
  * Runs only when the plugin is deleted from wp-admin. Removes all plugin
  * options (including dynamically league-keyed ones), user meta, and any

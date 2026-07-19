@@ -34,11 +34,11 @@ class SPA_Pro_Tab {
 		?>
 		<div class="spa-pro-page">
 			<h2>
-				<?php esc_html_e( 'SportsPress Announcer Pro', 'sportspress-announcer' ); ?>
-				<span class="spa-pro-badge"><?php esc_html_e( 'Coming soon', 'sportspress-announcer' ); ?></span>
+				<?php esc_html_e( 'Announcer for SportsPress Pro', 'announcer-for-sportspress' ); ?>
+				<span class="spa-pro-badge"><?php esc_html_e( 'Coming soon', 'announcer-for-sportspress' ); ?></span>
 			</h2>
 			<p class="description">
-				<?php esc_html_e( 'Everything in the free plugin stays free: Discord result announcements, templates, and the upcoming-fixtures digest. Pro adds the extras below.', 'sportspress-announcer' ); ?>
+				<?php esc_html_e( 'Everything in the free plugin stays free: Discord result announcements, templates, and the upcoming-fixtures digest. Pro adds the extras below.', 'announcer-for-sportspress' ); ?>
 			</p>
 
 			<ul class="spa-pro-feature-list">
@@ -63,16 +63,16 @@ class SPA_Pro_Tab {
 	private static function features(): array {
 		return array(
 			array(
-				'name'  => __( 'Slack announcements', 'sportspress-announcer' ),
-				'blurb' => __( 'Post results to Slack alongside Discord, with per-league channel routing.', 'sportspress-announcer' ),
+				'name'  => __( 'Slack announcements', 'announcer-for-sportspress' ),
+				'blurb' => __( 'Post results to Slack alongside Discord, with per-league channel routing.', 'announcer-for-sportspress' ),
 			),
 			array(
-				'name'  => __( 'Automatic Weekly Recap', 'sportspress-announcer' ),
-				'blurb' => __( 'Results, standings movement, and stat leaders posted to your channels every week on a schedule.', 'sportspress-announcer' ),
+				'name'  => __( 'Automatic Weekly Recap', 'announcer-for-sportspress' ),
+				'blurb' => __( 'Results, standings movement, and stat leaders posted to your channels every week on a schedule.', 'announcer-for-sportspress' ),
 			),
 			array(
-				'name'  => __( 'Facebook sharing tools', 'sportspress-announcer' ),
-				'blurb' => __( 'Share recent results to your league Facebook page in a couple of clicks.', 'sportspress-announcer' ),
+				'name'  => __( 'Facebook sharing tools', 'announcer-for-sportspress' ),
+				'blurb' => __( 'Share recent results to your league Facebook page in a couple of clicks.', 'announcer-for-sportspress' ),
 			),
 		);
 	}
@@ -90,12 +90,12 @@ class SPA_Pro_Tab {
 			<?php
 			printf(
 				/* translators: %s: planned yearly price, e.g. "$39/yr". */
-				esc_html__( 'Pro is not available to buy yet. It is planned to launch at %s.', 'sportspress-announcer' ),
+				esc_html__( 'Pro is not available to buy yet. It is planned to launch at %s.', 'announcer-for-sportspress' ),
 				esc_html( self::LAUNCH_PRICE )
 			);
 			if ( SPA_License::is_pro() ) {
 				echo ' ';
-				esc_html_e( 'Until launch, all Pro features are unlocked free, so try them out.', 'sportspress-announcer' );
+				esc_html_e( 'Until launch, all Pro features are unlocked free, so try them out.', 'announcer-for-sportspress' );
 			}
 			?>
 		</div>

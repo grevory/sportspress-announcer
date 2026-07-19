@@ -1,4 +1,4 @@
-=== SportsPress Announcer ===
+=== Announcer for SportsPress ===
 Contributors: grevory
 Tags: sportspress, discord, slack, announcements, webhooks
 Requires at least: 6.0
@@ -12,7 +12,7 @@ Automatically posts SportsPress game results to Discord and Slack, with fixture 
 
 == Description ==
 
-Rec leagues run on two systems that don't talk to each other: the website (SportsPress) and the group chat (Discord or Slack). Today the bridge is a human. Someone copies the score into chat by hand, or nobody does. SportsPress Announcer eliminates that step.
+Rec leagues run on two systems that don't talk to each other: the website (SportsPress) and the group chat (Discord or Slack). Today the bridge is a human. Someone copies the score into chat by hand, or nobody does. Announcer for SportsPress eliminates that step.
 
 **How it works**
 
@@ -61,9 +61,9 @@ SportsPress must be installed and active. The plugin reads teams, results, leagu
 
 == Installation ==
 
-1. Upload the `sportspress-announcer` folder to `/wp-content/plugins/`.
-2. Activate **SportsPress Announcer** in the WordPress admin under Plugins.
-3. Go to **Settings → SportsPress Announcer → Channels**.
+1. Upload the `announcer-for-sportspress` folder to `/wp-content/plugins/`.
+2. Activate **Announcer for SportsPress** in the WordPress admin under Plugins.
+3. Go to **Settings → Announcer for SportsPress → Channels**.
 4. Paste your Discord (and optionally Slack) webhook URL and save.
 
 Results will now post automatically when a SportsPress event result is saved.
@@ -84,7 +84,7 @@ Make sure the event post status is **Published** and that a score has actually b
 
 = My site uses a custom result column, not "goals". =
 
-Go to **Settings → SportsPress Announcer → General → Score Column** and enter the slug of your column (e.g. `points` or `runs`). This must match the column key shown in SportsPress → Result Columns.
+Go to **Settings → Announcer for SportsPress → General → Score Column** and enter the slug of your column (e.g. `points` or `runs`). This must match the column key shown in SportsPress → Result Columns.
 
 = Will it re-post every time I update the event? =
 

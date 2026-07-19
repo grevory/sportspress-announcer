@@ -33,7 +33,7 @@ class SPA_Team_Color {
 	public function add_meta_box(): void {
 		add_meta_box(
 			'spa_team_color',
-			__( 'Announcer', 'sportspress-announcer' ),
+			__( 'Announcer', 'announcer-for-sportspress' ),
 			array( $this, 'render' ),
 			'sp_team',
 			'side',
@@ -57,7 +57,7 @@ class SPA_Team_Color {
 		?>
 		<p>
 			<label for="<?php echo esc_attr( self::META_KEY ); ?>">
-				<?php esc_html_e( 'Brand color', 'sportspress-announcer' ); ?>
+				<?php esc_html_e( 'Brand color', 'announcer-for-sportspress' ); ?>
 			</label><br>
 			<input
 				type="color"
@@ -68,7 +68,7 @@ class SPA_Team_Color {
 			/>
 		</p>
 		<p class="description">
-			<?php esc_html_e( 'Used as the sidebar color in Discord match result embeds.', 'sportspress-announcer' ); ?>
+			<?php esc_html_e( 'Used as the sidebar color in Discord match result embeds.', 'announcer-for-sportspress' ); ?>
 		</p>
 		<?php
 	}

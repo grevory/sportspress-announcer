@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name: SportsPress Announcer
+ * Plugin Name: Announcer for SportsPress
  * Plugin URI:  https://github.com/grevory/sportspress-announcer
  * Description: Automatically posts game results from SportsPress to Discord and other chat platforms.
  * Version:     0.1.0
@@ -8,7 +8,7 @@
  * Author URI:  https://github.com/grevory
  * License:     GPL-2.0-or-later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
- * Text Domain: sportspress-announcer
+ * Text Domain: announcer-for-sportspress
  * Requires at least: 6.0
  * Requires PHP: 7.4
  *
@@ -54,7 +54,7 @@ function spa_render_sportspress_missing_notice(): void {
 	}
 	?>
 	<div class="notice notice-warning">
-		<p><?php esc_html_e( 'SportsPress Announcer requires the SportsPress plugin to be installed and active. Announcements are paused until it is.', 'sportspress-announcer' ); ?></p>
+		<p><?php esc_html_e( 'Announcer for SportsPress requires the SportsPress plugin to be installed and active. Announcements are paused until it is.', 'announcer-for-sportspress' ); ?></p>
 	</div>
 	<?php
 }

@@ -30,13 +30,13 @@ class SPA_Upcoming_Discord {
 		check_ajax_referer( 'spa_send_upcoming_nonce', 'nonce' );
 
 		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_send_json_error( __( 'Permission denied.', 'sportspress-announcer' ) );
+			wp_send_json_error( __( 'Permission denied.', 'announcer-for-sportspress' ) );
 		}
 
 		$result = $this->send_digest();
 
 		if ( false === $result ) {
-			wp_send_json_error( __( 'No upcoming games found in the next 7 days.', 'sportspress-announcer' ) );
+			wp_send_json_error( __( 'No upcoming games found in the next 7 days.', 'announcer-for-sportspress' ) );
 		}
 
 		if ( is_wp_error( $result ) ) {
@@ -55,7 +55,7 @@ class SPA_Upcoming_Discord {
 	public function send_digest() {
 		$webhook_url = get_option( 'spa_discord_webhook_url', '' );
 		if ( empty( $webhook_url ) ) {
-			return new WP_Error( 'no_webhook', __( 'No Discord webhook URL configured.', 'sportspress-announcer' ) );
+			return new WP_Error( 'no_webhook', __( 'No Discord webhook URL configured.', 'announcer-for-sportspress' ) );
 		}
 
 		$notice = new SPA_Upcoming_Notice();
@@ -68,7 +68,7 @@ class SPA_Upcoming_Discord {
 		$payload = array(
 			'embeds' => array(
 				array(
-					'title'       => __( 'Upcoming Games', 'sportspress-announcer' ),
+					'title'       => __( 'Upcoming Games', 'announcer-for-sportspress' ),
 					'description' => $this->build_description( $games ),
 					'color'       => 0x5865F2,
 				),
@@ -82,7 +82,7 @@ class SPA_Upcoming_Discord {
 			SPA_Log::write(
 				array(
 					'type'     => 'digest',
-					'label'    => __( 'Fixtures digest', 'sportspress-announcer' ),
+					'label'    => __( 'Fixtures digest', 'announcer-for-sportspress' ),
 					'platform' => 'discord',
 					'status'   => 'failed',
 				)
@@ -93,7 +93,7 @@ class SPA_Upcoming_Discord {
 		SPA_Log::write(
 			array(
 				'type'     => 'digest',
-				'label'    => __( 'Fixtures digest', 'sportspress-announcer' ),
+				'label'    => __( 'Fixtures digest', 'announcer-for-sportspress' ),
 				'platform' => 'discord',
 				'status'   => 'sent',
 			)

@@ -1,4 +1,4 @@
-# CLAUDE.md — SportsPress Announcer
+# CLAUDE.md — Announcer for SportsPress
 
 WordPress plugin that announces SportsPress game results to Discord and Slack via webhooks, with scheduled daily/weekly digests. Some features are gated behind a Pro license check.
 
@@ -7,7 +7,7 @@ WordPress plugin that announces SportsPress game results to Discord and Slack vi
 - **Delivery**: per-platform webhook classes (`includes/class-spa-webhook-discord.php`, `includes/class-spa-webhook-slack.php`) fed by formatters (`class-spa-message-formatter.php`). Event publication is handled by `includes/class-spa-event-handler.php`.
 - **Digests**: `includes/digest/` holds the digest builder, formatter, and daily/weekly schedulers. Schedules use WP-Cron (`wp_schedule_event`), never custom cron tables.
 - **Licensing**: Pro features are gated through `SPA_License::is_pro()` (`includes/licensing/class-spa-license.php`) — a homegrown check, **not** Freemius. There is no separate `pro/` directory; Pro and free code live together and the gate is the only boundary.
-- **Loading**: classes are wired up with explicit `require_once` calls in `sportspress-announcer.php` (no autoloader).
+- **Loading**: classes are wired up with explicit `require_once` calls in `announcer-for-sportspress.php` (no autoloader).
 - **Dependency**: SportsPress must be active. Check with `class_exists( 'SportsPress' )` on init and show an admin notice (not a fatal) if missing.
 - **Data**: settings stored via the Settings API under a single option key (`spa_settings`). Current version is `0.1.0` (pre-1.0).
 
@@ -18,7 +18,7 @@ These matter for WordPress.org plugin review — violations block or delist the 
 1. **Escape all output** (`esc_html`, `esc_attr`, `esc_url`, `wp_kses_post`), **sanitize all input** (`sanitize_text_field`, `esc_url_raw` for webhook URLs), **prepare all queries** (`$wpdb->prepare`).
 2. Every admin form action needs a **nonce** and a **capability check** (`current_user_can( 'manage_options' )`).
 3. Prefix everything: functions `spa_`, classes `SPA_`, hooks `spa/`, options `spa_`. No generic names.
-4. All user-facing strings wrapped in i18n functions with the `sportspress-announcer` text domain.
+4. All user-facing strings wrapped in i18n functions with the `announcer-for-sportspress` text domain.
 5. Outbound HTTP only via `wp_remote_post` / `wp_safe_remote_post` — never cURL directly.
 
 ## Code style
@@ -52,7 +52,7 @@ These matter for WordPress.org plugin review — violations block or delist the 
 
 ## Deployment
 
-Free build ships to WordPress.org SVN. Bump the version in the plugin header (`sportspress-announcer.php`), the `SPA_VERSION` constant, and the `readme.txt` stable tag **together**, and update the changelog. There is no deploy script checked in yet — deploy manually.
+Free build ships to WordPress.org SVN. Bump the version in the plugin header (`announcer-for-sportspress.php`), the `SPA_VERSION` constant, and the `readme.txt` stable tag **together**, and update the changelog. There is no deploy script checked in yet — deploy manually.
 
 ## Context for Claude
 

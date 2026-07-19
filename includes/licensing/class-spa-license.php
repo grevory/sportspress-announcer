@@ -29,7 +29,7 @@ class SPA_License {
 	}
 
 	/**
-	 * URL of the in-plugin Pro page (Settings → SportsPress Announcer → Pro tab).
+	 * URL of the in-plugin Pro page (Settings → Announcer for SportsPress → Pro tab).
 	 *
 	 * Every upgrade link in the plugin must point here rather than at an
 	 * external site, so the links resolve even before the Pro checkout exists.
@@ -38,7 +38,7 @@ class SPA_License {
 	 * @return string
 	 */
 	public static function upgrade_url( string $context = '' ): string {
-		$url = admin_url( 'options-general.php?page=sportspress-announcer&tab=pro' );
+		$url = admin_url( 'options-general.php?page=announcer-for-sportspress&tab=pro' );
 		if ( '' !== $context ) {
 			$url = add_query_arg( 'spa_ref', $context, $url );
 		}

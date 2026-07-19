@@ -1,5 +1,5 @@
 /**
- * Quick Start checklist behavior for the SportsPress Announcer settings page.
+ * Quick Start checklist behavior for the Announcer for SportsPress settings page.
  *
  * Expects a localized `SPA_QS` global: { ajaxurl, nonce }.
  *

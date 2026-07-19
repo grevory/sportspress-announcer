@@ -32,7 +32,7 @@ class LicenseTest extends TestCase {
 		$url = SPA_License::upgrade_url();
 
 		$this->assertSame(
-			'https://league.test/wp-admin/options-general.php?page=sportspress-announcer&tab=pro',
+			'https://league.test/wp-admin/options-general.php?page=announcer-for-sportspress&tab=pro',
 			$url
 		);
 	}

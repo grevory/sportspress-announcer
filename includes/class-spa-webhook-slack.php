@@ -39,7 +39,7 @@ class SPA_Webhook_Slack {
 	 */
 	public function send( array $payload ) {
 		if ( empty( $this->webhook_url ) ) {
-			return new \WP_Error( 'spa_no_webhook', __( 'No Slack webhook URL configured.', 'sportspress-announcer' ) );
+			return new \WP_Error( 'spa_no_webhook', __( 'No Slack webhook URL configured.', 'announcer-for-sportspress' ) );
 		}
 
 		$response = wp_remote_post(
@@ -62,7 +62,7 @@ class SPA_Webhook_Slack {
 				'spa_webhook_error',
 				sprintf(
 					/* translators: %d: HTTP status code */
-					__( 'Slack webhook returned HTTP %d.', 'sportspress-announcer' ),
+					__( 'Slack webhook returned HTTP %d.', 'announcer-for-sportspress' ),
 					$code
 				)
 			);

@@ -62,14 +62,14 @@ class SPA_Digest_Formatter {
 	public function to_discord_embed(): array {
 		$period = sprintf(
 			/* translators: 1: start date, 2: end date */
-			__( '%1$s – %2$s', 'sportspress-announcer' ),
+			__( '%1$s – %2$s', 'announcer-for-sportspress' ),
 			esc_html( $this->data['period']['start'] ),
 			esc_html( $this->data['period']['end'] )
 		);
 
 		$footer_text = sprintf(
 			/* translators: %s: site name */
-			__( 'Posted automatically by SportsPress Announcer Pro · %s', 'sportspress-announcer' ),
+			__( 'Posted automatically by Announcer for SportsPress Pro · %s', 'announcer-for-sportspress' ),
 			get_bloginfo( 'name' )
 		);
 
@@ -78,7 +78,7 @@ class SPA_Digest_Formatter {
 				array(
 					'title'     => sprintf(
 						/* translators: 1: league name, 2: date range */
-						__( 'Weekly Recap — %1$s (%2$s)', 'sportspress-announcer' ),
+						__( 'Weekly Recap — %1$s (%2$s)', 'announcer-for-sportspress' ),
 						$this->league_name(),
 						$period
 					),
@@ -98,10 +98,10 @@ class SPA_Digest_Formatter {
 	 */
 	private function discord_fields(): array {
 		$sections = array(
-			__( '📋 Results', 'sportspress-announcer' )   => $this->format_results_discord(),
-			__( '📊 Standings', 'sportspress-announcer' ) => $this->format_standings_discord(),
-			__( '🏆 Leaders', 'sportspress-announcer' )   => $this->format_leaders_discord(),
-			__( '📅 Upcoming', 'sportspress-announcer' )  => $this->format_upcoming_discord(),
+			__( '📋 Results', 'announcer-for-sportspress' ) => $this->format_results_discord(),
+			__( '📊 Standings', 'announcer-for-sportspress' ) => $this->format_standings_discord(),
+			__( '🏆 Leaders', 'announcer-for-sportspress' ) => $this->format_leaders_discord(),
+			__( '📅 Upcoming', 'announcer-for-sportspress' ) => $this->format_upcoming_discord(),
 		);
 
 		$fields = array();
@@ -127,7 +127,7 @@ class SPA_Digest_Formatter {
 		$league_term = get_term( $this->data['league_id'], 'sp_league' );
 		return ( $league_term && ! is_wp_error( $league_term ) )
 			? esc_html( $league_term->name )
-			: esc_html__( 'League', 'sportspress-announcer' );
+			: esc_html__( 'League', 'announcer-for-sportspress' );
 	}
 
 	// -------------------------------------------------------------------------
@@ -146,7 +146,7 @@ class SPA_Digest_Formatter {
 		$html .= '<h2 class="spa-digest-title">';
 		$html .= sprintf(
 			/* translators: 1: league name, 2: date range */
-			esc_html__( 'Weekly Recap — %1$s (%2$s)', 'sportspress-announcer' ),
+			esc_html__( 'Weekly Recap — %1$s (%2$s)', 'announcer-for-sportspress' ),
 			$this->league_name(),
 			$period
 		);
@@ -159,7 +159,7 @@ class SPA_Digest_Formatter {
 
 		$html .= '<p class="spa-digest-footer">' . sprintf(
 			/* translators: %s: site name */
-			esc_html__( 'Posted automatically by SportsPress Announcer Pro · %s', 'sportspress-announcer' ),
+			esc_html__( 'Posted automatically by Announcer for SportsPress Pro · %s', 'announcer-for-sportspress' ),
 			esc_html( get_bloginfo( 'name' ) )
 		) . '</p>';
 
@@ -179,7 +179,7 @@ class SPA_Digest_Formatter {
 		}
 
 		$html  = '<div class="spa-digest-section">';
-		$html .= '<h3>' . esc_html__( 'Results', 'sportspress-announcer' ) . '</h3>';
+		$html .= '<h3>' . esc_html__( 'Results', 'announcer-for-sportspress' ) . '</h3>';
 		$html .= '<ul class="spa-digest-results">';
 		foreach ( $this->data['results'] as $r ) {
 			$html .= '<li><strong>' . esc_html( $r['home'] ) . ' ' . esc_html( $r['home_score'] ) . ' – ' . esc_html( $r['away_score'] ) . ' ' . esc_html( $r['away'] ) . '</strong>';
@@ -202,7 +202,7 @@ class SPA_Digest_Formatter {
 		}
 
 		$html  = '<div class="spa-digest-section">';
-		$html .= '<h3>' . esc_html__( 'Standings', 'sportspress-announcer' ) . '</h3>';
+		$html .= '<h3>' . esc_html__( 'Standings', 'announcer-for-sportspress' ) . '</h3>';
 		$html .= '<ol class="spa-digest-standings">';
 		foreach ( $this->data['standings'] as $s ) {
 			$arrow = $this->movement_html( $s['movement'] );
@@ -222,7 +222,7 @@ class SPA_Digest_Formatter {
 		}
 
 		$html  = '<div class="spa-digest-section">';
-		$html .= '<h3>' . esc_html__( 'Leaders', 'sportspress-announcer' ) . '</h3>';
+		$html .= '<h3>' . esc_html__( 'Leaders', 'announcer-for-sportspress' ) . '</h3>';
 		foreach ( $this->data['stat_leaders'] as $stat ) {
 			$html   .= '<p><strong>' . esc_html( $stat['label'] ) . ':</strong> ';
 			$entries = array();
@@ -245,7 +245,7 @@ class SPA_Digest_Formatter {
 		}
 
 		$html  = '<div class="spa-digest-section">';
-		$html .= '<h3>' . esc_html__( 'Upcoming', 'sportspress-announcer' ) . '</h3>';
+		$html .= '<h3>' . esc_html__( 'Upcoming', 'announcer-for-sportspress' ) . '</h3>';
 		$html .= '<ul class="spa-digest-upcoming">';
 		foreach ( $this->data['upcoming'] as $g ) {
 			$html .= '<li>' . esc_html( $g['label'] ?? '' );
@@ -272,14 +272,14 @@ class SPA_Digest_Formatter {
 	public function to_slack_blocks(): array {
 		$period = sprintf(
 			/* translators: 1: start date, 2: end date */
-			__( '%1$s – %2$s', 'sportspress-announcer' ),
+			__( '%1$s – %2$s', 'announcer-for-sportspress' ),
 			$this->data['period']['start'],
 			$this->data['period']['end']
 		);
 
 		$title = sprintf(
 			/* translators: 1: league name, 2: date range */
-			__( 'Weekly Recap — %1$s (%2$s)', 'sportspress-announcer' ),
+			__( 'Weekly Recap — %1$s (%2$s)', 'announcer-for-sportspress' ),
 			$this->league_name(),
 			$period
 		);
@@ -296,10 +296,10 @@ class SPA_Digest_Formatter {
 		);
 
 		$sections = array(
-			__( '📋 Results', 'sportspress-announcer' )   => $this->results_lines( '*' ),
-			__( '📊 Standings', 'sportspress-announcer' ) => $this->standings_lines( '*' ),
-			__( '🏆 Leaders', 'sportspress-announcer' )   => $this->leaders_lines( '*' ),
-			__( '📅 Upcoming', 'sportspress-announcer' )  => $this->upcoming_lines(),
+			__( '📋 Results', 'announcer-for-sportspress' ) => $this->results_lines( '*' ),
+			__( '📊 Standings', 'announcer-for-sportspress' ) => $this->standings_lines( '*' ),
+			__( '🏆 Leaders', 'announcer-for-sportspress' ) => $this->leaders_lines( '*' ),
+			__( '📅 Upcoming', 'announcer-for-sportspress' ) => $this->upcoming_lines(),
 		);
 
 		foreach ( $sections as $heading => $lines ) {
@@ -485,10 +485,10 @@ class SPA_Digest_Formatter {
 	 */
 	private function movement_html( string $movement ): string {
 		$map = array(
-			'up'   => '<span class="spa-arrow-up" title="' . esc_attr__( 'Up', 'sportspress-announcer' ) . '">↑</span>',
-			'down' => '<span class="spa-arrow-down" title="' . esc_attr__( 'Down', 'sportspress-announcer' ) . '">↓</span>',
-			'same' => '<span class="spa-arrow-same" title="' . esc_attr__( 'No change', 'sportspress-announcer' ) . '">→</span>',
-			'new'  => '<span class="spa-arrow-new" title="' . esc_attr__( 'New entry', 'sportspress-announcer' ) . '">✦</span>',
+			'up'   => '<span class="spa-arrow-up" title="' . esc_attr__( 'Up', 'announcer-for-sportspress' ) . '">↑</span>',
+			'down' => '<span class="spa-arrow-down" title="' . esc_attr__( 'Down', 'announcer-for-sportspress' ) . '">↓</span>',
+			'same' => '<span class="spa-arrow-same" title="' . esc_attr__( 'No change', 'announcer-for-sportspress' ) . '">→</span>',
+			'new'  => '<span class="spa-arrow-new" title="' . esc_attr__( 'New entry', 'announcer-for-sportspress' ) . '">✦</span>',
 		);
 		return $map[ $movement ] ?? '';
 	}
