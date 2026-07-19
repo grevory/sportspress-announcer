@@ -2040,6 +2040,22 @@ class SPA_Settings {
 	// Page.
 
 	/**
+	 * URL of a tab on the plugin settings page.
+	 *
+	 * @param string $tab Tab slug.
+	 * @return string
+	 */
+	private function tab_url( string $tab ): string {
+		return add_query_arg(
+			array(
+				'page' => self::MENU_SLUG,
+				'tab'  => $tab,
+			),
+			admin_url( 'options-general.php' )
+		);
+	}
+
+	/**
 	 * Render the Dashboard tab.
 	 *
 	 * @param array $ctx Dashboard context from dashboard_context() — keys:
@@ -2048,13 +2064,7 @@ class SPA_Settings {
 	 * @return void
 	 */
 	private function render_dashboard_tab( array $ctx ): void {
-		$log_url = add_query_arg(
-			array(
-				'page' => self::MENU_SLUG,
-				'tab'  => 'log',
-			),
-			admin_url( 'options-general.php' )
-		);
+		$log_url = $this->tab_url( 'log' );
 
 		$this->render_dashboard_status_bar( $ctx['discord_active'], $ctx['sent_today'], $ctx['log_failed'] );
 		$this->render_dashboard_recent_card( $ctx['recent_log'], $ctx['log_total'], $log_url );
@@ -2071,13 +2081,7 @@ class SPA_Settings {
 	 * @return void
 	 */
 	private function render_dashboard_status_bar( bool $discord_active, int $sent_today, int $log_failed ): void {
-		$general_url = add_query_arg(
-			array(
-				'page' => self::MENU_SLUG,
-				'tab'  => 'general',
-			),
-			admin_url( 'options-general.php' )
-		);
+		$general_url = $this->tab_url( 'general' );
 		?>
 		<div class="spa-status-bar">
 			<?php if ( $discord_active ) : ?>
@@ -2088,8 +2092,13 @@ class SPA_Settings {
 				<span style="color:#8c8f94"><?php esc_html_e( 'Discord', 'announcer-for-sportspress' ); ?></span>
 			<?php endif; ?>
 			<span class="spa-status-sep">·</span>
-			<span style="color:#8c8f94"><?php esc_html_e( 'Slack', 'announcer-for-sportspress' ); ?></span>
-			<span class="spa-pro-badge"><?php esc_html_e( 'Pro', 'announcer-for-sportspress' ); ?></span>
+			<?php if ( $this->slack_active() ) : ?>
+				<span class="spa-status-dot spa-status-dot--green"></span>
+				<strong><?php esc_html_e( 'Slack', 'announcer-for-sportspress' ); ?></strong>
+			<?php else : ?>
+				<span style="color:#8c8f94"><?php esc_html_e( 'Slack', 'announcer-for-sportspress' ); ?></span>
+				<span class="spa-pro-badge"><?php esc_html_e( 'Pro', 'announcer-for-sportspress' ); ?></span>
+			<?php endif; ?>
 			<span class="spa-status-divider">|</span>
 			<span style="color:#50575e">
 				<?php
@@ -2270,10 +2279,9 @@ class SPA_Settings {
 					</button>
 					<span id="spa-send-digest-result" class="spa-send-result"></span>
 					<?php $this->render_dashboard_platform_hint( $platforms ); ?>
-					<div class="spa-pro-lock-inline">
-						&#128274; <?php esc_html_e( 'Auto-schedule weekly', 'announcer-for-sportspress' ); ?>
-						<span class="spa-pro-badge"><?php esc_html_e( 'Pro', 'announcer-for-sportspress' ); ?></span>
-					</div>
+					<a href="<?php echo esc_url( $this->tab_url( 'digest' ) ); ?>" style="font-size:11px;">
+						<?php esc_html_e( 'Auto-send schedule →', 'announcer-for-sportspress' ); ?>
+					</a>
 				</div>
 			</div>
 

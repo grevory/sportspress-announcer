@@ -69,7 +69,7 @@ class SPA_Digest_Formatter {
 
 		$footer_text = sprintf(
 			/* translators: %s: site name */
-			__( 'Posted automatically by Announcer for SportsPress Pro · %s', 'announcer-for-sportspress' ),
+			__( 'Posted automatically by Announcer for SportsPress · %s', 'announcer-for-sportspress' ),
 			get_bloginfo( 'name' )
 		);
 
@@ -159,7 +159,7 @@ class SPA_Digest_Formatter {
 
 		$html .= '<p class="spa-digest-footer">' . sprintf(
 			/* translators: %s: site name */
-			esc_html__( 'Posted automatically by Announcer for SportsPress Pro · %s', 'announcer-for-sportspress' ),
+			esc_html__( 'Posted automatically by Announcer for SportsPress · %s', 'announcer-for-sportspress' ),
 			esc_html( get_bloginfo( 'name' ) )
 		) . '</p>';
 

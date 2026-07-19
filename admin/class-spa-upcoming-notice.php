@@ -142,7 +142,7 @@ class SPA_Upcoming_Notice {
 	}
 
 	/**
-	 * Render the "Upgrade to Pro" upsell when Slack isn't configured.
+	 * Render a setup hint pointing at the Digest tab when Slack isn't configured.
 	 *
 	 * @return void
 	 */
@@ -156,12 +156,12 @@ class SPA_Upcoming_Notice {
 			printf(
 				wp_kses(
 					/* translators: %s: settings page URL */
-					__( 'Want this sent automatically to Discord or Slack? <a href="%s">Upgrade to Pro →</a>', 'announcer-for-sportspress' ),
+					__( 'Want this sent to Discord or Slack automatically on a schedule? <a href="%s">Set up auto-send →</a>', 'announcer-for-sportspress' ),
 					array(
 						'a' => array( 'href' => array() ),
 					)
 				),
-				esc_url( admin_url( 'options-general.php?page=announcer-for-sportspress' ) )
+				esc_url( admin_url( 'options-general.php?page=announcer-for-sportspress&tab=digest' ) )
 			);
 			?>
 		</p>
