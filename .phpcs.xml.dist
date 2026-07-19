@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<ruleset name="SportsPress Announcer">
+<ruleset name="Announcer for SportsPress">
 	<description>WordPress Coding Standards + PHP compatibility checks.</description>
 
 	<file>.</file>

@@ -1,4 +1,4 @@
-# SportsPress Announcer
+# Announcer for SportsPress
 
 [![CI](https://github.com/grevory/sportspress-announcer/actions/workflows/ci.yml/badge.svg)](https://github.com/grevory/sportspress-announcer/actions/workflows/ci.yml)
 
@@ -11,7 +11,7 @@ Rec leagues run on two systems that don't talk to each other:
 1. **The website** (SportsPress) — source of truth for fixtures, results, and standings.
 2. **The group chat** (Discord, Slack, etc.) — where players actually hang out and ask "who won?"
 
-Today the bridge is a human. Someone copies the score into chat by hand, or nobody does. SportsPress Announcer eliminates that step.
+Today the bridge is a human. Someone copies the score into chat by hand, or nobody does. Announcer for SportsPress eliminates that step.
 
 ## How it works
 
@@ -42,14 +42,42 @@ Free covers the event ("a game happened"). Pro covers the ritual ("the weekly rh
 
 **One plugin, two tiers.** Pro is unlocked by a license key — no separate download required.
 
-## Installation (development)
+## Run locally
+
+The quickest way to a working site is the [WordPress Playground CLI](https://github.com/WordPress/wordpress-playground), no Docker or local server stack needed. From the repo root:
+
+```
+npx @wp-playground/cli@latest start
+```
+
+That boots a throwaway WordPress with this plugin mounted from the current directory and logs you in as admin at the URL it prints. Then:
+
+1. Install and activate **SportsPress** under Plugins → Add New (the dependency notice will remind you).
+2. Seed a league, two teams, and an event with a result under SportsPress.
+3. Go to **Settings → Announcer for SportsPress**, paste a Discord webhook URL, and save.
+
+Useful variants:
+
+```
+npx @wp-playground/cli@latest start --wp=7.0     # verify against a specific WordPress version
+npx @wp-playground/cli@latest start --php=7.4    # verify against the minimum supported PHP
+```
+
+Tests and coding standards run outside WordPress:
+
+```
+composer test     # PHPUnit
+composer phpcs    # WordPress Coding Standards
+```
+
+## Installation (development, manual)
 
 1. Clone this repo into your WordPress plugins directory:
    ```
-   wp-content/plugins/sportspress-announcer/
+   wp-content/plugins/announcer-for-sportspress/
    ```
-2. Activate **SportsPress Announcer** in the WordPress admin under Plugins.
-3. Go to **Settings → SportsPress Announcer**.
+2. Activate **Announcer for SportsPress** in the WordPress admin under Plugins.
+3. Go to **Settings → Announcer for SportsPress**.
 4. Paste your Discord webhook URL and save.
 
 Results will now post to that channel automatically when a SportsPress event result is saved.
@@ -73,8 +101,8 @@ Everything else is Pro or a later iteration.
 ## Plugin structure
 
 ```
-sportspress-announcer/
-├── sportspress-announcer.php   # Main plugin file, hooks bootstrap
+announcer-for-sportspress/
+├── announcer-for-sportspress.php   # Main plugin file, hooks bootstrap
 ├── includes/
 │   ├── class-spa-event-handler.php           # Detects result saves, extracts data
 │   ├── class-spa-message-formatter.php       # Builds platform-agnostic messages
