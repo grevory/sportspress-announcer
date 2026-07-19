@@ -1,0 +1,24 @@
+# Development files excluded from the distribution zip (see bin/build-zip.sh).
+.claude/
+.git/
+.github/
+.wordpress-org/
+.wp-now/
+.idea/
+.vscode/
+bin/
+dist/
+node_modules/
+tests/
+vendor/
+.distignore
+.gitignore
+.phpcs.xml.dist
+.phpunit.result.cache
+.DS_Store
+CLAUDE.md
+README.md
+composer.json
+composer.lock
+phpunit.xml.dist
+*.zip

@@ -18,4 +18,5 @@ composer.lock
 .idea/
 
 # Build artifacts
+dist/
 *.zip
