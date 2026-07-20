@@ -20,12 +20,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 class SPA_Pro_Tab {
 
 	/**
-	 * Planned launch price. Shown only on this page so the plugin quotes a
-	 * single price everywhere it matters.
-	 */
-	private const LAUNCH_PRICE = '$39/yr';
-
-	/**
 	 * Render the tab content.
 	 *
 	 * @return void
@@ -88,11 +82,7 @@ class SPA_Pro_Tab {
 		<div class="spa-pro-strip">
 			<span class="dashicons dashicons-clock"></span>
 			<?php
-			printf(
-				/* translators: %s: planned yearly price, e.g. "$39/yr". */
-				esc_html__( 'Pro is not available to buy yet. It is planned to launch at %s.', 'announcer-for-sportspress' ),
-				esc_html( self::LAUNCH_PRICE )
-			);
+			esc_html_e( 'Pro is not available to buy yet.', 'announcer-for-sportspress' );
 			if ( SPA_License::is_pro() ) {
 				echo ' ';
 				esc_html_e( 'Until launch, all Pro features are unlocked free, so try them out.', 'announcer-for-sportspress' );

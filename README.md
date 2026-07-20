@@ -32,7 +32,7 @@ Free covers the event ("a game happened"). Pro covers the ritual ("the weekly rh
 - Upcoming fixtures digest — admin notice with manual "Send to Discord" push button
 - **Weekly Digest preview** — generate and preview a full digest using real SportsPress data in wp-admin (no scheduling or posting)
 
-### Pro ($39/yr)
+### Pro
 - **Weekly Digest** — scheduled, auto-posted recap: results, standings with movement arrows, configurable stat leaders (goals/assists/any SP stat)
 - Slack support
 - Publish digest as a WordPress post

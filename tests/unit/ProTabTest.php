@@ -34,11 +34,11 @@ class ProTabTest extends TestCase {
 		return (string) ob_get_clean();
 	}
 
-	public function test_render_announces_coming_soon_with_the_planned_price(): void {
+	public function test_render_announces_coming_soon_without_naming_a_price(): void {
 		$html = $this->render();
 
 		$this->assertStringContainsString( 'Coming soon', $html );
-		$this->assertStringContainsString( '$39/yr', $html );
+		$this->assertStringNotContainsString( '$', $html );
 	}
 
 	public function test_render_contains_no_external_purchase_link(): void {
