@@ -232,7 +232,7 @@ class SPA_Weekly_Digest_Scheduler {
 		$webhook = new SPA_Webhook_Discord( $discord_url );
 		$result  = $webhook->send( $formatter->to_discord_embed() );
 
-		return $this->log_dispatch( $result, $league_name, 'discord' );
+		return $this->log_dispatch( $result, $league_name, 'discord', $formatter->to_text() );
 	}
 
 	/**
@@ -251,7 +251,7 @@ class SPA_Weekly_Digest_Scheduler {
 		$webhook = new SPA_Webhook_Slack( $slack_url );
 		$result  = $webhook->send( $formatter->to_slack_blocks() );
 
-		return $this->log_dispatch( $result, $league_name, 'slack' );
+		return $this->log_dispatch( $result, $league_name, 'slack', $formatter->to_text() );
 	}
 
 	/**
@@ -260,9 +260,10 @@ class SPA_Weekly_Digest_Scheduler {
 	 * @param true|\WP_Error $result      Webhook send result.
 	 * @param string         $league_name Human-readable league label.
 	 * @param string         $platform    'discord' or 'slack'.
+	 * @param string         $message     Plain-text digest body that was sent.
 	 * @return bool True if the message was sent successfully.
 	 */
-	private function log_dispatch( $result, string $league_name, string $platform ): bool {
+	private function log_dispatch( $result, string $league_name, string $platform, string $message ): bool {
 		$status = is_wp_error( $result ) ? 'failed' : 'sent';
 
 		SPA_Log::write(
@@ -276,6 +277,7 @@ class SPA_Weekly_Digest_Scheduler {
 				),
 				'channel'  => $league_name,
 				'platform' => $platform,
+				'message'  => $message,
 				'sent_at'  => time(),
 				'status'   => $status,
 			)

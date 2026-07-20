@@ -226,14 +226,17 @@ class SPA_Event_Handler {
 			do_action( "spa_{$platform}_webhook_error", $result, $post_id );
 		}
 
+		$text = $formatter->format_result( $event );
+
 		SPA_Log::write(
 			array(
 				'id'          => $post_id,
 				'type'        => 'result',
-				'label'       => $formatter->format_result( $event ),
+				'label'       => $text,
 				'channel'     => $event['competition'] ? $event['competition'] : '',
 				'competition' => $event['competition'],
 				'platform'    => $platform,
+				'message'     => $text,
 				'status'      => $failed ? 'failed' : 'sent',
 			)
 		);

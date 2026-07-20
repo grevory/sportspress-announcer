@@ -65,11 +65,12 @@ class SPA_Upcoming_Discord {
 			return false;
 		}
 
-		$payload = array(
+		$description = $this->build_description( $games );
+		$payload     = array(
 			'embeds' => array(
 				array(
 					'title'       => __( 'Upcoming Games', 'announcer-for-sportspress' ),
-					'description' => $this->build_description( $games ),
+					'description' => $description,
 					'color'       => 0x5865F2,
 				),
 			),
@@ -84,6 +85,7 @@ class SPA_Upcoming_Discord {
 					'type'     => 'digest',
 					'label'    => __( 'Fixtures digest', 'announcer-for-sportspress' ),
 					'platform' => 'discord',
+					'message'  => $description,
 					'status'   => 'failed',
 				)
 			);
@@ -95,6 +97,7 @@ class SPA_Upcoming_Discord {
 				'type'     => 'digest',
 				'label'    => __( 'Fixtures digest', 'announcer-for-sportspress' ),
 				'platform' => 'discord',
+				'message'  => $description,
 				'status'   => 'sent',
 			)
 		);

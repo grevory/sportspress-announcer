@@ -170,6 +170,25 @@ class DigestFormatterTest extends TestCase {
 		$this->assertStringContainsString( 'https://example.test', $section );
 	}
 
+	// -- Plain text (activity log) -----------------------------------------
+
+	public function test_to_text_joins_populated_sections_without_markup(): void {
+		$data = $this->data( [
+			'results'   => [ $this->result( 'Sharks', 3, 1, 'Eels' ) ],
+			'standings' => [ [ 'rank' => 1, 'name' => 'Sharks', 'played' => 5, 'points' => 15, 'movement' => 'up' ] ],
+		] );
+		$text = ( new SPA_Digest_Formatter( $data ) )->to_text();
+
+		$this->assertStringContainsString( "Results\nSharks 3 – 1 Eels", $text );
+		$this->assertStringContainsString( 'Standings', $text );
+		$this->assertStringNotContainsString( 'Leaders', $text, 'Empty sections omitted' );
+		$this->assertStringNotContainsString( '*', $text, 'No platform bold markup' );
+	}
+
+	public function test_to_text_empty_digest_is_empty_string(): void {
+		$this->assertSame( '', ( new SPA_Digest_Formatter( $this->data() ) )->to_text() );
+	}
+
 	// -- HTML preview ------------------------------------------------------
 
 	public function test_html_preview_escapes_and_includes_sections(): void {

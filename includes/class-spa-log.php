@@ -19,6 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  *   channel     string  Competition name used as channel label
  *   competition string  Competition name — used to resolve routing on retry
  *   platform    string  'discord' | 'slack'
+ *   message     string  The formatted message text that was sent
  *   sent_at     int     Unix timestamp
  *   status      string  'sent' | 'failed'
  */
@@ -26,6 +27,11 @@ class SPA_Log {
 
 	public const OPTION   = 'spa_sent_log';
 	public const MAX_ROWS = 100;
+
+	/**
+	 * Cap on stored message text per entry, keeping the log option bounded.
+	 */
+	public const MESSAGE_MAX_CHARS = 2000;
 
 	/**
 	 * Prepend an entry and cap the log at MAX_ROWS.
@@ -45,11 +51,14 @@ class SPA_Log {
 				'channel'     => '',
 				'competition' => '',
 				'platform'    => 'discord',
+				'message'     => '',
 				'sent_at'     => time(),
 				'status'      => 'sent',
 			),
 			$entry
 		);
+
+		$entry['message'] = mb_substr( (string) $entry['message'], 0, self::MESSAGE_MAX_CHARS );
 
 		array_unshift( $log, $entry );
 

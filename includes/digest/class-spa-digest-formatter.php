@@ -323,6 +323,32 @@ class SPA_Digest_Formatter {
 		);
 	}
 
+	/**
+	 * Render the digest as plain text, one titled block per non-empty section.
+	 *
+	 * Used for the activity log so the exact content that went out is
+	 * auditable without platform markup.
+	 *
+	 * @return string
+	 */
+	public function to_text(): string {
+		$sections = array(
+			__( 'Results', 'announcer-for-sportspress' )   => $this->results_lines( '' ),
+			__( 'Standings', 'announcer-for-sportspress' ) => $this->standings_lines( '' ),
+			__( 'Leaders', 'announcer-for-sportspress' )   => $this->leaders_lines( '' ),
+			__( 'Upcoming', 'announcer-for-sportspress' )  => $this->upcoming_lines(),
+		);
+
+		$parts = array();
+		foreach ( $sections as $heading => $lines ) {
+			if ( ! empty( $lines ) ) {
+				$parts[] = $heading . "\n" . implode( "\n", $lines );
+			}
+		}
+
+		return implode( "\n\n", $parts );
+	}
+
 	// -------------------------------------------------------------------------
 	// Discord field renderers
 	// -------------------------------------------------------------------------

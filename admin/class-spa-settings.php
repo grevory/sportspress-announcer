@@ -2791,6 +2791,7 @@ class SPA_Settings {
 		$this->render_log_table( $entries, $retry_nonce );
 		$this->render_log_pagination( $paged, $per_page, $total, $total_pages, $base_url );
 		$this->render_log_retry_script();
+		$this->render_log_expand_script();
 	}
 
 	/**
@@ -2873,6 +2874,7 @@ class SPA_Settings {
 		$is_digest  = 'digest' === ( $entry['type'] ?? '' );
 		$is_result  = 'result' === ( $entry['type'] ?? '' );
 		$time_label = $this->log_time_label( (int) ( $entry['sent_at'] ?? 0 ) );
+		$message    = (string) ( $entry['message'] ?? '' );
 
 		$row_class = 'spa-log-row';
 		if ( $is_failed ) {
@@ -2880,14 +2882,17 @@ class SPA_Settings {
 		} elseif ( $is_digest ) {
 			$row_class .= ' spa-log-row--digest';
 		}
+		if ( '' !== $message ) {
+			$row_class .= ' spa-log-row--expandable';
+		}
 		$type_label = $is_result
 			? esc_html__( 'Result', 'announcer-for-sportspress' )
 			: esc_html__( 'Digest', 'announcer-for-sportspress' );
 		$type_color = $is_result ? '#2271b1' : '#996800';
 		?>
-		<div class="<?php echo esc_attr( $row_class ); ?>">
+		<div class="<?php echo esc_attr( $row_class ); ?>"<?php echo '' !== $message ? ' style="cursor:pointer" title="' . esc_attr__( 'Click to show the sent message', 'announcer-for-sportspress' ) . '"' : ''; ?>>
 			<span style="color:<?php echo esc_attr( $type_color ); ?>;font-weight:600"><?php echo $type_label; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></span>
-			<span style="color:#1d2327"><?php echo esc_html( $entry['label'] ?? '' ); ?></span>
+			<span style="color:#1d2327"><?php echo '' !== $message ? '<span class="spa-log-chevron" style="color:#8c8f94;margin-right:4px">&#9656;</span>' : ''; ?><?php echo esc_html( $entry['label'] ?? '' ); ?></span>
 			<span style="color:#50575e"><?php echo esc_html( $entry['channel'] ?? '' ); ?></span>
 			<span style="color:#8c8f94"><?php echo esc_html( $time_label ); ?></span>
 			<?php if ( $is_failed ) : ?>
@@ -2898,6 +2903,11 @@ class SPA_Settings {
 				<span style="color:#00a32a;font-weight:600">&#10003; <?php esc_html_e( 'Sent', 'announcer-for-sportspress' ); ?></span>
 			<?php endif; ?>
 		</div>
+		<?php if ( '' !== $message ) : ?>
+			<div class="spa-log-detail" style="display:none;padding:8px 12px;background:#f6f7f7;border-bottom:1px solid #f6f6f6">
+				<pre style="margin:0;white-space:pre-wrap;font-size:12px;line-height:1.6"><?php echo esc_html( $message ); ?></pre>
+			</div>
+		<?php endif; ?>
 		<?php
 	}
 
@@ -3015,10 +3025,30 @@ class SPA_Settings {
 	}
 
 	/**
-	 * Render the plugin settings page.
+	 * Log tab: inline script toggling the sent-message detail under a row.
 	 *
 	 * @return void
 	 */
+	private function render_log_expand_script(): void {
+		?>
+		<script>
+		document.addEventListener( 'DOMContentLoaded', function () {
+			document.querySelectorAll( '.spa-log-row--expandable' ).forEach( function ( row ) {
+				row.addEventListener( 'click', function ( e ) {
+					if ( e.target.closest( '.spa-retry-btn' ) ) { return; }
+					var detail = row.nextElementSibling;
+					if ( ! detail || ! detail.classList.contains( 'spa-log-detail' ) ) { return; }
+					var open = detail.style.display !== 'none';
+					detail.style.display = open ? 'none' : '';
+					var chevron = row.querySelector( '.spa-log-chevron' );
+					if ( chevron ) { chevron.innerHTML = open ? '&#9656;' : '&#9662;'; }
+				} );
+			} );
+		} );
+		</script>
+		<?php
+	}
+
 	/**
 	 * Assemble the data the settings page and its tabs need to render.
 	 *
