@@ -84,7 +84,7 @@ Make sure the event post status is **Published** and that a score has actually b
 
 = My site uses a custom result column, not "goals". =
 
-Go to **Settings → Announcer for SportsPress → General → Score Column** and enter the slug of your column (e.g. `points` or `runs`). This must match the column key shown in SportsPress → Result Columns.
+Go to **Settings → Announcer for SportsPress → Templates → Score Column** and pick your column (e.g. Points or Runs). The list comes straight from SportsPress → Result Columns.
 
 = Will it re-post every time I update the event? =
 

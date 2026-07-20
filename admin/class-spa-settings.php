@@ -390,16 +390,17 @@ class SPA_Settings {
 	 * @return void
 	 */
 	public function register_settings(): void {
-		$this->register_sportspress_settings();
 		$this->register_digest_settings();
 		$this->register_announcements_settings();
+		$this->register_sportspress_settings();
 		$this->register_discord_settings();
 		$this->register_slack_settings();
 		$this->register_facebook_settings();
 	}
 
 	/**
-	 * Register the SportsPress settings section.
+	 * Register the score-column setting. The field renders on the Templates
+	 * tab (spa_section_announcements) next to the templates it feeds.
 	 *
 	 * @return void
 	 */
@@ -414,14 +415,12 @@ class SPA_Settings {
 			)
 		);
 
-		add_settings_section( 'spa_section_sportspress', __( 'SportsPress', 'announcer-for-sportspress' ), '__return_false', self::MENU_SLUG );
-
 		add_settings_field(
 			self::OPTION_SCORE_COLUMN,
 			__( 'Score Column', 'announcer-for-sportspress' ),
 			array( $this, 'render_score_column_field' ),
 			self::MENU_SLUG,
-			'spa_section_sportspress'
+			'spa_section_announcements'
 		);
 	}
 
@@ -1456,12 +1455,48 @@ class SPA_Settings {
 	}
 
 	/**
-	 * Render the SportsPress score-column field.
+	 * Render the SportsPress score-column field: a dropdown of the site's
+	 * actual result columns, or a free-text fallback when SportsPress data
+	 * is unavailable.
 	 *
 	 * @return void
 	 */
 	public function render_score_column_field(): void {
-		$value = get_option( self::OPTION_SCORE_COLUMN, self::DEFAULT_SCORE_COLUMN );
+		$value   = (string) get_option( self::OPTION_SCORE_COLUMN, self::DEFAULT_SCORE_COLUMN );
+		$columns = $this->get_available_result_columns();
+
+		if ( empty( $columns ) ) {
+			$this->render_score_column_text_input( $value );
+			return;
+		}
+
+		// Keep a custom/legacy value selectable even if SportsPress no longer lists it.
+		if ( '' !== $value && ! isset( $columns[ $value ] ) ) {
+			$columns[ $value ] = $value;
+		}
+		?>
+		<select
+			id="<?php echo esc_attr( self::OPTION_SCORE_COLUMN ); ?>"
+			name="<?php echo esc_attr( self::OPTION_SCORE_COLUMN ); ?>"
+		>
+			<?php foreach ( $columns as $slug => $label ) : ?>
+				<option value="<?php echo esc_attr( $slug ); ?>" <?php selected( $value, $slug ); ?>><?php echo esc_html( $label ); ?></option>
+			<?php endforeach; ?>
+		</select>
+		<p class="description">
+			<?php esc_html_e( 'The SportsPress result column read as the score, from SportsPress → Result Columns.', 'announcer-for-sportspress' ); ?>
+		</p>
+		<?php
+	}
+
+	/**
+	 * Free-text fallback for the score column when SportsPress columns
+	 * cannot be listed.
+	 *
+	 * @param string $value Saved column slug.
+	 * @return void
+	 */
+	private function render_score_column_text_input( string $value ): void {
 		?>
 		<input
 			type="text"
@@ -1475,6 +1510,20 @@ class SPA_Settings {
 			<?php esc_html_e( 'The result column key used to read scores from SportsPress (e.g. "goals"). Must match the column slug in SportsPress → Result Columns.', 'announcer-for-sportspress' ); ?>
 		</p>
 		<?php
+	}
+
+	/**
+	 * Available SportsPress result column slugs → labels, or an empty array
+	 * when SportsPress data is unavailable.
+	 *
+	 * @return array<string,string>
+	 */
+	private function get_available_result_columns(): array {
+		if ( ! function_exists( 'sp_get_var_labels' ) ) {
+			return array();
+		}
+		$labels = sp_get_var_labels( 'sp_result' );
+		return ( is_array( $labels ) && ! empty( $labels ) ) ? $labels : array();
 	}
 
 	/**
@@ -2081,7 +2130,7 @@ class SPA_Settings {
 	 * @return void
 	 */
 	private function render_dashboard_status_bar( bool $discord_active, int $sent_today, int $log_failed ): void {
-		$general_url = $this->tab_url( 'general' );
+		$settings_url = $this->tab_url( 'templates' );
 		?>
 		<div class="spa-status-bar">
 			<?php if ( $discord_active ) : ?>
@@ -2125,8 +2174,8 @@ class SPA_Settings {
 					?>
 				</strong>
 			<?php endif; ?>
-			<a href="<?php echo esc_url( $general_url ); ?>" style="margin-left:auto;font-size:11px;color:#2271b1;white-space:nowrap">
-				&#9881; <?php esc_html_e( 'General settings', 'announcer-for-sportspress' ); ?>
+			<a href="<?php echo esc_url( $settings_url ); ?>" style="margin-left:auto;font-size:11px;color:#2271b1;white-space:nowrap">
+				&#9881; <?php esc_html_e( 'Settings', 'announcer-for-sportspress' ); ?>
 			</a>
 		</div>
 		<?php
@@ -2979,7 +3028,7 @@ class SPA_Settings {
 		$discord_active = ! empty( get_option( self::OPTION_WEBHOOK, '' ) );
 
 		// Active tab — server-side, falls back to dashboard.
-		$allowed_tabs = array( 'dashboard', 'channels', 'digest', 'templates', 'general', 'log', 'pro' );
+		$allowed_tabs = array( 'dashboard', 'channels', 'digest', 'templates', 'log', 'pro' );
 		$active_tab   = isset( $_GET['tab'] ) && in_array( $_GET['tab'], $allowed_tabs, true ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 			? sanitize_key( $_GET['tab'] ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 			: 'dashboard';
@@ -2989,7 +3038,6 @@ class SPA_Settings {
 			'discord_channel_count' => count( (array) get_option( self::OPTION_DISCORD_CHANNEL_MAP, array() ) ),
 			'active_tab'            => $active_tab,
 			'handled_sections'      => array(
-				'spa_section_sportspress',
 				'spa_section_discord',
 				'spa_section_slack',
 				'spa_section_facebook',
@@ -3077,9 +3125,6 @@ class SPA_Settings {
 			<button type="button" class="spa-tab<?php echo 'templates' === $active_tab ? ' is-active' : ''; ?>" data-tab="templates" role="tab" aria-selected="<?php echo 'templates' === $active_tab ? 'true' : 'false'; ?>">
 				<?php esc_html_e( 'Templates', 'announcer-for-sportspress' ); ?>
 			</button>
-			<button type="button" class="spa-tab<?php echo 'general' === $active_tab ? ' is-active' : ''; ?>" data-tab="general" role="tab" aria-selected="<?php echo 'general' === $active_tab ? 'true' : 'false'; ?>">
-				<?php esc_html_e( 'General', 'announcer-for-sportspress' ); ?>
-			</button>
 			<button type="button" class="spa-tab<?php echo 'log' === $active_tab ? ' is-active' : ''; ?>" data-tab="log" role="tab" aria-selected="<?php echo 'log' === $active_tab ? 'true' : 'false'; ?>">
 				<?php esc_html_e( 'Log', 'announcer-for-sportspress' ); ?>
 			</button>
@@ -3142,15 +3187,6 @@ class SPA_Settings {
 			<?php $this->render_dashboard_tab( $ctx['dashboard'] ); ?>
 		</div>
 
-		<!-- General tab -->
-		<div id="spa-panel-general" class="spa-panel<?php echo 'general' === $active_tab ? ' is-active' : ''; ?>" role="tabpanel">
-			<?php
-			$this->render_registered_section( $page, 'spa_section_sportspress' );
-			$this->render_unhandled_registered_sections( $page, $ctx['handled_sections'] );
-			?>
-			<?php submit_button( __( 'Save Settings', 'announcer-for-sportspress' ) ); ?>
-		</div>
-
 		<!-- Channels tab -->
 		<div id="spa-panel-channels" class="spa-panel<?php echo 'channels' === $active_tab ? ' is-active' : ''; ?>" role="tabpanel">
 			<?php $this->render_channels_panel( $page, $ctx['discord_active'], $ctx['discord_fields'], $ctx['slack_fields'] ); ?>
@@ -3170,6 +3206,7 @@ class SPA_Settings {
 			foreach ( array( 'spa_section_announcements', 'spa_section_facebook' ) as $section_id ) {
 				$this->render_registered_section( $page, $section_id );
 			}
+			$this->render_unhandled_registered_sections( $page, $ctx['handled_sections'] );
 			?>
 			<?php submit_button( __( 'Save Settings', 'announcer-for-sportspress' ) ); ?>
 		</div>
@@ -3350,7 +3387,7 @@ class SPA_Settings {
 
 			<h4 id="spa-help-tab-title"><?php esc_html_e( 'On this tab', 'announcer-for-sportspress' ); ?></h4>
 			<p class="spa-help-tip" id="spa-help-tab-tip">
-				<?php esc_html_e( 'Your score column key must match the result column slug set up in SportsPress → Result Columns.', 'announcer-for-sportspress' ); ?>
+				<?php esc_html_e( 'Your daily cockpit — platform status, recent announcements, and upcoming digest.', 'announcer-for-sportspress' ); ?>
 			</p>
 
 			<div class="spa-help-links">
@@ -3379,7 +3416,6 @@ class SPA_Settings {
 				channels:  '<?php echo esc_js( __( 'One Discord channel handles most leagues. Add routing rules only if you run multiple divisions.', 'announcer-for-sportspress' ) ); ?>',
 				digest:    '<?php echo esc_js( __( 'The digest lists upcoming games for the next 7 days. Use auto-send to post it to Discord on a schedule.', 'announcer-for-sportspress' ) ); ?>',
 				templates: '<?php echo esc_js( __( 'Click any placeholder chip to insert it into the template. Team names are auto-bolded on each platform.', 'announcer-for-sportspress' ) ); ?>',
-				general:   '<?php echo esc_js( __( 'Your score column key must match the result column slug set up in SportsPress → Result Columns.', 'announcer-for-sportspress' ) ); ?>',
 				log:       '<?php echo esc_js( __( 'Full history of every announcement sent. Filter by type or search by event name.', 'announcer-for-sportspress' ) ); ?>',
 				pro:       '<?php echo esc_js( __( 'A look at what Pro will add. Not for sale yet, but coming soon.', 'announcer-for-sportspress' ) ); ?>',
 			};
