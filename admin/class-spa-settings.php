@@ -2117,8 +2117,60 @@ class SPA_Settings {
 
 		$this->render_dashboard_status_bar( $ctx['discord_active'], $ctx['sent_today'], $ctx['log_failed'] );
 		$this->render_dashboard_recent_card( $ctx['recent_log'], $ctx['log_total'], $log_url );
+		$this->render_dashboard_latest_card();
 		$this->render_dashboard_digest_card( $ctx['last_digest_ts'], $log_url );
 		$this->render_dashboard_script();
+	}
+
+	/**
+	 * Dashboard "Latest Announcement" card: the most recent result message
+	 * rendered in Discord-style chrome, so admins see what actually went out.
+	 * Skipped entirely until a result has been announced.
+	 *
+	 * @return void
+	 */
+	private function render_dashboard_latest_card(): void {
+		$latest = SPA_Log::get_page( 1, 1, array( 'type' => 'result' ) );
+		$entry  = $latest[0] ?? array();
+		$text   = (string) ( $entry['message'] ?? '' );
+		if ( '' === $text ) {
+			// Entries written before message storage still carry the formatted
+			// result as their label.
+			$text = (string) ( $entry['label'] ?? '' );
+		}
+		if ( '' === $text ) {
+			return;
+		}
+		?>
+		<div class="spa-dashboard-card">
+			<div class="spa-dashboard-card-head">
+				<span class="spa-dashboard-card-title">&#128172; <?php esc_html_e( 'Latest Announcement', 'announcer-for-sportspress' ); ?></span>
+				<span style="font-size:11px;color:#8c8f94"><?php echo esc_html( $this->log_time_label( (int) ( $entry['sent_at'] ?? 0 ) ) ); ?></span>
+			</div>
+			<div class="spa-dashboard-card-body">
+				<?php $this->render_discord_message_preview( $text, (string) ( $entry['channel'] ?? '' ) ); ?>
+			</div>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render one plain-text message inside Discord-style preview chrome.
+	 *
+	 * @param string $text    Message text; newlines are preserved.
+	 * @param string $channel Optional competition label shown as the footer.
+	 * @return void
+	 */
+	private function render_discord_message_preview( string $text, string $channel ): void {
+		?>
+		<div class="spa-discord-preview">
+			<div class="spa-discord-preview-bot"><?php esc_html_e( 'SportsPress Bot', 'announcer-for-sportspress' ); ?></div>
+			<?php echo wp_kses( nl2br( esc_html( $text ) ), array( 'br' => array() ) ); ?>
+			<?php if ( '' !== $channel ) : ?>
+				<br><span style="color:#72767d;font-size:11px"><?php echo esc_html( $channel ); ?> · <?php esc_html_e( 'Full Time', 'announcer-for-sportspress' ); ?></span>
+			<?php endif; ?>
+		</div>
+		<?php
 	}
 
 	/**
