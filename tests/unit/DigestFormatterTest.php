@@ -19,7 +19,7 @@ class DigestFormatterTest extends TestCase {
 		Functions\when( 'get_bloginfo' )->justReturn( 'Test League Site' );
 		Functions\when( 'get_term' )->justReturn( (object) [ 'name' => 'Div 1' ] );
 		Functions\when( 'is_wp_error' )->justReturn( false );
-		// gmdate() is a PHP internal — left un-mocked; the real function is fine.
+		// gmdate() is a PHP internal, left un-mocked; the real function is fine.
 	}
 
 	protected function tearDown(): void {

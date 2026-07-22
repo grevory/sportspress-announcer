@@ -110,7 +110,7 @@ class SPA_Settings {
 	 * Retry a failed announcement by re-sending to the current webhook.
 	 *
 	 * Resolves the webhook URL from current options using the stored platform
-	 * and competition — secrets are never persisted in the log.
+	 * and competition. Secrets are never persisted in the log.
 	 *
 	 * @return void
 	 */
@@ -549,7 +549,7 @@ class SPA_Settings {
 			'spa_section_announcements'
 		);
 
-		// Fixtures Template — relocated here from the Digest tab so every
+		// Fixtures Template: relocated here from the Digest tab so every
 		// message template lives on the Templates tab.
 		add_settings_field(
 			self::OPTION_UPCOMING_TEMPLATE,
@@ -867,7 +867,7 @@ class SPA_Settings {
 	}
 
 	/**
-	 * Whether Slack is configured and enabled — gates Slack-only help text.
+	 * Whether Slack is configured and enabled, gates Slack-only help text.
 	 *
 	 * @return bool
 	 */
@@ -1021,7 +1021,7 @@ class SPA_Settings {
 					'spa_invalid_channel_map_url',
 					sprintf(
 						/* translators: %s: competition/league label */
-						__( 'Invalid Discord webhook URL for "%s" — must start with https://discord.com/api/webhooks/', 'announcer-for-sportspress' ),
+						__( 'Invalid Discord webhook URL for "%s": must start with https://discord.com/api/webhooks/', 'announcer-for-sportspress' ),
 						$key
 					)
 				);
@@ -1045,7 +1045,7 @@ class SPA_Settings {
 		$ph_url = __( 'https://discord.com/api/webhooks/…', 'announcer-for-sportspress' );
 		?>
 		<p class="description" style="margin-bottom:10px;">
-			<?php esc_html_e( 'Route each division to its own Discord channel. The key must match the competition name exactly. Leave the URL blank to use the default webhook. Per-division routing applies to result announcements only — the digest always uses the default webhook.', 'announcer-for-sportspress' ); ?>
+			<?php esc_html_e( 'Route each division to its own Discord channel. The key must match the competition name exactly. Leave the URL blank to use the default webhook. Per-division routing applies to result announcements only; the digest always uses the default webhook.', 'announcer-for-sportspress' ); ?>
 		</p>
 		<table id="spa-channel-map-table" style="border-collapse:collapse; width:100%; max-width:700px;">
 			<thead>
@@ -1255,7 +1255,7 @@ class SPA_Settings {
 					'spa_invalid_slack_channel_map_url',
 					sprintf(
 						/* translators: %s: competition/league label */
-						__( 'Invalid Slack webhook URL for "%s" — must start with https://hooks.slack.com/services/ or https://hooks.slack.com/workflows/', 'announcer-for-sportspress' ),
+						__( 'Invalid Slack webhook URL for "%s": must start with https://hooks.slack.com/services/ or https://hooks.slack.com/workflows/', 'announcer-for-sportspress' ),
 						$key
 					)
 				);
@@ -2107,7 +2107,7 @@ class SPA_Settings {
 	/**
 	 * Render the Dashboard tab.
 	 *
-	 * @param array $ctx Dashboard context from dashboard_context() — keys:
+	 * @param array $ctx Dashboard context from dashboard_context(). Keys:
 	 *                   discord_active, sent_today, log_failed, recent_log,
 	 *                   log_total, last_digest_ts.
 	 * @return void
@@ -2451,7 +2451,7 @@ class SPA_Settings {
 	 * Promise to `true` (confirmed) or `false` (cancelled). Because broadcasting
 	 * a digest is immediate and cannot be undone, every "Send now" button routes
 	 * its click through this so the admin sees a preview of exactly what will go
-	 * out — and to which platforms — before committing.
+	 * out, and to which platforms, before committing.
 	 *
 	 * `opts`: { title, previewHtml, platformsLabel, confirmLabel, cancelLabel }.
 	 * `previewHtml` is markup already present in the page (server-rendered or an
@@ -2805,7 +2805,7 @@ class SPA_Settings {
 	}
 
 	/**
-	 * Render the Log tab — filterable history with pagination.
+	 * Render the Log tab: filterable history with pagination.
 	 *
 	 * @return void
 	 */
@@ -3109,7 +3109,7 @@ class SPA_Settings {
 	private function page_context(): array {
 		$discord_active = ! empty( get_option( self::OPTION_WEBHOOK, '' ) );
 
-		// Active tab — server-side, falls back to dashboard.
+		// Active tab: server-side, falls back to dashboard.
 		$allowed_tabs = array( 'dashboard', 'channels', 'digest', 'templates', 'log', 'pro' );
 		$active_tab   = isset( $_GET['tab'] ) && in_array( $_GET['tab'], $allowed_tabs, true ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 			? sanitize_key( $_GET['tab'] ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
@@ -3469,7 +3469,7 @@ class SPA_Settings {
 
 			<h4 id="spa-help-tab-title"><?php esc_html_e( 'On this tab', 'announcer-for-sportspress' ); ?></h4>
 			<p class="spa-help-tip" id="spa-help-tab-tip">
-				<?php esc_html_e( 'Your daily cockpit — platform status, recent announcements, and upcoming digest.', 'announcer-for-sportspress' ); ?>
+				<?php esc_html_e( 'Your daily cockpit: platform status, recent announcements, and upcoming digest.', 'announcer-for-sportspress' ); ?>
 			</p>
 
 			<div class="spa-help-links">
@@ -3494,7 +3494,7 @@ class SPA_Settings {
 			var panels = document.querySelectorAll( '.spa-panel' );
 
 			var tips = {
-				dashboard: '<?php echo esc_js( __( 'Your daily cockpit — platform status, recent announcements, and upcoming digest.', 'announcer-for-sportspress' ) ); ?>',
+				dashboard: '<?php echo esc_js( __( 'Your daily cockpit: platform status, recent announcements, and upcoming digest.', 'announcer-for-sportspress' ) ); ?>',
 				channels:  '<?php echo esc_js( __( 'One Discord channel handles most leagues. Add routing rules only if you run multiple divisions.', 'announcer-for-sportspress' ) ); ?>',
 				digest:    '<?php echo esc_js( __( 'The digest lists upcoming games for the next 7 days. Use auto-send to post it to Discord on a schedule.', 'announcer-for-sportspress' ) ); ?>',
 				templates: '<?php echo esc_js( __( 'Click any placeholder chip to insert it into the template. Team names are auto-bolded on each platform.', 'announcer-for-sportspress' ) ); ?>',
@@ -3543,7 +3543,7 @@ class SPA_Settings {
 	}
 
 	// -------------------------------------------------------------------------
-	// Weekly Digest (results recap) — Pro-gated posting, free preview.
+	// Weekly Digest (results recap): Pro-gated posting, free preview.
 	// -------------------------------------------------------------------------
 
 	/**
@@ -3641,7 +3641,7 @@ class SPA_Settings {
 	}
 
 	/**
-	 * Sanitize stat keys — sanitize_key, cap at 3.
+	 * Sanitize stat keys: sanitize_key, cap at 3.
 	 *
 	 * @param mixed $value Raw value.
 	 * @return string[]
@@ -3708,7 +3708,7 @@ class SPA_Settings {
 
 			<hr>
 
-			<?php $this->render_weekly_digest_preview( $league_scope['leagues'] ); ?>
+			<?php $this->render_weekly_digest_preview( $league_scope ); ?>
 		</div>
 		<?php
 		$this->render_weekly_digest_preview_script();
@@ -3905,7 +3905,7 @@ class SPA_Settings {
 			esc_html( wp_timezone_string() )
 		);
 		if ( defined( 'DISABLE_WP_CRON' ) && DISABLE_WP_CRON ) {
-			echo ' <strong>' . esc_html__( 'DISABLE_WP_CRON is active — a real cron job is required.', 'announcer-for-sportspress' ) . '</strong>';
+			echo ' <strong>' . esc_html__( 'DISABLE_WP_CRON is active: a real cron job is required.', 'announcer-for-sportspress' ) . '</strong>';
 		}
 	}
 
@@ -3952,12 +3952,14 @@ class SPA_Settings {
 	}
 
 	/**
-	 * Weekly-digest preview UI (league picker + generate button).
+	 * Weekly-digest preview UI (league/season pickers + generate button).
 	 *
-	 * @param WP_Term[] $leagues Available league terms.
+	 * @param array $league_scope Leagues, seasons, and their selected values; see render_digest_league_checkboxes().
 	 * @return void
 	 */
-	private function render_weekly_digest_preview( array $leagues ): void {
+	private function render_weekly_digest_preview( array $league_scope ): void {
+		$leagues = $league_scope['leagues'];
+		$seasons = $league_scope['seasons'];
 		?>
 		<h4><?php esc_html_e( 'Preview', 'announcer-for-sportspress' ); ?></h4>
 		<p class="description">
@@ -3972,6 +3974,17 @@ class SPA_Settings {
 				<option value="<?php echo esc_attr( $league->term_id ); ?>"><?php echo esc_html( $league->name ); ?></option>
 				<?php endforeach; ?>
 			</select>
+
+			<?php if ( ! empty( $seasons ) ) : ?>
+			<label for="spa-weekly-preview-season"><?php esc_html_e( 'Season:', 'announcer-for-sportspress' ); ?></label>
+			<select id="spa-weekly-preview-season">
+				<option value="0"><?php esc_html_e( 'All seasons', 'announcer-for-sportspress' ); ?></option>
+				<?php foreach ( $seasons as $season ) : ?>
+				<option value="<?php echo esc_attr( $season->term_id ); ?>"><?php echo esc_html( $season->name ); ?></option>
+				<?php endforeach; ?>
+			</select>
+			<p class="description"><?php esc_html_e( 'Matches whichever season is currently selected for this league above.', 'announcer-for-sportspress' ); ?></p>
+			<?php endif; ?>
 		</p>
 		<?php endif; ?>
 
@@ -4006,6 +4019,7 @@ class SPA_Settings {
 			if ( ! btn ) { return; }
 			var sendBtn   = document.getElementById( 'spa-weekly-send-btn' );
 			var leagueSel = document.getElementById( 'spa-weekly-preview-league' );
+			var seasonSel = document.getElementById( 'spa-weekly-preview-season' );
 			var output    = document.getElementById( 'spa-weekly-preview-output' );
 			var spinner   = document.getElementById( 'spa-weekly-preview-spinner' );
 			var sendResult = document.getElementById( 'spa-weekly-send-result' );
@@ -4018,6 +4032,7 @@ class SPA_Settings {
 				fd.append( 'action', 'spa_generate_digest_preview' );
 				fd.append( 'nonce', btn.dataset.nonce );
 				fd.append( 'league_id', leagueSel ? leagueSel.value : 0 );
+				fd.append( 'season_id', seasonSel ? seasonSel.value : 0 );
 
 				return fetch( ajaxurl, { method: 'POST', body: fd, credentials: 'same-origin' } )
 					.then( function( r ) { return r.json(); } )
@@ -4035,14 +4050,56 @@ class SPA_Settings {
 					} );
 			}
 
-			btn.addEventListener( 'click', generate );
-			if ( leagueSel ) { leagueSel.addEventListener( 'change', generate ); }
+			<?php $this->render_weekly_preview_season_sync_js(); ?>
+
+			btn.addEventListener( 'click', function() { syncSeasonFromSettings(); generate(); } );
+			if ( leagueSel ) {
+				leagueSel.addEventListener( 'change', function() { syncSeasonFromSettings(); generate(); } );
+			}
+			if ( seasonSel ) { seasonSel.addEventListener( 'change', generate ); }
 
 			// Auto-generate a preview on first view so the recap is always visible.
+			syncSeasonFromSettings();
 			generate();
 			<?php $this->render_weekly_send_button_js(); ?>
 		}() );
 		</script>
+		<?php
+	}
+
+	/**
+	 * JS wiring that keeps the preview's season <select> in step with the
+	 * settings-table season select for whichever league is currently shown
+	 * (inside the preview IIFE, where leagueSel/seasonSel are already in scope).
+	 *
+	 * @return void
+	 */
+	private function render_weekly_preview_season_sync_js(): void {
+		?>
+		// The settings-table season <select> for a given league, so the
+		// preview can mirror whichever season is currently chosen there,
+		// even if the form hasn't been saved yet.
+		function settingsSeasonSelect( leagueId ) {
+			return document.querySelector( 'select[name="spa_weekly_digest_seasons[' + leagueId + ']"]' );
+		}
+
+		function syncSeasonFromSettings() {
+			if ( ! seasonSel || ! leagueSel ) { return; }
+			var settingsSel = settingsSeasonSelect( leagueSel.value );
+			if ( settingsSel ) { seasonSel.value = settingsSel.value; }
+		}
+
+		// Keep the preview season in step whenever the matching settings-table
+		// season <select> changes for the league currently shown in preview.
+		document.querySelectorAll( 'select[name^="spa_weekly_digest_seasons"]' ).forEach( function( sel ) {
+			sel.addEventListener( 'change', function() {
+				if ( ! leagueSel || ! seasonSel ) { return; }
+				if ( settingsSeasonSelect( leagueSel.value ) === sel ) {
+					seasonSel.value = sel.value;
+					generate();
+				}
+			} );
+		} );
 		<?php
 	}
 
@@ -4118,7 +4175,7 @@ class SPA_Settings {
 	 * Season taxonomy terms, or an empty array on failure.
 	 *
 	 * SportsPress registers sp_season conditionally, behind
-	 * `apply_filters( 'sportspress_has_seasons', true )` — unlike sp_league,
+	 * `apply_filters( 'sportspress_has_seasons', true )`, unlike sp_league,
 	 * which is always registered. Guard with taxonomy_exists() so a site with
 	 * seasons disabled (or not yet registered at render time) degrades to
 	 * "no seasons" instead of a WP_Error silently doing the same thing less
@@ -4198,7 +4255,7 @@ class SPA_Settings {
 
 	/**
 	 * AJAX: generate a digest preview for a given league.
-	 * Free and Pro — no license gate.
+	 * Free and Pro: no license gate.
 	 */
 	public function ajax_generate_digest_preview(): void {
 		check_ajax_referer( 'spa_generate_digest_preview_nonce', 'nonce' );
@@ -4213,7 +4270,15 @@ class SPA_Settings {
 			wp_send_json_error( array( 'message' => __( 'Digest classes not loaded.', 'announcer-for-sportspress' ) ) );
 		}
 
-		$builder = new SPA_Digest_Builder( $league_id, SPA_Digest_Builder::options_from_settings( $league_id ) );
+		$options = SPA_Digest_Builder::options_from_settings( $league_id );
+
+		// Let the preview reflect whatever season is currently selected in the
+		// (possibly unsaved) settings form, not just what was last saved.
+		if ( isset( $_POST['season_id'] ) ) {
+			$options['season_id'] = max( 0, intval( wp_unslash( $_POST['season_id'] ) ) );
+		}
+
+		$builder = new SPA_Digest_Builder( $league_id, $options );
 
 		$data      = $builder->build();
 		$formatter = new SPA_Digest_Formatter( $data );

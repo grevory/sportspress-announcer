@@ -8,7 +8,7 @@ use PHPUnit\Framework\TestCase;
  * Regression tests for the single-event cron self-scheduling.
  *
  * The scheduler must always re-arm the next occurrence while the feature is
- * enabled — even when a given run sends nothing (license lapsed, no leagues) —
+ * enabled, even when a given run sends nothing (license lapsed, no leagues),
  * otherwise the schedule dies until settings are re-saved.
  */
 class WeeklyDigestSchedulerTest extends TestCase {
@@ -84,7 +84,7 @@ class WeeklyDigestSchedulerTest extends TestCase {
 	/**
 	 * A deliberate manual send bypasses the 23h guard: it must NOT return the
 	 * 'guard' error even for a just-sent league. (It proceeds to the builder,
-	 * which with no data returns the 'empty' error — proving the guard was
+	 * which with no data returns the 'empty' error, proving the guard was
 	 * skipped.)
 	 */
 	public function test_send_now_bypasses_guard(): void {

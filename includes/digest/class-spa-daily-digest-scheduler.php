@@ -2,7 +2,7 @@
 /**
  * Schedules the automatic upcoming-games digest (daily/weekly cadence) via WP-Cron.
  *
- * This is the "daily digest" — a heads-up of upcoming fixtures. Distinct from
+ * This is the "daily digest": a heads-up of upcoming fixtures. Distinct from
  * SPA_Weekly_Digest_Scheduler, which posts the weekly results recap (Pro).
  *
  * @package SportsPress_Announcer

@@ -54,7 +54,7 @@ class SPA_Event_Handler {
 		<div class="notice notice-info is-dismissible spa-weekly-upsell" data-nonce="<?php echo esc_attr( $nonce ); ?>">
 			<p>
 				<?php esc_html_e( 'Result announced! 🏆', 'announcer-for-sportspress' ); ?>
-				<?php esc_html_e( 'Turn one-off scores into a weekly rhythm —', 'announcer-for-sportspress' ); ?>
+				<?php esc_html_e( 'Turn one-off scores into a weekly rhythm:', 'announcer-for-sportspress' ); ?>
 				<a href="<?php echo esc_url( $digest_url ); ?>"><?php esc_html_e( 'set up the Weekly Recap →', 'announcer-for-sportspress' ); ?></a>
 			</p>
 		</div>

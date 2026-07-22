@@ -1,6 +1,6 @@
 <?php
 /**
- * License check — stub implementation.
+ * License check: stub implementation.
  *
  * Real key-validation wired in a future sprint. Until then is_pro() returns
  * true so all Pro features are accessible during development.

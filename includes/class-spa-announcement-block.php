@@ -2,7 +2,7 @@
 /**
  * Registers the "SportsPress Announcement" Gutenberg block.
  *
- * FREE — a dynamic block whose server render reuses SPA_Shortcode::render_recap(),
+ * FREE: a dynamic block whose server render reuses SPA_Shortcode::render_recap(),
  * so the editor block, the [spa_announcement] shortcode, and the digest all
  * produce identical output. The editor script is hand-written against the global
  * wp.* packages (no build step), matching the plugin's plain-JS asset convention.
@@ -85,7 +85,7 @@ class SPA_Announcement_Block {
 			// Give editors a visible cue instead of an empty block; on the front
 			// end an empty recap should simply render nothing.
 			return $this->is_editor_request()
-				? '<div class="spa-announcement-empty">' . esc_html__( 'No recap to show yet — pick a league with recent games in the block settings.', 'announcer-for-sportspress' ) . '</div>'
+				? '<div class="spa-announcement-empty">' . esc_html__( 'No recap to show yet. Pick a league with recent games in the block settings.', 'announcer-for-sportspress' ) . '</div>'
 				: '';
 		}
 

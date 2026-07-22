@@ -44,7 +44,7 @@ class SPA_Weekly_Digest_Scheduler {
 	 */
 	public function run(): void {
 		// Single-event cron: always re-arm the next occurrence while the feature
-		// is enabled — even when this run sends nothing (license lapsed, no
+		// is enabled, even when this run sends nothing (license lapsed, no
 		// leagues yet). Otherwise the schedule would die permanently until
 		// settings are re-saved, and never resume when a license renews. The
 		// only thing that clears the schedule is disabling the feature, handled
@@ -86,7 +86,7 @@ class SPA_Weekly_Digest_Scheduler {
 		}
 	}
 
-	/** Called when schedule options change — clear and re-queue. */
+	/** Called when schedule options change: clear and re-queue. */
 	public function reschedule(): void {
 		wp_clear_scheduled_hook( self::CRON_HOOK );
 		if ( get_option( 'spa_weekly_digest_enabled' ) ) {
@@ -272,7 +272,7 @@ class SPA_Weekly_Digest_Scheduler {
 				'type'     => 'digest',
 				'label'    => sprintf(
 				/* translators: %s: league name */
-					__( 'Weekly Recap — %s', 'announcer-for-sportspress' ),
+					__( 'Weekly Recap: %s', 'announcer-for-sportspress' ),
 					$league_name
 				),
 				'channel'  => $league_name,
@@ -298,7 +298,7 @@ class SPA_Weekly_Digest_Scheduler {
 		$title       = $league_term && ! is_wp_error( $league_term )
 			? sprintf(
 				/* translators: 1: league name, 2: date */
-				__( 'Weekly Recap — %1$s (%2$s)', 'announcer-for-sportspress' ),
+				__( 'Weekly Recap: %1$s (%2$s)', 'announcer-for-sportspress' ),
 				$league_term->name,
 				$data['period']['end']
 			)

@@ -3,7 +3,7 @@
  * Registers the [spa_announcement] shortcode for embedding a league recap
  * into any WordPress post or page.
  *
- * FREE — reuses the digest builder and HTML formatter that already power the
+ * FREE: reuses the digest builder and HTML formatter that already power the
  * wp-admin preview, so the front-end embed never diverges from the digest.
  *
  * The matching Gutenberg block (see SPA_Announcement_Block) renders through the
@@ -37,9 +37,9 @@ class SPA_Shortcode {
 	 * Render the shortcode.
 	 *
 	 * Supported attributes:
-	 *   league — league term ID or slug (required).
-	 *   season — season term ID (optional; defaults to the league's saved digest season).
-	 *   days   — days of history to include (default 7).
+	 *   league: league term ID or slug (required).
+	 *   season: season term ID (optional; defaults to the league's saved digest season).
+	 *   days:   days of history to include (default 7).
 	 *
 	 * @param array|string $atts Raw shortcode attributes.
 	 * @return string Escaped HTML, or '' when nothing can be shown.

@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  *   type        string  'result' | 'digest'
  *   label       string  Human-readable event name or digest title
  *   channel     string  Competition name used as channel label
- *   competition string  Competition name — used to resolve routing on retry
+ *   competition string  Competition name, used to resolve routing on retry
  *   platform    string  'discord' | 'slack'
  *   message     string  The formatted message text that was sent
  *   sent_at     int     Unix timestamp

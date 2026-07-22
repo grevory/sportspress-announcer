@@ -2,7 +2,7 @@
 /**
  * Builds the DigestData array from SportsPress data.
  *
- * FREE — ships in the base plugin and powers both the wp-admin preview (free)
+ * FREE: ships in the base plugin and powers both the wp-admin preview (free)
  * and the scheduled posting (Pro).
  *
  * @package SportsPress_Announcer
@@ -147,7 +147,7 @@ class SPA_Digest_Builder {
 		$start = $now->modify( "-{$this->date_range_days} days" )->setTime( 0, 0, 0 );
 		$end   = $now->setTime( 23, 59, 59 );
 
-		// Always query the actual results — the emptiness check needs to know
+		// Always query the actual results: the emptiness check needs to know
 		// whether any games happened, regardless of whether the user chose to
 		// display the results section. Only expose them when included.
 		$actual_results = $this->get_results( $start, $end );
@@ -167,7 +167,7 @@ class SPA_Digest_Builder {
 			'standings'    => $standings,
 			'stat_leaders' => $stat_leaders,
 			'upcoming'     => $upcoming,
-			// Emptiness reflects whether anything actually happened this week —
+			// Emptiness reflects whether anything actually happened this week,
 			// based on the real results, not the display toggle. Standings and
 			// leaders are intentionally excluded: they only change when games
 			// are played, so a game-less week would re-post an unchanged table.
@@ -309,7 +309,7 @@ class SPA_Digest_Builder {
 	/**
 	 * Resolve this builder's league (and season, when set) to an sp_table
 	 * post ID. SP_League_Table is constructed from a table post, not a league
-	 * term directly — the table reads its own scope from the sp_league/
+	 * term directly: the table reads its own scope from the sp_league/
 	 * sp_season terms assigned to it. This mirrors the auto-match tax_query
 	 * SportsPress itself uses in SP_Team::tables() to find a team's table(s).
 	 *
@@ -365,7 +365,7 @@ class SPA_Digest_Builder {
 		// SP_League_Table::data() (non-admin) returns an array keyed by team_id,
 		// each row an associative array with 'name', 'pos', and configurable
 		// stat columns (commonly 'p' = played, 'pts' = points). Index 0 holds
-		// the column-label row — drop it. Rows are already sorted by position.
+		// the column-label row, drop it. Rows are already sorted by position.
 		unset( $data[0] );
 
 		$prev_ranks = $this->previous_ranks();
@@ -396,7 +396,7 @@ class SPA_Digest_Builder {
 			++$rank;
 		}
 
-		// Stash the computed snapshot but DO NOT persist it here — build() must
+		// Stash the computed snapshot but DO NOT persist it here: build() must
 		// stay side-effect free so the free preview path can't corrupt the
 		// movement baseline. The scheduler calls commit_standings_snapshot()
 		// only after a digest is actually sent.
@@ -446,7 +446,7 @@ class SPA_Digest_Builder {
 	 * Persist the standings snapshot computed during the last build().
 	 *
 	 * Call this only when a digest was actually sent, so movement arrows in the
-	 * next digest diff against the last *sent* standings — never against a
+	 * next digest diff against the last *sent* standings, never against a
 	 * preview. No-op if build() has not been called or produced no standings.
 	 *
 	 * @return void

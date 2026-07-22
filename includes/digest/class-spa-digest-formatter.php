@@ -2,7 +2,7 @@
 /**
  * Renders DigestData into channel-specific payloads.
  *
- * FREE — the formatter ships in the base plugin and is used for both the
+ * FREE: the formatter ships in the base plugin and is used for both the
  * wp-admin preview (free) and scheduled posting (Pro).
  *
  * @package SportsPress_Announcer
@@ -78,7 +78,7 @@ class SPA_Digest_Formatter {
 				array(
 					'title'     => sprintf(
 						/* translators: 1: league name, 2: date range */
-						__( 'Weekly Recap — %1$s (%2$s)', 'announcer-for-sportspress' ),
+						__( 'Weekly Recap: %1$s (%2$s)', 'announcer-for-sportspress' ),
 						$this->league_name(),
 						$period
 					),
@@ -137,7 +137,7 @@ class SPA_Digest_Formatter {
 	/**
 	 * Render the digest as HTML for the wp-admin preview pane.
 	 *
-	 * @return string Safe HTML — all dynamic values are escaped.
+	 * @return string Safe HTML, all dynamic values are escaped.
 	 */
 	public function to_html(): string {
 		$period = esc_html( $this->data['period']['start'] ) . ' – ' . esc_html( $this->data['period']['end'] );
@@ -146,7 +146,7 @@ class SPA_Digest_Formatter {
 		$html .= '<h2 class="spa-digest-title">';
 		$html .= sprintf(
 			/* translators: 1: league name, 2: date range */
-			esc_html__( 'Weekly Recap — %1$s (%2$s)', 'announcer-for-sportspress' ),
+			esc_html__( 'Weekly Recap: %1$s (%2$s)', 'announcer-for-sportspress' ),
 			$this->league_name(),
 			$period
 		);
@@ -250,7 +250,7 @@ class SPA_Digest_Formatter {
 		foreach ( $this->data['upcoming'] as $g ) {
 			$html .= '<li>' . esc_html( $g['label'] ?? '' );
 			if ( ! empty( $g['date'] ) ) {
-				$html .= ' — ' . esc_html( $g['date'] );
+				$html .= ': ' . esc_html( $g['date'] );
 			}
 			$html .= '</li>';
 		}
@@ -279,7 +279,7 @@ class SPA_Digest_Formatter {
 
 		$title = sprintf(
 			/* translators: 1: league name, 2: date range */
-			__( 'Weekly Recap — %1$s (%2$s)', 'announcer-for-sportspress' ),
+			__( 'Weekly Recap: %1$s (%2$s)', 'announcer-for-sportspress' ),
 			$this->league_name(),
 			$period
 		);
@@ -461,7 +461,7 @@ class SPA_Digest_Formatter {
 		foreach ( $this->data['upcoming'] as $g ) {
 			$label   = $g['label'] ?? '';
 			$date    = $g['date'] ?? '';
-			$lines[] = '• ' . $label . ( $date ? ' — ' . $date : '' );
+			$lines[] = '• ' . $label . ( $date ? ': ' . $date : '' );
 		}
 		return $lines;
 	}
@@ -490,7 +490,7 @@ class SPA_Digest_Formatter {
 
 		foreach ( $lines as $line ) {
 			$candidate = implode( "\n", array_merge( $kept, array( $line ) ) );
-			$suffix    = sprintf( "\n…and %d more — %s", $total - count( $kept ) - 1, $more_url );
+			$suffix    = sprintf( "\n…and %d more: %s", $total - count( $kept ) - 1, $more_url );
 
 			if ( mb_strlen( $candidate . $suffix ) > $limit ) {
 				break;
@@ -500,7 +500,7 @@ class SPA_Digest_Formatter {
 		}
 
 		$remaining = $total - count( $kept );
-		return implode( "\n", $kept ) . sprintf( "\n…and %d more — %s", $remaining, $more_url );
+		return implode( "\n", $kept ) . sprintf( "\n…and %d more: %s", $remaining, $more_url );
 	}
 
 	/**
