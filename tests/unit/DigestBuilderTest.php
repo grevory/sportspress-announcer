@@ -34,15 +34,26 @@ class DigestBuilderTest extends TestCase {
 			return true;
 		} );
 
-		// Default: no events, no players. Individual tests can override.
-		Functions\when( 'get_posts' )->justReturn( [] );
+		// Default: no events, no players, no sp_table match. Individual tests
+		// can override via stubTableLookup()/explicit get_posts mocks.
+		Functions\when( 'get_posts' )->alias( function ( $args ) {
+			if ( 'sp_table' === ( $args['post_type'] ?? '' ) ) {
+				return self::$table_lookup_result;
+			}
+			return [];
+		} );
+		self::$table_lookup_result = [ 99 ];
 	}
+
+	/** @var array sp_table post IDs returned by the table-resolution query. */
+	private static array $table_lookup_result = [ 99 ];
 
 	protected function tearDown(): void {
 		Monkey\tearDown();
 		parent::tearDown();
 		// Reset the SP_League_Table stub between tests.
-		FakeLeagueTable::$rows = [];
+		FakeLeagueTable::$rows         = [];
+		FakeLeagueTable::$last_post_id = null;
 	}
 
 	// -- Empty-week detection ----------------------------------------------
@@ -129,7 +140,7 @@ class DigestBuilderTest extends TestCase {
 		$this->stubEmptyResultsQuery();
 
 		// Seed a previous snapshot: Eels 1st, Sharks 2nd, Rays 3rd.
-		$this->options['spa_digest_standings_snapshot_5'] = [
+		$this->options['spa_digest_standings_snapshot_5_0'] = [
 			[ 'name' => 'Eels',   'rank' => 1 ],
 			[ 'name' => 'Sharks', 'rank' => 2 ],
 			[ 'name' => 'Rays',   'rank' => 3 ],
@@ -168,7 +179,7 @@ class DigestBuilderTest extends TestCase {
 		( new SPA_Digest_Builder( 5 ) )->build();
 
 		$this->assertArrayNotHasKey(
-			'spa_digest_standings_snapshot_5',
+			'spa_digest_standings_snapshot_5_0',
 			$this->options,
 			'build() should not write the standings snapshot'
 		);
@@ -189,7 +200,7 @@ class DigestBuilderTest extends TestCase {
 
 		$builder->commit_standings_snapshot();
 
-		$snapshot = $this->options['spa_digest_standings_snapshot_5'] ?? null;
+		$snapshot = $this->options['spa_digest_standings_snapshot_5_0'] ?? null;
 		$this->assertIsArray( $snapshot );
 		$this->assertSame( 'Sharks', $snapshot[0]['name'] );
 		$this->assertSame( 1, $snapshot[0]['rank'] );
@@ -205,6 +216,81 @@ class DigestBuilderTest extends TestCase {
 		$builder->commit_standings_snapshot();
 
 		$this->assertArrayNotHasKey( 'spa_digest_standings_snapshot_5', $this->options );
+	}
+
+	// -- Season scoping ------------------------------------------------------
+
+	public function test_standings_empty_when_no_table_matches_league(): void {
+		$this->stubEmptyResultsQuery();
+		self::$table_lookup_result = [];
+		FakeLeagueTable::$rows     = [
+			0  => [ 'name' => 'Team' ],
+			10 => [ 'name' => 'Sharks', 'p' => 5, 'pts' => 15 ],
+		];
+
+		$data = ( new SPA_Digest_Builder( 5 ) )->build();
+
+		$this->assertSame( [], $data['standings'], 'no matching sp_table post means no standings, not a fatal error' );
+	}
+
+	public function test_standings_use_resolved_table_post_id(): void {
+		$this->stubEmptyResultsQuery();
+		self::$table_lookup_result = [ 42 ];
+		FakeLeagueTable::$rows     = [
+			0  => [ 'name' => 'Team' ],
+			10 => [ 'name' => 'Sharks', 'p' => 5, 'pts' => 15 ],
+		];
+
+		( new SPA_Digest_Builder( 5, [ 'season_id' => 7 ] ) )->build();
+
+		$this->assertSame( 42, FakeLeagueTable::$last_post_id, 'SP_League_Table must be constructed from the resolved sp_table post, not the league term ID' );
+	}
+
+	public function test_season_scoped_snapshot_key_is_isolated_per_season(): void {
+		$this->stubEmptyResultsQuery();
+		FakeLeagueTable::$rows = [
+			0  => [ 'name' => 'Team' ],
+			10 => [ 'name' => 'Sharks', 'p' => 5, 'pts' => 15 ],
+		];
+
+		$builder = new SPA_Digest_Builder( 5, [ 'season_id' => 7 ] );
+		$builder->build();
+		$builder->commit_standings_snapshot();
+
+		$this->assertArrayHasKey( 'spa_digest_standings_snapshot_5_7', $this->options );
+		$this->assertArrayNotHasKey( 'spa_digest_standings_snapshot_5_0', $this->options );
+	}
+
+	public function test_extract_stat_value_scoped_to_season_when_set(): void {
+		$this->stubEmptyResultsQuery();
+
+		Functions\when( 'get_posts' )->alias( function ( $args ) {
+			if ( 'sp_table' === ( $args['post_type'] ?? '' ) ) {
+				return [];
+			}
+			return [ (object) [ 'ID' => 1 ] ];
+		} );
+		Functions\when( 'get_post_meta' )->alias( function ( $id, $key, $single = false ) {
+			if ( 'sp_statistics' === $key ) {
+				return [
+					5 => [
+						6 => [ 'goals' => 2 ], // season 6
+						7 => [ 'goals' => 3 ], // season 7
+					],
+				];
+			}
+			if ( 'sp_current_team' === $key ) {
+				return [];
+			}
+			return $single ? '' : [];
+		} );
+		Functions\when( 'get_the_title' )->justReturn( 'Player' );
+
+		$scoped = ( new SPA_Digest_Builder( 5, [ 'season_id' => 7, 'stat_keys' => [ 'goals' ] ] ) )->build();
+		$this->assertSame( 3, $scoped['stat_leaders'][0]['players'][0]['value'] );
+
+		$all = ( new SPA_Digest_Builder( 5, [ 'stat_keys' => [ 'goals' ] ] ) )->build();
+		$this->assertSame( 5, $all['stat_leaders'][0]['players'][0]['value'], 'summed across every season when no season_id is set' );
 	}
 
 	// -- Helpers -----------------------------------------------------------
@@ -263,12 +349,17 @@ class FakeWpQuery {
 }
 
 /**
- * Minimal SP_League_Table stand-in. The builder only calls ->data().
+ * Minimal SP_League_Table stand-in. The builder only calls ->data(). Mirrors
+ * the real class's single-argument constructor (an sp_table post ID).
  */
 class FakeLeagueTable {
 	/** @var array */
 	public static $rows = [];
-	public function __construct( $league_id ) {}
+	/** @var int|null Post ID passed to the last constructed instance. */
+	public static $last_post_id = null;
+	public function __construct( $post_id ) {
+		self::$last_post_id = $post_id;
+	}
 	public function data() {
 		return self::$rows;
 	}

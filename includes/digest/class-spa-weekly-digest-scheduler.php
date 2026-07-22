@@ -178,7 +178,7 @@ class SPA_Weekly_Digest_Scheduler {
 			return new \WP_Error( 'unavailable', __( 'Digest builder unavailable.', 'announcer-for-sportspress' ) );
 		}
 
-		$builder = new SPA_Digest_Builder( $league_id, SPA_Digest_Builder::options_from_settings() );
+		$builder = new SPA_Digest_Builder( $league_id, SPA_Digest_Builder::options_from_settings( $league_id ) );
 
 		$data = $builder->build();
 

@@ -25,6 +25,13 @@ class SPA_Digest_Builder {
 	private int $league_id;
 
 	/**
+	 * Season term ID, or 0 to include every season.
+	 *
+	 * @var int
+	 */
+	private int $season_id;
+
+	/**
 	 * Days of history to include.
 	 *
 	 * @var int
@@ -81,6 +88,7 @@ class SPA_Digest_Builder {
 	 *   Optional. Build options.
 	 *
 	 *   @type int      $date_range_days   Default 7.
+	 *   @type int      $season_id         Season term ID, or 0 for every season. Default 0.
 	 *   @type bool     $include_results   Default true.
 	 *   @type bool     $include_standings Default true.
 	 *   @type bool     $include_leaders   Default true.
@@ -90,6 +98,7 @@ class SPA_Digest_Builder {
 	 */
 	public function __construct( int $league_id, array $options = array() ) {
 		$this->league_id         = $league_id;
+		$this->season_id         = isset( $options['season_id'] ) ? max( 0, intval( $options['season_id'] ) ) : 0;
 		$this->date_range_days   = isset( $options['date_range_days'] ) ? max( 1, intval( $options['date_range_days'] ) ) : 7;
 		$this->include_results   = $options['include_results'] ?? true;
 		$this->include_standings = $options['include_standings'] ?? true;
@@ -103,10 +112,14 @@ class SPA_Digest_Builder {
 	 * settings. Shared by the scheduler and the wp-admin preview so the two
 	 * paths never diverge.
 	 *
+	 * @param int $league_id League term ID, used to look up its saved season scope.
 	 * @return array Options accepted by the constructor.
 	 */
-	public static function options_from_settings(): array {
+	public static function options_from_settings( int $league_id ): array {
+		$seasons = (array) get_option( 'spa_weekly_digest_seasons', array() );
+
 		return array(
+			'season_id'         => intval( $seasons[ $league_id ] ?? 0 ),
 			'include_results'   => (bool) get_option( 'spa_weekly_digest_include_results', true ),
 			'include_standings' => (bool) get_option( 'spa_weekly_digest_include_standings', true ),
 			'include_leaders'   => (bool) get_option( 'spa_weekly_digest_include_leaders', true ),
@@ -187,7 +200,7 @@ class SPA_Digest_Builder {
 						'inclusive' => true,
 					),
 				),
-				'tax_query'      => array( $this->league_tax_query() ),
+				'tax_query'      => $this->scope_tax_query(),
 				'no_found_rows'  => true,
 			)
 		);
@@ -258,9 +271,74 @@ class SPA_Digest_Builder {
 		);
 	}
 
+	/**
+	 * The tax_query clause limiting a query to this builder's season.
+	 *
+	 * @return array
+	 */
+	private function season_tax_query(): array {
+		return array(
+			'taxonomy' => 'sp_season',
+			'field'    => 'term_id',
+			'terms'    => $this->season_id,
+		);
+	}
+
+	/**
+	 * The full tax_query for queries that should be scoped to this builder's
+	 * league and, when set, its season.
+	 *
+	 * @return array
+	 */
+	private function scope_tax_query(): array {
+		if ( $this->season_id <= 0 ) {
+			return array( $this->league_tax_query() );
+		}
+
+		return array(
+			'relation' => 'AND',
+			$this->league_tax_query(),
+			$this->season_tax_query(),
+		);
+	}
+
 	// -------------------------------------------------------------------------
 	// Standings with movement
 	// -------------------------------------------------------------------------
+
+	/**
+	 * Resolve this builder's league (and season, when set) to an sp_table
+	 * post ID. SP_League_Table is constructed from a table post, not a league
+	 * term directly — the table reads its own scope from the sp_league/
+	 * sp_season terms assigned to it. This mirrors the auto-match tax_query
+	 * SportsPress itself uses in SP_Team::tables() to find a team's table(s).
+	 *
+	 * @return int Table post ID, or 0 when none matches.
+	 */
+	private function find_table_id(): int {
+		$tax_query = array(
+			'relation' => 'AND',
+			$this->league_tax_query(),
+		);
+		if ( $this->season_id > 0 ) {
+			$tax_query[] = $this->season_tax_query();
+		}
+
+		$tables = get_posts(
+			array(
+				'post_type'      => 'sp_table',
+				'post_status'    => 'publish',
+				'posts_per_page' => 1,
+				'orderby'        => 'menu_order',
+				'order'          => 'ASC',
+				'tax_query'      => $tax_query,
+				'no_found_rows'  => true,
+				'fields'         => 'ids',
+			)
+		);
+
+		return ! empty( $tables ) ? intval( $tables[0] ) : 0;
+	}
 
 	/**
 	 * Build the current standings and diff against the stored snapshot.
@@ -272,7 +350,12 @@ class SPA_Digest_Builder {
 			return array();
 		}
 
-		$table = new SP_League_Table( $this->league_id );
+		$table_id = $this->find_table_id();
+		if ( 0 === $table_id ) {
+			return array();
+		}
+
+		$table = new SP_League_Table( $table_id );
 		$data  = $table->data();
 
 		if ( empty( $data ) || ! is_array( $data ) ) {
@@ -328,7 +411,7 @@ class SPA_Digest_Builder {
 	 * @return array<string,int>
 	 */
 	private function previous_ranks(): array {
-		$prev_snapshot = get_option( "spa_digest_standings_snapshot_{$this->league_id}", array() );
+		$prev_snapshot = get_option( $this->standings_snapshot_option_key(), array() );
 
 		$prev_ranks = array();
 		foreach ( $prev_snapshot as $prev_row ) {
@@ -372,8 +455,19 @@ class SPA_Digest_Builder {
 		if ( null === $this->pending_snapshot ) {
 			return;
 		}
-		update_option( "spa_digest_standings_snapshot_{$this->league_id}", $this->pending_snapshot, false );
+		update_option( $this->standings_snapshot_option_key(), $this->pending_snapshot, false );
 		$this->pending_snapshot = null;
+	}
+
+	/**
+	 * The option name storing this builder's standings snapshot. Scoped by
+	 * season too, so movement tracking doesn't mix ranks across seasons for
+	 * the same league.
+	 *
+	 * @return string
+	 */
+	private function standings_snapshot_option_key(): string {
+		return "spa_digest_standings_snapshot_{$this->league_id}_{$this->season_id}";
 	}
 
 	// -------------------------------------------------------------------------
@@ -478,7 +572,8 @@ class SPA_Digest_Builder {
 	 *
 	 * SP stores static player stats as: [ league_id => [ season_id => [ stat_key => value ] ] ]
 	 * (see SP_Player_List). We scope to this digest's league (plus league 0 =
-	 * "all leagues") and sum across every season so the leader reflects the
+	 * "all leagues"). When a season is set, only that season's bucket counts;
+	 * otherwise we sum across every season so the leader reflects the
 	 * player's cumulative total for the competition.
 	 *
 	 * @param array  $stats    Player's sp_statistics meta.
@@ -496,6 +591,9 @@ class SPA_Digest_Builder {
 
 		$total = null;
 		foreach ( $league_buckets as $seasons ) {
+			if ( $this->season_id > 0 ) {
+				$seasons = isset( $seasons[ $this->season_id ] ) ? array( $seasons[ $this->season_id ] ) : array();
+			}
 			foreach ( $seasons as $season_stats ) {
 				if ( is_array( $season_stats ) && isset( $season_stats[ $stat_key ] ) && is_numeric( $season_stats[ $stat_key ] ) ) {
 					$total = ( $total ?? 0 ) + ( $season_stats[ $stat_key ] + 0 );

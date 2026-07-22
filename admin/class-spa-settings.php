@@ -3618,6 +3618,16 @@ class SPA_Settings {
 				'default'           => array(),
 			)
 		);
+
+		register_setting(
+			'spa_settings_group',
+			'spa_weekly_digest_seasons',
+			array(
+				'type'              => 'array',
+				'sanitize_callback' => array( $this, 'sanitize_weekly_digest_seasons' ),
+				'default'           => array(),
+			)
+		);
 	}
 
 	/**
@@ -3641,6 +3651,24 @@ class SPA_Settings {
 	}
 
 	/**
+	 * Sanitize the league_id => season_id map to positive integers.
+	 * A season value of 0 means "all seasons" and is kept, not dropped.
+	 *
+	 * @param mixed $value Raw value.
+	 * @return array<int,int>
+	 */
+	public function sanitize_weekly_digest_seasons( $value ): array {
+		$sanitized = array();
+		foreach ( (array) $value as $league_id => $season_id ) {
+			$league_id = intval( $league_id );
+			if ( $league_id > 0 ) {
+				$sanitized[ $league_id ] = max( 0, intval( $season_id ) );
+			}
+		}
+		return $sanitized;
+	}
+
+	/**
 	 * Render the Weekly Digest form. Free users see it disabled with a
 	 * Pro upgrade strip; the preview button is always active.
 	 *
@@ -3650,10 +3678,14 @@ class SPA_Settings {
 		$locked = ! SPA_License::is_pro();
 		$dis    = $locked ? ' disabled' : '';
 
-		$leagues         = $this->get_league_terms();
+		$league_scope    = array(
+			'leagues'          => $this->get_league_terms(),
+			'seasons'          => $this->get_season_terms(),
+			'selected_lg'      => array_map( 'strval', (array) get_option( 'spa_weekly_digest_leagues', array() ) ),
+			'selected_seasons' => (array) get_option( 'spa_weekly_digest_seasons', array() ),
+		);
 		$available_stats = $this->get_available_stat_keys();
 		$selected_stats  = (array) get_option( 'spa_weekly_digest_stat_keys', array() );
-		$selected_lg     = array_map( 'strval', (array) get_option( 'spa_weekly_digest_leagues', array() ) );
 		?>
 		<div class="spa-weekly-digest<?php echo $locked ? ' spa-pro-locked' : ''; ?>">
 
@@ -3672,11 +3704,11 @@ class SPA_Settings {
 			</div>
 			<?php endif; ?>
 
-			<?php $this->render_weekly_digest_table( $dis, $leagues, $selected_lg, $available_stats, $selected_stats ); ?>
+			<?php $this->render_weekly_digest_table( $dis, $league_scope, $available_stats, $selected_stats ); ?>
 
 			<hr>
 
-			<?php $this->render_weekly_digest_preview( $leagues ); ?>
+			<?php $this->render_weekly_digest_preview( $league_scope['leagues'] ); ?>
 		</div>
 		<?php
 		$this->render_weekly_digest_preview_script();
@@ -3685,24 +3717,23 @@ class SPA_Settings {
 	/**
 	 * Weekly-digest settings table (schedule, leagues, content, stat leaders).
 	 *
-	 * @param string    $dis             ' disabled' when locked, else ''.
-	 * @param WP_Term[] $leagues         Available league terms.
-	 * @param string[]  $selected_lg     Selected league ids (as strings).
-	 * @param array     $available_stats stat_key => label.
-	 * @param array     $selected_stats  Selected stat keys.
+	 * @param string $dis             ' disabled' when locked, else ''.
+	 * @param array  $league_scope    Leagues, seasons, and their selected values; see render_digest_league_checkboxes().
+	 * @param array  $available_stats stat_key => label.
+	 * @param array  $selected_stats  Selected stat keys.
 	 * @return void
 	 */
-	private function render_weekly_digest_table( string $dis, array $leagues, array $selected_lg, array $available_stats, array $selected_stats ): void {
+	private function render_weekly_digest_table( string $dis, array $league_scope, array $available_stats, array $selected_stats ): void {
 		?>
 		<table class="form-table" role="presentation">
 			<?php $this->render_weekly_digest_schedule_rows( $dis ); ?>
 
-			<?php if ( ! empty( $leagues ) ) : ?>
+			<?php if ( ! empty( $league_scope['leagues'] ) ) : ?>
 			<tr>
 				<th scope="row"><?php esc_html_e( 'Leagues', 'announcer-for-sportspress' ); ?></th>
 				<td>
-					<?php $this->render_digest_league_checkboxes( $leagues, $selected_lg, $dis ); ?>
-					<p class="description"><?php esc_html_e( 'One digest is posted per selected league.', 'announcer-for-sportspress' ); ?></p>
+					<?php $this->render_digest_league_checkboxes( $league_scope, $dis ); ?>
+					<p class="description"><?php esc_html_e( 'One digest is posted per selected league. Choose a season to isolate standings, results, and stat leaders to that season, or leave "All seasons" to combine every season under the league.', 'announcer-for-sportspress' ); ?></p>
 				</td>
 			</tr>
 			<?php endif; ?>
@@ -3727,23 +3758,62 @@ class SPA_Settings {
 	}
 
 	/**
-	 * Render a league checkbox per available league term.
+	 * Render a league checkbox, paired with a season selector, per available
+	 * league term.
 	 *
-	 * @param WP_Term[] $leagues     Available league terms.
-	 * @param string[]  $selected_lg Selected league ids (as strings).
-	 * @param string    $dis         ' disabled' when locked, else ''.
+	 * @param array  $league_scope {
+	 *   Leagues, seasons, and their selected values.
+	 *
+	 *   @type WP_Term[] $leagues          Available league terms.
+	 *   @type WP_Term[] $seasons          Available season terms.
+	 *   @type string[]  $selected_lg      Selected league ids (as strings).
+	 *   @type array     $selected_seasons league_id => season_id.
+	 * }
+	 * @param string $dis          ' disabled' when locked, else ''.
 	 * @return void
 	 */
-	private function render_digest_league_checkboxes( array $leagues, array $selected_lg, string $dis ): void {
-		foreach ( $leagues as $league ) {
-			$this->render_digest_checkbox(
-				'spa_weekly_digest_leagues[]',
-				(string) $league->term_id,
-				$league->name,
-				in_array( (string) $league->term_id, $selected_lg, true ),
-				$dis
-			);
+	private function render_digest_league_checkboxes( array $league_scope, string $dis ): void {
+		foreach ( $league_scope['leagues'] as $league ) {
+			?>
+			<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+				<?php
+				$this->render_digest_checkbox(
+					'spa_weekly_digest_leagues[]',
+					(string) $league->term_id,
+					$league->name,
+					in_array( (string) $league->term_id, $league_scope['selected_lg'], true ),
+					$dis
+				);
+				?>
+				<?php if ( ! empty( $league_scope['seasons'] ) ) : ?>
+					<?php $this->render_digest_season_select( $league->term_id, $league_scope['seasons'], $league_scope['selected_seasons'], $dis ); ?>
+				<?php endif; ?>
+			</div>
+			<?php
 		}
+	}
+
+	/**
+	 * Render the season <select> for one league row.
+	 *
+	 * @param int       $league_id        League term ID this select scopes.
+	 * @param WP_Term[] $seasons          Available season terms.
+	 * @param array     $selected_seasons league_id => season_id.
+	 * @param string    $dis              ' disabled' when locked, else ''.
+	 * @return void
+	 */
+	private function render_digest_season_select( int $league_id, array $seasons, array $selected_seasons, string $dis ): void {
+		$selected = isset( $selected_seasons[ $league_id ] )
+			? intval( $selected_seasons[ $league_id ] )
+			: $this->get_current_season_id();
+		?>
+		<select name="spa_weekly_digest_seasons[<?php echo esc_attr( $league_id ); ?>]"<?php echo $dis; // phpcs:ignore ?>>
+			<option value="0"<?php selected( $selected, 0 ); ?>><?php esc_html_e( 'All seasons', 'announcer-for-sportspress' ); ?></option>
+			<?php foreach ( $seasons as $season ) : ?>
+			<option value="<?php echo esc_attr( $season->term_id ); ?>"<?php selected( $selected, $season->term_id ); ?>><?php echo esc_html( $season->name ); ?></option>
+			<?php endforeach; ?>
+		</select>
+		<?php
 	}
 
 	/**
@@ -4045,6 +4115,43 @@ class SPA_Settings {
 	}
 
 	/**
+	 * Season taxonomy terms, or an empty array on failure.
+	 *
+	 * SportsPress registers sp_season conditionally, behind
+	 * `apply_filters( 'sportspress_has_seasons', true )` — unlike sp_league,
+	 * which is always registered. Guard with taxonomy_exists() so a site with
+	 * seasons disabled (or not yet registered at render time) degrades to
+	 * "no seasons" instead of a WP_Error silently doing the same thing less
+	 * clearly.
+	 *
+	 * @return WP_Term[]
+	 */
+	private function get_season_terms(): array {
+		if ( ! taxonomy_exists( 'sp_season' ) ) {
+			return array();
+		}
+
+		$terms = get_terms(
+			array(
+				'taxonomy'   => 'sp_season',
+				'hide_empty' => false,
+			)
+		);
+		return ( $terms && ! is_wp_error( $terms ) ) ? $terms : array();
+	}
+
+	/**
+	 * SportsPress's own "current season" term ID, used only as the default
+	 * for a league that has no digest season saved yet. Falls back to 0
+	 * ("all seasons") if SportsPress exposes no current-season setting.
+	 *
+	 * @return int
+	 */
+	private function get_current_season_id(): int {
+		return intval( get_option( 'sportspress_season', 0 ) );
+	}
+
+	/**
 	 * Weekday choices for the schedule selector.
 	 *
 	 * @return array<string,string> weekday slug => label
@@ -4106,7 +4213,7 @@ class SPA_Settings {
 			wp_send_json_error( array( 'message' => __( 'Digest classes not loaded.', 'announcer-for-sportspress' ) ) );
 		}
 
-		$builder = new SPA_Digest_Builder( $league_id, SPA_Digest_Builder::options_from_settings() );
+		$builder = new SPA_Digest_Builder( $league_id, SPA_Digest_Builder::options_from_settings( $league_id ) );
 
 		$data      = $builder->build();
 		$formatter = new SPA_Digest_Formatter( $data );

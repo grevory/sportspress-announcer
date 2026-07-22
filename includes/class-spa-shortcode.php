@@ -38,6 +38,7 @@ class SPA_Shortcode {
 	 *
 	 * Supported attributes:
 	 *   league — league term ID or slug (required).
+	 *   season — season term ID (optional; defaults to the league's saved digest season).
 	 *   days   — days of history to include (default 7).
 	 *
 	 * @param array|string $atts Raw shortcode attributes.
@@ -47,28 +48,36 @@ class SPA_Shortcode {
 		$atts = shortcode_atts(
 			array(
 				'league' => '',
+				'season' => '',
 				'days'   => 7,
 			),
 			$atts,
 			self::TAG
 		);
 
-		return self::render_recap( self::resolve_league_id( $atts['league'] ), intval( $atts['days'] ) );
+		$season_id = '' === trim( (string) $atts['season'] ) ? null : intval( $atts['season'] );
+
+		return self::render_recap( self::resolve_league_id( $atts['league'] ), intval( $atts['days'] ), $season_id );
 	}
 
 	/**
 	 * Build and format a league recap. Shared by the shortcode and the block.
 	 *
-	 * @param int $league_id League term ID (0 when unresolved).
-	 * @param int $days       Days of history to include.
+	 * @param int      $league_id League term ID (0 when unresolved).
+	 * @param int      $days      Days of history to include.
+	 * @param int|null $season_id Season term ID to scope to, 0 for all seasons,
+	 *                            or null to use the league's saved digest season.
 	 * @return string Escaped HTML, or '' when nothing can be shown.
 	 */
-	public static function render_recap( int $league_id, int $days ): string {
+	public static function render_recap( int $league_id, int $days, ?int $season_id = null ): string {
 		if ( ! class_exists( 'SportsPress' ) || $league_id <= 0 ) {
 			return '';
 		}
 
-		$options                    = SPA_Digest_Builder::options_from_settings();
+		$options = SPA_Digest_Builder::options_from_settings( $league_id );
+		if ( null !== $season_id ) {
+			$options['season_id'] = max( 0, $season_id );
+		}
 		$options['date_range_days'] = max( 1, $days );
 
 		$data = ( new SPA_Digest_Builder( $league_id, $options ) )->build();
