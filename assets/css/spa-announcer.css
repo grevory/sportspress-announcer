@@ -1,0 +1,46 @@
+/**
+ * Front-end styles for [spa_announcement] game result cards.
+ *
+ * Colors, spacing, and fonts default to the active theme's theme.json
+ * presets (as exposed by block themes like Rookie) with fallback values
+ * for classic themes that don't define them.
+ */
+
+.spa-announcer-cards {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+	gap: var(--wp--preset--spacing--30, 1rem);
+	margin: var(--wp--preset--spacing--40, 1.5rem) 0;
+	padding: 0;
+	list-style: none;
+}
+
+.spa-announcer-card {
+	background: var(--wp--preset--color--background, #fff);
+	color: var(--wp--preset--color--foreground, #1e1e1e);
+	border: 1px solid var(--wp--preset--color--tertiary, #d0d0d0);
+	border-radius: 8px;
+	padding: var(--wp--preset--spacing--20, 1rem);
+	font-family: var(--wp--preset--font-family--body, inherit);
+}
+
+.spa-announcer-card__teams {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: var(--wp--preset--spacing--10, 0.5rem);
+	flex-wrap: wrap;
+	font-weight: 600;
+}
+
+.spa-announcer-card__score {
+	font-weight: 700;
+	color: var(--wp--preset--color--primary, #1e1e1e);
+	white-space: nowrap;
+}
+
+.spa-announcer-card__competition {
+	margin-top: var(--wp--preset--spacing--10, 0.4rem);
+	font-size: 0.85em;
+	color: var(--wp--preset--color--secondary, #6c6c6c);
+}

@@ -19,6 +19,8 @@ class DigestFormatterTest extends TestCase {
 		Functions\when( 'get_bloginfo' )->justReturn( 'Test League Site' );
 		Functions\when( 'get_term' )->justReturn( (object) [ 'name' => 'Div 1' ] );
 		Functions\when( 'is_wp_error' )->justReturn( false );
+		Functions\when( 'get_option' )->justReturn( 'F j, Y g:i a' );
+		Functions\when( 'wp_date' )->justReturn( 'January 7, 2026 12:00 am' );
 		// gmdate() is a PHP internal, left un-mocked; the real function is fine.
 	}
 
@@ -30,6 +32,7 @@ class DigestFormatterTest extends TestCase {
 	private function data( array $overrides = [] ): array {
 		return array_merge( [
 			'league_id'    => 5,
+			'season_id'    => 0,
 			'period'       => [ 'start' => '2026-01-01', 'end' => '2026-01-07' ],
 			'results'      => [],
 			'standings'    => [],

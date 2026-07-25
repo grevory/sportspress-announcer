@@ -157,15 +157,50 @@ class SPA_Digest_Formatter {
 		$html .= $this->leaders_html();
 		$html .= $this->upcoming_html();
 
-		$html .= '<p class="spa-digest-footer">' . sprintf(
-			/* translators: %s: site name */
-			esc_html__( 'Posted automatically by Announcer for SportsPress · %s', 'announcer-for-sportspress' ),
-			esc_html( get_bloginfo( 'name' ) )
-		) . '</p>';
+		$html .= $this->footer_comment( $period );
 
 		$html .= '</div>';
 
 		return $html;
+	}
+
+	/**
+	 * Build an HTML comment noting how and when the recap was generated, kept
+	 * out of the visible output.
+	 *
+	 * @param string $period Escaped date range, as rendered in the title.
+	 * @return string
+	 */
+	private function footer_comment( string $period ): string {
+		$season_name = $this->season_name();
+		$generated   = esc_html( wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ) ) );
+
+		$text = sprintf(
+			/* translators: 1: site name, 2: season name, 3: date range, 4: generation date */
+			__( 'Posted automatically by Announcer for SportsPress · %1$s · Season: %2$s · Period: %3$s · Generated %4$s', 'announcer-for-sportspress' ),
+			esc_html( get_bloginfo( 'name' ) ),
+			$season_name,
+			$period,
+			$generated
+		);
+
+		return '<!-- ' . str_replace( '--', '—', $text ) . ' -->';
+	}
+
+	/**
+	 * Season display name, or a generic label when no season is scoped.
+	 *
+	 * @return string
+	 */
+	private function season_name(): string {
+		if ( empty( $this->data['season_id'] ) ) {
+			return esc_html__( 'All seasons', 'announcer-for-sportspress' );
+		}
+
+		$season_term = get_term( $this->data['season_id'], 'sp_season' );
+		return ( $season_term && ! is_wp_error( $season_term ) )
+			? esc_html( $season_term->name )
+			: esc_html__( 'Season', 'announcer-for-sportspress' );
 	}
 
 	/**
@@ -180,15 +215,20 @@ class SPA_Digest_Formatter {
 
 		$html  = '<div class="spa-digest-section">';
 		$html .= '<h3>' . esc_html__( 'Results', 'announcer-for-sportspress' ) . '</h3>';
-		$html .= '<ul class="spa-digest-results">';
+		$html .= '<div class="spa-announcer-cards">';
 		foreach ( $this->data['results'] as $r ) {
-			$html .= '<li><strong>' . esc_html( $r['home'] ) . ' ' . esc_html( $r['home_score'] ) . ' – ' . esc_html( $r['away_score'] ) . ' ' . esc_html( $r['away'] ) . '</strong>';
+			$html .= '<div class="spa-announcer-card">';
+			$html .= '<div class="spa-announcer-card__teams">';
+			$html .= '<span class="spa-announcer-card__team spa-announcer-card__team--home">' . esc_html( $r['home'] ) . '</span>';
+			$html .= '<span class="spa-announcer-card__score">' . esc_html( $r['home_score'] ) . '&nbsp;–&nbsp;' . esc_html( $r['away_score'] ) . '</span>';
+			$html .= '<span class="spa-announcer-card__team spa-announcer-card__team--away">' . esc_html( $r['away'] ) . '</span>';
+			$html .= '</div>';
 			if ( ! empty( $r['competition'] ) ) {
-				$html .= ' <span class="spa-digest-comp">(' . esc_html( $r['competition'] ) . ')</span>';
+				$html .= '<div class="spa-announcer-card__competition">' . esc_html( $r['competition'] ) . '</div>';
 			}
-			$html .= '</li>';
+			$html .= '</div>';
 		}
-		return $html . '</ul></div>';
+		return $html . '</div></div>';
 	}
 
 	/**

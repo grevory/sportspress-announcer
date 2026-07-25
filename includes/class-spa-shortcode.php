@@ -31,6 +31,26 @@ class SPA_Shortcode {
 	 */
 	public function __construct() {
 		add_shortcode( self::TAG, array( $this, 'render' ) );
+		add_action( 'wp_enqueue_scripts', array( $this, 'maybe_enqueue_style' ) );
+	}
+
+	/**
+	 * Enqueue the card stylesheet on singular posts/pages that contain the
+	 * shortcode or the matching block, so it never loads site-wide.
+	 */
+	public function maybe_enqueue_style(): void {
+		if ( ! is_singular() ) {
+			return;
+		}
+
+		$post = get_post();
+		if ( ! $post ) {
+			return;
+		}
+
+		if ( has_shortcode( $post->post_content, self::TAG ) || has_block( 'spa/announcement', $post->post_content ) ) {
+			wp_enqueue_style( 'spa-announcer', SPA_PLUGIN_URL . 'assets/css/spa-announcer.css', array(), SPA_VERSION );
+		}
 	}
 
 	/**

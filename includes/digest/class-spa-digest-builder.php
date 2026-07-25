@@ -133,6 +133,7 @@ class SPA_Digest_Builder {
 	 *
 	 * @return array{
 	 *   league_id: int,
+	 *   season_id: int,
 	 *   period: array{start: string, end: string},
 	 *   results: array[],
 	 *   standings: array[],
@@ -159,6 +160,7 @@ class SPA_Digest_Builder {
 
 		return array(
 			'league_id'    => $this->league_id,
+			'season_id'    => $this->season_id,
 			'period'       => array(
 				'start' => $start->format( 'Y-m-d' ),
 				'end'   => $end->format( 'Y-m-d' ),
