@@ -1,6 +1,6 @@
 <?php
 /**
- * Registers the "SportsPress Announcement" Gutenberg block.
+ * Registers the "Announcer for SportsPress" Gutenberg block.
  *
  * FREE: a dynamic block whose server render reuses SPA_Shortcode::render_recap(),
  * so the editor block, the [spa_announcement] shortcode, and the digest all

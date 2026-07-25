@@ -1,5 +1,5 @@
 /**
- * Editor script for the "SportsPress Announcement" block (spa/announcement).
+ * Editor script for the "Announcer for SportsPress" block (spa/announcement).
  *
  * No build step: written against the global wp.* UMD packages with
  * wp.element.createElement (no JSX), matching this plugin's plain-JS convention.
@@ -55,7 +55,7 @@
 				components.Placeholder,
 				{
 					icon: 'megaphone',
-					label: __( 'SportsPress Announcement', 'announcer-for-sportspress' ),
+					label: __( 'Announcer for SportsPress', 'announcer-for-sportspress' ),
 					instructions: __( 'Choose a league in the block settings to show its recap.', 'announcer-for-sportspress' ),
 				}
 			);
@@ -68,7 +68,7 @@
 
 	blocks.registerBlockType( 'spa/announcement', {
 		apiVersion: 2,
-		title: __( 'SportsPress Announcement', 'announcer-for-sportspress' ),
+		title: __( 'Announcer for SportsPress', 'announcer-for-sportspress' ),
 		description: __( 'Embed a league recap — results, standings, leaders and upcoming games.', 'announcer-for-sportspress' ),
 		icon: 'megaphone',
 		category: 'widgets',

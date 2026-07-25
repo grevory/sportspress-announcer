@@ -42,7 +42,7 @@ No OAuth. No login flow. Paste a webhook URL and it runs itself.
 **Show recaps on your site**
 
 * [spa_announcement] shortcode embeds a league recap in any post or page, showing the latest results and, optionally, upcoming games
-* A matching "SportsPress Announcement" block for the block editor, with a live preview
+* A matching "Announcer for SportsPress" block for the block editor, with a live preview
 
 **Admin tools**
 
@@ -92,7 +92,7 @@ No. The plugin stores a hash of the last announced score and only posts when the
 
 = How do I show a recap on my site? =
 
-Use the `[spa_announcement league="your-league-slug"]` shortcode (optionally with `days="7"`), or add the **SportsPress Announcement** block and pick a league in the block settings.
+Use the `[spa_announcement league="your-league-slug"]` shortcode (optionally with `days="7"`), or add the **Announcer for SportsPress** block and pick a league in the block settings.
 
 = Does the scheduled digest need anything special? =
 
@@ -113,7 +113,7 @@ Schedules use WP-Cron, which runs on site traffic. On low-traffic sites, point a
 * Customizable result and fixtures message templates with placeholders and emoji picker.
 * Upcoming fixtures digest with copy, one-click send, and scheduled auto-send.
 * Weekly Recap digest: results, standings movement, stat leaders, and upcoming games per league, with optional publish-as-post.
-* [spa_announcement] shortcode and SportsPress Announcement block for on-site recaps.
+* [spa_announcement] shortcode and Announcer for SportsPress block for on-site recaps.
 * Dashboard, announcement log with retry, per-team brand colours, and configurable score column.
 
 == Upgrade Notice ==
