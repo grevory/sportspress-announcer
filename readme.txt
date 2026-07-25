@@ -8,7 +8,7 @@ Stable tag: 0.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Automatically posts SportsPress game results to Discord and Slack, with fixture digests, a weekly recap, and shortcode/block embeds.
+Automatically posts SportsPress game results to Discord and Slack, with fixture digests, a weekly recap, and a shortcode/block that shows the latest results and upcoming games right on your site.
 
 == Description ==
 
@@ -41,7 +41,7 @@ No OAuth. No login flow. Paste a webhook URL and it runs itself.
 
 **Show recaps on your site**
 
-* [spa_announcement] shortcode embeds a league recap in any post or page
+* [spa_announcement] shortcode embeds a league recap in any post or page, showing the latest results and, optionally, upcoming games
 * A matching "SportsPress Announcement" block for the block editor, with a live preview
 
 **Admin tools**

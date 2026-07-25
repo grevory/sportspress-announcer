@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Announcer for SportsPress
  * Plugin URI:  https://github.com/grevory/sportspress-announcer
- * Description: Automatically posts game results from SportsPress to Discord and other chat platforms.
+ * Description: Automatically posts game results from SportsPress to Discord and other chat platforms, and shows the latest results and upcoming games on your site via shortcode or block.
  * Version:     0.1.0
  * Author:      Greg Pike
  * Author URI:  https://github.com/grevory
